@@ -11,22 +11,24 @@ import {
   type Quotes,
   type Totals,
 } from "@/lib/analytics";
-import type { PortfolioState } from "@/lib/engine/types";
+import { buildPortfolio } from "@/lib/engine/portfolio";
+import type { AssetClass, PortfolioState } from "@/lib/engine/types";
 import { usePortfolio, useQuotes, type PortfolioData } from "@/lib/store";
+
+type Series = Record<string, [string, number][]>;
 
 interface Ctx {
   data: PortfolioData;
   state: PortfolioState | null;
   quotes: Quotes;
   fx: FxRates;
-  views: PositionView[];
-  totals: Totals | null;
   fetchedAt: number | null;
   loading: boolean;
   error: string | null;
   refresh: () => void;
-  history: HistoryPoint[] | null;
-  priceSeries: Record<string, [string, number][]>;
+  priceSeries: Series;
+  fxSeries: Series;
+  historyReady: boolean;
 }
 
 const PortfolioContext = createContext<Ctx | null>(null);
@@ -39,15 +41,23 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   }, [data.instruments, state]);
 
   const { quotes, fx, fetchedAt, loading, error, refresh } = useQuotes(tickers);
-
-  const views = useMemo(() => (state ? valuePositions(state, data.instruments, quotes, fx) : []), [state, data.instruments, quotes, fx]);
-  const totals = useMemo(() => (state ? computeTotals(views, state) : null), [views, state]);
-
-  const { history, priceSeries } = useHistory(data);
+  const series = useHistorySeries(data);
 
   return (
     <PortfolioContext.Provider
-      value={{ data, state, quotes, fx, views, totals, fetchedAt, loading, error, refresh, history, priceSeries }}
+      value={{
+        data,
+        state,
+        quotes,
+        fx,
+        fetchedAt,
+        loading,
+        error,
+        refresh,
+        priceSeries: series?.prices ?? {},
+        fxSeries: series?.fx ?? {},
+        historyReady: series !== null,
+      }}
     >
       {children}
     </PortfolioContext.Provider>
@@ -60,8 +70,49 @@ export function usePortfolioCtx() {
   return ctx;
 }
 
-function useHistory(data: PortfolioData) {
-  const [series, setSeries] = useState<{ prices: Record<string, [string, number][]>; fx: Record<string, [string, number][]> } | null>(null);
+export interface Filter {
+  account: string | "all";
+  asset: AssetClass | "all";
+}
+
+export const ALL: Filter = { account: "all", asset: "all" };
+
+/**
+ * Vista filtrata per banca e asset class: posizioni, totali e storico.
+ * Il prezzo medio resta calcolato per singolo conto, quindi il filtro è esatto.
+ */
+export function usePortfolioView(filter: Filter = ALL) {
+  const ctx = usePortfolioCtx();
+  const { data, quotes, fx, priceSeries, fxSeries } = ctx;
+
+  const txs = useMemo(() => {
+    const assetOf = new Map(data.instruments.map((i) => [i.isin, i.assetClass]));
+    return data.transactions.filter(
+      (t) => (filter.account === "all" || t.account === filter.account) && (filter.asset === "all" || assetOf.get(t.isin) === filter.asset),
+    );
+  }, [data, filter.account, filter.asset]);
+
+  const state = useMemo(() => {
+    if (filter.account === "all" && filter.asset === "all") return ctx.state;
+    try {
+      return buildPortfolio(txs, data.instruments);
+    } catch {
+      return null;
+    }
+  }, [txs, data.instruments, ctx.state, filter.account, filter.asset]);
+
+  const views: PositionView[] = useMemo(() => (state ? valuePositions(state, data.instruments, quotes, fx) : []), [state, data.instruments, quotes, fx]);
+  const totals: Totals | null = useMemo(() => (state ? computeTotals(views, state) : null), [views, state]);
+  const history: HistoryPoint[] | null = useMemo(
+    () => (ctx.historyReady ? buildHistory(txs, data.instruments, priceSeries, fxSeries) : null),
+    [ctx.historyReady, txs, data.instruments, priceSeries, fxSeries],
+  );
+
+  return { ...ctx, state, views, totals, history };
+}
+
+function useHistorySeries(data: PortfolioData) {
+  const [series, setSeries] = useState<{ prices: Series; fx: Series } | null>(null);
 
   const request = useMemo(() => {
     const first = data.transactions.map((t) => t.date).sort()[0];
@@ -76,7 +127,7 @@ function useHistory(data: PortfolioData) {
     let cancelled = false;
     fetch(request)
       .then((r) => r.json())
-      .then((j: { series: Record<string, [string, number][]>; fx: Record<string, [string, number][]> }) => {
+      .then((j: { series: Series; fx: Series }) => {
         if (!cancelled) setSeries({ prices: j.series, fx: j.fx });
       })
       .catch(() => {});
@@ -85,9 +136,5 @@ function useHistory(data: PortfolioData) {
     };
   }, [request]);
 
-  const history = useMemo(
-    () => (series ? buildHistory(data.transactions, data.instruments, series.prices, series.fx) : null),
-    [series, data],
-  );
-  return { history, priceSeries: series?.prices ?? {} };
+  return series;
 }

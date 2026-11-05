@@ -147,6 +147,8 @@ export interface HistoryPoint {
   date: string;
   value: number;
   invested: number;
+  /** Guadagno totale cumulato: latente + realizzato (lordo) + cedole nette. */
+  gain: number;
 }
 
 /**
@@ -192,6 +194,8 @@ export function buildHistory(
     if (changed || !state) state = buildPortfolio(txs.slice(0, txIdx), instruments);
     let value = 0;
     let invested = 0;
+    const realized = state.realized.reduce((a, r) => a + r.gain, 0);
+    const income = Object.values(state.incomeByYear).reduce((a, b) => a + b, 0);
     for (const p of state.positions) {
       if (p.quantity <= 0) continue;
       const ins = byIsin.get(p.isin)!;
@@ -200,11 +204,40 @@ export function buildHistory(
       value += px !== undefined && rate ? (p.quantity * px) / rate : p.totalCost;
       invested += p.totalCost;
     }
-    out.push({ date, value, invested });
+    out.push({ date, value, invested, gain: value - invested + realized + income });
   }
   return out;
 }
 
 function sum(xs: number[]) {
   return xs.reduce((a, b) => a + b, 0);
+}
+
+export type Period = "oggi" | "1S" | "1M" | "6M" | "1A" | "totale";
+
+export const PERIOD_DAYS: Record<Exclude<Period, "oggi" | "totale">, number> = { "1S": 7, "1M": 31, "6M": 183, "1A": 366 };
+
+export function cutoffDate(days: number) {
+  return new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Variazione di una posizione nel periodo scelto, in EUR e in percentuale.
+ * Se la posizione è stata aperta dopo l'inizio del periodo si usa il prezzo medio.
+ */
+export function positionChange(
+  v: PositionView,
+  period: Period,
+  series: Record<string, [string, number][]>,
+  fx: FxRates,
+): { abs: number; pct: number } {
+  if (period === "oggi") return { abs: v.dayChange, pct: v.dayChangePct };
+  if (period === "totale" || v.price === null) return { abs: v.unrealized, pct: v.unrealizedPct };
+  const from = cutoffDate(PERIOD_DAYS[period]);
+  if (v.position.firstBuy >= from) return { abs: v.unrealized, pct: v.unrealizedPct };
+  const s = series[v.instrument.ticker];
+  const past = s?.filter(([d]) => d <= from).at(-1)?.[1];
+  if (!past) return { abs: v.unrealized, pct: v.unrealizedPct };
+  const rate = v.instrument.currency === "EUR" ? 1 : fx[v.instrument.currency] ?? 1;
+  return { abs: (v.position.quantity * (v.price - past)) / rate, pct: (v.price - past) / past };
 }
