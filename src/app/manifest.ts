@@ -2,13 +2,13 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Portafoglio",
-    short_name: "Portafoglio",
-    description: "Tracker personale degli investimenti con prezzo medio di carico.",
+    name: "Basis",
+    short_name: "Basis",
+    description: "I tuoi investimenti su Fineco, Isybank e Revolut, con il prezzo medio di carico all'italiana.",
     start_url: "/",
     display: "standalone",
-    background_color: "#06080c",
-    theme_color: "#06080c",
+    background_color: "#000000",
+    theme_color: "#000000",
     lang: "it",
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },

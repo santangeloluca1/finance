@@ -6,6 +6,7 @@ import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BackLink, LargeTitle, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { resetToDemo, setData, type PortfolioData } from "@/lib/store";
 import { useTheme, type ThemePref } from "@/lib/theme";
+import { BasisMark } from "@/components/BasisMark";
 
 export default function Impostazioni() {
   const { data } = usePortfolioCtx();
@@ -17,7 +18,7 @@ export default function Impostazioni() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `portafoglio-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `basis-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -25,7 +26,7 @@ export default function Impostazioni() {
   const importBackup = async (file: File) => {
     try {
       const parsed = JSON.parse(await file.text()) as PortfolioData;
-      if (!Array.isArray(parsed.transactions) || !Array.isArray(parsed.instruments) || !Array.isArray(parsed.accounts)) throw new Error("il file non è un backup di Portafoglio");
+      if (!Array.isArray(parsed.transactions) || !Array.isArray(parsed.instruments) || !Array.isArray(parsed.accounts)) throw new Error("il file non è un backup di Basis");
       setData({ ...parsed, isDemo: false });
       setMsg(`Ripristinate ${parsed.transactions.length} operazioni.`);
     } catch (e) {
@@ -74,6 +75,14 @@ export default function Impostazioni() {
       <input ref={fileRef} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importBackup(e.target.files[0])} />
       {msg && <p className="px-8 pt-2 text-[13px] text-mut">{msg}</p>}
       <p className="px-8 pt-2 text-[13px] leading-snug text-mut">I dati restano su questo dispositivo. La sincronizzazione tra dispositivi arriverà in seguito.</p>
+
+      <div className="flex flex-col items-center px-8 pb-2 pt-10 text-center">
+        <span className="overflow-hidden rounded-[15px] shadow-[0_0_0_1px_var(--sep),0_8px_24px_rgb(0_0_0/0.18)]">
+          <BasisMark size={64} />
+        </span>
+        <p className="mt-3 text-[20px] font-semibold tracking-[-0.03em]">Basis</p>
+        <p className="mt-1 text-[13px] leading-snug text-mut">Il prezzo medio di carico, per banca, come lo calcolano le banche italiane.</p>
+      </div>
 
       <SectionHeader>Fonti</SectionHeader>
       <Panel>

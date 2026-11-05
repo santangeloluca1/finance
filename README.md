@@ -1,4 +1,4 @@
-# Portafoglio
+# Basis
 
 Tracker personale degli investimenti (Fineco, Isybank, Revolut) pensato per l'iPhone
 e per il **fisco italiano**: prezzo medio di carico ponderato, zainetto fiscale,

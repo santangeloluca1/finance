@@ -8,9 +8,9 @@ import { BOOT_SCRIPT } from "@/lib/boot";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Portafoglio",
-  description: "Il tuo portafoglio Fineco, Isybank e Revolut in un unico posto, con il prezzo medio all'italiana.",
-  appleWebApp: { capable: true, title: "Portafoglio", statusBarStyle: "default" },
+  title: "Basis",
+  description: "I tuoi investimenti su Fineco, Isybank e Revolut, con il prezzo medio di carico all'italiana.",
+  appleWebApp: { capable: true, title: "Basis", statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
 
