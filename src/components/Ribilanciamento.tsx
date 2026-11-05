@@ -61,64 +61,64 @@ export function Ribilanciamento({ views, targets, monthly }: { views: PositionVi
         {classes.map((k) => {
           const cur = total ? current[k] / total : 0;
           return (
-            <div key={k} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0">
-              <BankDot color={ASSET_CLASS_COLOR[k as AssetClass] ?? "#888"} size={10} />
+            <div key={k} className="flex min-h-[56px] items-center gap-3 border-b border-sep px-4 py-2 last:border-0">
+              <BankDot color={ASSET_CLASS_COLOR[k as AssetClass] ?? "#888"} size={9} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[15px] font-medium">{ASSET_CLASS_LABEL[k as AssetClass] ?? k}</p>
-                <p className="num text-[12px] text-mut">ora {Math.round(cur * 100)}%</p>
+                <p className="truncate text-[16px] font-medium">{ASSET_CLASS_LABEL[k as AssetClass] ?? k}</p>
+                <p className="num text-[13px] text-mut">ora {Math.round(cur * 100)}%</p>
               </div>
-              <label className="flex items-center gap-1 rounded-[10px] bg-chip px-2.5 py-1.5">
+              <label className="flex min-h-[44px] items-center gap-0.5">
                 <span className="sr-only">Peso obiettivo {ASSET_CLASS_LABEL[k as AssetClass]}</span>
                 <input
                   inputMode="numeric"
                   value={pcts[k] ?? ""}
                   onChange={(e) => setPcts({ ...pcts, [k]: e.target.value.replace(/[^\d]/g, "").slice(0, 3) })}
-                  className="num w-9 bg-transparent text-right text-[16px] font-semibold outline-none"
+                  className="num w-10 bg-transparent text-right text-[17px] font-semibold text-accent outline-none"
                 />
-                <span className="text-[14px] text-mut">%</span>
+                <span className="text-[17px] font-semibold text-accent">%</span>
               </label>
             </div>
           );
         })}
-        <label className="flex items-center justify-between gap-3 bg-panel-2 px-4 py-3">
-          <span className="text-[15px] text-ink-2">Prossimo versamento</span>
+        <label className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-2">
+          <span className="text-[16px] font-medium">Prossimo versamento</span>
           <span className="flex items-center gap-1">
             <input
               inputMode="decimal"
               value={contribution}
               onChange={(e) => setContribution(e.target.value)}
-              className="num w-24 bg-transparent text-right text-[16px] font-semibold outline-none"
+              className="num w-24 bg-transparent text-right text-[17px] font-semibold text-accent outline-none"
             />
-            <span className="text-[15px] text-mut">€</span>
+            <span className="text-[17px] font-semibold text-accent">€</span>
           </span>
         </label>
       </Panel>
-      {!valid && <p className="px-5 pt-2 text-[13px] text-warn">I pesi devono sommare 100% (ora {sum}%).</p>}
+      {!valid && <p className="px-4 pt-2 text-[14px] text-warn">I pesi devono sommare 100% (ora {sum}%).</p>}
 
       {valid && amount > 0 && (
         <>
-          <p className="px-5 pb-2 pt-5 text-[13px] font-medium text-mut">Come dividere i {fmtEur0(amount)}</p>
-          <Panel>
+          <p className="px-4 pb-1 pt-6 text-[15px] font-medium text-mut">Come dividere i {fmtEur0(amount)}</p>
+          <ul>
             {classes
               .filter((k) => (split[k] ?? 0) >= 1)
               .map((k) => {
                 const v = pick(k);
                 const name = v?.instrument.shortName ?? v?.instrument.name ?? ASSET_CLASS_LABEL[k as AssetClass];
                 return (
-                  <Link key={k} href={v ? `/posizioni/${v.instrument.isin}` : "#"} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0 active:bg-panel-2">
-                    {v ? <Logo isin={v.instrument.isin} name={name} size={36} /> : <BankDot color={ASSET_CLASS_COLOR[k as AssetClass]} size={12} />}
+                  <li key={k}>
+                  <Link href={v ? `/posizioni/${v.instrument.isin}` : "#"} className="flex min-h-[64px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">
+                    {v ? <Logo isin={v.instrument.isin} name={name} size={44} /> : <BankDot color={ASSET_CLASS_COLOR[k as AssetClass]} size={12} />}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-semibold">Compra {name}</p>
-                      <p className="text-[12px] text-mut">{ASSET_CLASS_LABEL[k as AssetClass]}</p>
+                      <p className="truncate text-[17px] font-semibold">Compra {name}</p>
+                      <p className="text-[14px] text-mut">{ASSET_CLASS_LABEL[k as AssetClass]}</p>
                     </div>
-                    <p className="num text-[16px] font-semibold">{fmtEur0(split[k])}</p>
+                    <p className="num text-[17px] font-medium">{fmtEur0(split[k])}</p>
                   </Link>
+                  </li>
                 );
               })}
-          </Panel>
-          <p className="px-5 pt-2 text-[12px] leading-snug text-faint">
-            Ribilanciare comprando invece di vendere non genera plusvalenze, quindi niente tasse. Il titolo suggerito è il più grande che hai già in quella classe.
-          </p>
+          </ul>
+          <p className="px-4 pt-1 text-[13px] leading-snug text-mut">Comprando invece di vendere non paghi tasse.</p>
         </>
       )}
     </>

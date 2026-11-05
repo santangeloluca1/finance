@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Gauge } from "@/components/Gauge";
-import { BankDot, Chip, ChipRow, InfoRow, Logo, Panel, SectionHeader } from "@/components/ui";
+import { BankDot, InfoRow, Panel, SectionHeader, SelectButton } from "@/components/ui";
 import { lookThrough, topCompanies, useCompositions } from "@/lib/xray-client";
 import { isFundLike } from "@/lib/engine/tax";
 import { ASSET_CLASS_COLOR, ASSET_CLASS_LABEL, groupBy, type PositionView, type Slice, type Totals } from "@/lib/analytics";
@@ -84,101 +84,91 @@ export function Analisi({
 
   return (
     <div>
-      <div className="pt-4">
-        <ChipRow>
-          {(
-            [
-              ["asset", "Asset"],
-              ["paese", "Paese"],
-              ["settore", "Settore"],
-              ["banca", "Banca"],
-              ["valuta", "Valuta"],
-              ["titolo", "Titolo"],
-            ] as [By, string][]
-          ).map(([k, label]) => (
-            <Chip key={k} active={by === k} onClick={() => setBy(k)}>
-              {label}
-            </Chip>
-          ))}
-        </ChipRow>
-      </div>
-
-      <div className="pt-9">
-        <Gauge slices={slices} size={300}>
+      <div className="pt-7">
+        <Gauge slices={slices} size={280}>
           <p className="text-[13px] text-mut">Valore del portafoglio</p>
-          <p className="num sensitive text-[30px] font-semibold tracking-[-0.04em]">{fmtEur(totals.value)}</p>
+          <p className="num sensitive text-[28px] font-bold tracking-[-0.035em]">{fmtEur(totals.value)}</p>
         </Gauge>
       </div>
 
-      <Panel className="mt-6">
+      <SectionHeader
+        right={
+          <SelectButton
+            label="Raggruppa per"
+            value={by}
+            onChange={setBy}
+            options={[
+              { value: "asset", label: "Asset class" },
+              { value: "paese", label: "Paese" },
+              { value: "settore", label: "Settore" },
+              { value: "banca", label: "Banca" },
+              { value: "valuta", label: "Valuta" },
+              { value: "titolo", label: "Titolo" },
+            ]}
+          />
+        }
+      >
+        Composizione
+      </SectionHeader>
+      <ul>
         {slices.map((s) => {
           const share = s.value / (totals.value || 1);
           return (
-            <div key={s.key} className="border-b border-sep px-4 py-3 last:border-0">
-              <div className="flex items-center gap-2.5">
-                <BankDot color={s.color} size={10} />
-                <p className="min-w-0 flex-1 truncate text-[15px] font-medium">{s.label}</p>
-                <p className="num text-[15px] font-semibold">{fmtPct(share)}</p>
+            <li key={s.key} className="px-4 py-3">
+              <div className="flex items-baseline gap-2.5">
+                <BankDot color={s.color} size={9} />
+                <p className="min-w-0 flex-1 truncate text-[17px] font-medium">{s.label}</p>
+                <p className="num sensitive text-[15px] text-mut">{fmtEur0(s.value)}</p>
+                <p className="num w-[62px] text-right text-[17px] font-semibold">{fmtPct(share)}</p>
               </div>
-              <div className="mt-2 flex items-center gap-3 pl-[22px]">
-                <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-chip">
-                  <div className="h-full rounded-full" style={{ width: `${share * 100}%`, background: s.color }} />
-                </div>
-                <p className="num sensitive w-24 text-right text-[13px] text-mut">{fmtEur(s.value)}</p>
+              <div className="ml-[19px] mt-2 h-1 overflow-hidden rounded-full bg-chip">
+                <div className="h-full rounded-full" style={{ width: `${share * 100}%`, background: s.color }} />
               </div>
-            </div>
+            </li>
           );
         })}
-      </Panel>
+      </ul>
 
       {(by === "paese" || by === "settore") && (
-        <p className="px-5 pt-2 text-[12px] leading-snug text-faint">
-          {xrayLoading ? "Lettura della composizione degli ETF…" : "Esposizione reale dentro gli ETF, dai principali paesi e settori pubblicati da justETF; il resto è in \"Altri\"."}
+        <p className="px-4 pt-1 text-[13px] leading-snug text-mut">
+          {xrayLoading ? "Lettura della composizione degli ETF…" : "Esposizione dentro gli ETF, dati justETF."}
         </p>
       )}
 
       {companies.length > 0 && (
         <>
           <SectionHeader>Prime aziende</SectionHeader>
-          <Panel>
-            {companies.map((c, i) => (
-              <div key={c.name} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0">
-                <span className="num w-5 shrink-0 text-center text-[13px] font-semibold text-faint">{i + 1}</span>
+          <ul>
+            {companies.map((c) => (
+              <li key={c.name} className="flex min-h-[60px] items-center gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold">{c.name}</p>
-                  <p className="truncate text-[12px] text-mut">{c.via.map((v) => (v === "diretta" ? "azione diretta" : v)).join(" · ")}</p>
+                  <p className="truncate text-[17px] font-semibold">{c.name}</p>
+                  <p className="truncate text-[14px] text-mut">{c.via.map((v) => (v === "diretta" ? "Azione diretta" : v)).join(" · ")}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="num text-[15px] font-semibold">{fmtPct(c.value / (totals.value || 1))}</p>
-                  <p className="num sensitive text-[12px] text-mut">{fmtEur0(c.value)}</p>
+                  <p className="num text-[17px] font-medium">{fmtPct(c.value / (totals.value || 1))}</p>
+                  <p className="num sensitive text-[14px] text-mut">{fmtEur0(c.value)}</p>
                 </div>
-              </div>
+              </li>
             ))}
-          </Panel>
-          <p className="px-5 pt-2 text-[12px] leading-snug text-faint">
-            Somma delle prime 10 partecipazioni di ogni ETF più le azioni che possiedi direttamente. Un&apos;azione presente in più ETF compare una volta sola.
-          </p>
+          </ul>
+          <p className="px-4 pt-1 text-[13px] leading-snug text-mut">Prime 10 partecipazioni di ogni ETF più le azioni dirette.</p>
         </>
       )}
 
       <SectionHeader>Rendimento per banca</SectionHeader>
-      <Panel>
+      <ul>
         {banks.map(({ a, value, pct }) => (
-          <div key={a.id} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0">
-            <span
-              className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] text-[15px] font-bold"
-              style={{ background: `color-mix(in srgb, ${a.color} 16%, transparent)`, color: a.color }}
-            >
-              {a.name[0]}
-            </span>
+          <li key={a.id} className="flex min-h-[60px] items-center gap-3 px-4 py-2.5">
+            <BankDot color={a.color} size={9} />
             <div className="flex-1">
-              <p className="text-[15px] font-semibold">{a.name}</p>
-              <p className="num sensitive text-[13px] text-mut">{fmtEur(value)}</p>
+              <p className="text-[17px] font-semibold">{a.name}</p>
+              <p className="num sensitive text-[14px] text-mut">{fmtEur(value)}</p>
             </div>
-            <p className={`num text-[16px] font-semibold ${pct >= 0 ? "text-up" : "text-dn"}`}>{fmtSignedPct(pct)}</p>
-          </div>
+            <p className={`num text-[17px] font-medium ${pct > 0.00005 ? "text-up" : pct < -0.00005 ? "text-dn" : "text-mut"}`}>{fmtSignedPct(pct)}</p>
+          </li>
         ))}
-      </Panel>
+      </ul>
 
       <SectionHeader>Costi annui</SectionHeader>
       <Panel>

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { buildRows } from "@/components/PositionList";
 import { InfoRow, Logo, Panel, SectionHeader, SelectButton } from "@/components/ui";
+import { BigAmount } from "@/components/BigAmount";
 import { cutoffDate, type FxRates, type HistoryPoint, type Period, type PositionView, type Totals } from "@/lib/analytics";
 import type { Account, PortfolioState, Transaction } from "@/lib/engine/types";
 import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
@@ -45,6 +46,7 @@ export function Prestazioni({
   accounts: Account[];
 }) {
   const [range, setRange] = useState<Range>("1A");
+  const [openMonth, setOpenMonth] = useState<string | null>(null);
   const [bench, setBench] = useState<Bench>("SWDA.MI");
   const [benchSeries, setBenchSeries] = useState<[string, number][] | null>(null);
 
@@ -96,6 +98,7 @@ export function Prestazioni({
   }, [benchSeries, twr]);
 
   const total = twr.at(-1)?.value ?? 0;
+  const gain = series.length ? series[series.length - 1].gain - series[0].gain : 0;
   const benchTotal = compare?.at(-1) ?? null;
   const days = start ? (Date.now() - Date.parse(start)) / 86400_000 : 0;
   const annual = annualize(total, days);
@@ -119,12 +122,20 @@ export function Prestazioni({
 
   return (
     <div>
-      {/* Rendimento del periodo: la cifra che conta, poi il confronto */}
-      <div className="px-4 pt-6">
-        <p className="text-[14px] text-mut">Rendimento ponderato nel tempo</p>
-        <p className={`hero-number num mt-1 ${tone(total)}`}>{fmtSignedPct(total)}</p>
-        {annual !== null && <p className="num mt-1 text-[14px] text-mut">{fmtSignedPct(annual)} all&apos;anno</p>}
+      {/* Patrimonio e rendimento del periodo, come in Panoramica */}
+      <div className="flex items-end justify-between gap-3 px-4 pt-6">
+        <div className="min-w-0">
+          <p className="text-[14px] text-mut">Valore del portafoglio</p>
+          <BigAmount value={totals.value} className="mt-1" />
+        </div>
+        <div className={`num sensitive shrink-0 pb-1 text-right ${tone(total)}`}>
+          <p className="text-[17px] font-semibold">{fmtSignedPct(total)}</p>
+          <p className="text-[15px] font-medium">{fmtSignedEur(gain)}</p>
+        </div>
       </div>
+      <p className="num mt-2 px-4 text-[14px] text-mut">
+        Rendimento ponderato nel tempo{annual !== null ? ` · ${fmtSignedPct(annual)} all'anno` : ""}
+      </p>
       <div role="group" aria-label="Periodo" className="mt-4 grid grid-cols-4 gap-1 px-3">
         {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
           <button
@@ -191,26 +202,36 @@ export function Prestazioni({
           ))}
           <span className="pb-1 text-right text-[11px] font-semibold text-mut">Anno</span>
           {years.map((y) => (
-            <YearRow key={y} year={y} months={months} />
+            <YearRow key={y} year={y} months={months} open={openMonth} setOpen={setOpenMonth} />
           ))}
         </div>
-        <p className="mt-2 px-1 text-[11px] text-mut">Tocca un mese per il valore preciso.</p>
+        <p className="num mt-2.5 h-4 px-1 text-[13px] text-mut">
+          {openMonth && months[openMonth] !== undefined ? (
+            <>
+              {MONTH_NAMES[Number(openMonth.slice(5)) - 1]} {openMonth.slice(0, 4)}:{" "}
+              <span className={`font-semibold ${tone(months[openMonth])}`}>{fmtSignedPct(months[openMonth])}</span>
+            </>
+          ) : (
+            "Tocca un mese per il valore esatto"
+          )}
+        </p>
       </Panel>
 
       {/* Contributo di ogni titolo */}
       <SectionHeader right={<span className="text-[13px] text-mut">{range === "MAX" ? "dall'acquisto" : range === "YTD" ? "6 mesi" : "1 anno"}</span>}>
         Chi ha contribuito
       </SectionHeader>
-      <Panel>
+      <ul>
         {contributions.map((c) => (
-          <Link key={c.key} href={`/posizioni/${c.instrument.isin}`} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0 active:bg-panel-2">
-            <Logo isin={c.instrument.isin} name={c.instrument.shortName ?? c.instrument.name} size={34} />
+          <li key={c.key}>
+          <Link href={`/posizioni/${c.instrument.isin}`} className="flex min-h-[64px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">
+            <Logo isin={c.instrument.isin} name={c.instrument.shortName ?? c.instrument.name} size={40} />
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
-                <p className="truncate text-[15px] font-semibold">{c.instrument.shortName ?? c.instrument.name}</p>
-                <p className={`num sensitive shrink-0 text-[14px] font-semibold ${c.change.abs >= 0 ? "text-up" : "text-dn"}`}>{fmtSignedEur(c.change.abs)}</p>
+                <p className="truncate text-[17px] font-semibold">{c.instrument.shortName ?? c.instrument.name}</p>
+                <p className={`num sensitive shrink-0 text-[17px] font-medium ${c.change.abs > 0.005 ? "text-up" : c.change.abs < -0.005 ? "text-dn" : "text-mut"}`}>{fmtSignedEur(c.change.abs)}</p>
               </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-chip">
+              <div className="mt-2 h-1 overflow-hidden rounded-full">
                 <div
                   className={`h-full rounded-full ${c.change.abs >= 0 ? "bg-up" : "bg-dn"}`}
                   style={{ width: `${(Math.abs(c.change.abs) / maxAbs) * 100}%` }}
@@ -218,8 +239,9 @@ export function Prestazioni({
               </div>
             </div>
           </Link>
+          </li>
         ))}
-      </Panel>
+      </ul>
     </div>
   );
 }
@@ -228,8 +250,15 @@ function tone(n: number) {
   return n > 0.0001 ? "text-up" : n < -0.0001 ? "text-dn" : "";
 }
 
-function YearRow({ year, months }: { year: string; months: Record<string, number> }) {
-  const [open, setOpen] = useState<string | null>(null);
+/** Valore nella cella: il colore dice il segno, il numero la misura. */
+function cell(v: number) {
+  const n = Math.abs(v * 100);
+  return n.toLocaleString("it-IT", { maximumFractionDigits: n >= 10 ? 0 : 1, minimumFractionDigits: n >= 10 ? 0 : 1 });
+}
+
+const MONTH_NAMES = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
+
+function YearRow({ year, months, open, setOpen }: { year: string; months: Record<string, number>; open: string | null; setOpen: (k: string | null) => void }) {
   return (
     <>
       <span className="num self-center text-left text-[11px] font-semibold text-mut">{year}</span>
@@ -242,14 +271,14 @@ function YearRow({ year, months }: { year: string; months: Record<string, number
             key={key}
             onClick={() => setOpen(open === key ? null : key)}
             aria-label={v === undefined ? `${key}: nessun dato` : `${key}: ${fmtSignedPct(v)}`}
-            className="num flex h-8 items-center justify-center rounded-[6px] text-[11px] font-semibold"
+            className={`num flex h-8 items-center justify-center rounded-[6px] text-[11px] font-semibold tracking-[-0.03em] ${open === key ? "ring-2 ring-ink" : ""}`}
             style={{
               background:
                 v === undefined ? "var(--chip)" : `color-mix(in srgb, ${v >= 0 ? "var(--up)" : "var(--dn)"} ${15 + strength * 65}%, transparent)`,
               color: v === undefined ? "transparent" : strength > 0.55 ? "var(--bg)" : "var(--ink)",
             }}
           >
-            {v === undefined ? "" : open === key ? fmtSignedPct(v).replace("%", "") : `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(1).replace(".", ",")}`}
+            {v === undefined ? "" : cell(v)}
           </button>
         );
       })}

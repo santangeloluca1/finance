@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BankDot, Chip, ChipRow, Logo, Panel, SectionHeader } from "@/components/ui";
+import { BankDot, Chip, ChipRow, Logo, SectionHeader } from "@/components/ui";
 import { BigAmount } from "@/components/BigAmount";
 import { dividendsForYear, trailingDividends } from "@/lib/dividends";
 import type { PositionView } from "@/lib/analytics";
@@ -107,59 +107,55 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
       {perTitle.length > 0 && (
         <>
           <SectionHeader right={<span className="text-[13px] text-mut">ultimi 12 mesi</span>}>Per titolo</SectionHeader>
-          <Panel>
+          <ul>
             {perTitle.map((d) => {
               const ins = instruments.get(d.isin);
               const name = ins?.shortName ?? ins?.name ?? d.isin;
               return (
-                <div key={d.isin} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0">
-                  <Logo isin={d.isin} name={name} size={38} />
+                <li key={d.isin} className="flex min-h-[64px] items-center gap-3.5 px-4 py-2.5">
+                  <Logo isin={d.isin} name={name} size={44} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-semibold">{name}</p>
-                    <p className="num text-[12px] text-mut">
+                    <p className="truncate text-[17px] font-semibold">{name}</p>
+                    <p className="num mt-0.5 truncate text-[14px] text-mut">
                       {d.payments} {d.payments === 1 ? "pagamento" : "pagamenti"}
-                      {d.value > 0 && ` · rend. ${pct(d.yieldNow)} · sul costo ${pct(d.yieldCost)}`}
+                      {d.value > 0 && ` · ${pct(d.yieldNow)} sul valore`}
                     </p>
                   </div>
-                  <p className="num sensitive shrink-0 text-[15px] font-semibold text-up">+{fmtEur(d.trailing)}</p>
-                </div>
+                  <p className="num sensitive shrink-0 text-[17px] font-medium text-up">+{fmtEur(d.trailing)}</p>
+                </li>
               );
             })}
-          </Panel>
+          </ul>
         </>
       )}
 
       <SectionHeader>Calendario</SectionHeader>
-      <Panel>
-        {events.length === 0 && <p className="px-4 py-6 text-center text-[15px] text-mut">Nessuna cedola o dividendo nel {year}.</p>}
+      <ul>
+        {events.length === 0 && <li className="px-4 py-6 text-center text-[15px] text-mut">Nessuna cedola o dividendo nel {year}.</li>}
         {[...events].reverse().map((e, i) => {
           const ins = instruments.get(e.isin);
           const name = ins?.shortName ?? ins?.name ?? e.isin;
           return (
-            <div key={i} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0">
-              <div className="w-11 text-center">
-                <p className={`text-[11px] font-semibold uppercase ${e.forecast ? "text-accent" : "text-mut"}`}>
-                  {new Date(`${e.date}T12:00:00`).toLocaleDateString("it-IT", { month: "short" }).replace(".", "")}
-                </p>
-                <p className="num text-[20px] font-semibold leading-tight tracking-[-0.02em]">{Number(e.date.slice(8, 10))}</p>
-              </div>
-              <Logo isin={e.isin} name={name} size={38} />
+            <li key={i} className="flex min-h-[64px] items-center gap-3.5 px-4 py-2.5">
+              <span className={`num w-[42px] shrink-0 text-[15px] ${e.forecast ? "text-accent" : "text-mut"}`}>
+                {e.date.slice(8, 10)}.{e.date.slice(5, 7)}
+              </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[16px] font-semibold tracking-[-0.01em]">{name}</p>
-                <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-mut">
+                <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">{name}</p>
+                <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
                   <BankDot color={accounts.get(e.account)?.color ?? "#888"} size={7} />
                   {accounts.get(e.account)?.name}
                   {year === "tutti" ? ` · ${e.date.slice(0, 4)}` : ""}
                 </p>
               </div>
               <div className="text-right">
-                <p className={`num sensitive text-[16px] font-semibold ${e.forecast ? "text-mut" : "text-up"}`}>+{fmtEur(e.amount)}</p>
-                <p className="text-[12px] text-mut">{e.forecast ? "previsto" : "netto"}</p>
+                <p className={`num sensitive text-[17px] font-medium ${e.forecast ? "text-mut" : "text-up"}`}>+{fmtEur(e.amount)}</p>
+                <p className="text-[14px] text-mut">{e.forecast ? "Previsto" : "Netto"}</p>
               </div>
-            </div>
+            </li>
           );
         })}
-      </Panel>
+      </ul>
     </div>
   );
 }

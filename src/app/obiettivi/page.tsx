@@ -5,7 +5,7 @@ import { Check, Plus, Trash2 } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { Ribilanciamento } from "@/components/Ribilanciamento";
-import { BankDot, Chip, ChipRow, LargeTitle, Panel, SectionHeader, Segmented } from "@/components/ui";
+import { Chip, InfoRow, LargeTitle, Panel, SectionHeader, Segmented, SelectButton } from "@/components/ui";
 import { fmtDate, fmtEur0 } from "@/lib/format";
 import { futureValue, monthsUntil, requiredMonthly } from "@/lib/planning";
 import { deleteGoal, newId, saveGoal, savePlan, type Goal, type Plan } from "@/lib/store";
@@ -73,7 +73,7 @@ export default function Obiettivi() {
         </div>
       )}
 
-      <div className="space-y-3">
+      <ul className={editing ? "hidden" : ""}>
         {goals.map((g) => {
           const current = scopeValue(g.scope);
           const progress = g.target > 0 ? Math.min(1, current / g.target) : 0;
@@ -82,44 +82,43 @@ export default function Obiettivi() {
           const done = current >= g.target;
           const scopeLabel = g.scope === "tutto" ? "Tutto il patrimonio" : g.scope === "liquidita" ? "Liquidità" : data.accounts.find((a) => a.id === g.scope)?.name ?? g.scope;
           return (
-            <button key={g.id} onClick={() => setEditing(g)} className="block w-full text-left active:opacity-80">
-              <Panel className="p-4">
+            <li key={g.id}>
+            <button onClick={() => setEditing(g)} className="block w-full px-4 py-3.5 text-left active:bg-panel-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-[17px] font-semibold tracking-[-0.02em]">{g.name}</p>
-                    <p className="mt-0.5 text-[13px] text-mut">
+                    <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">{g.name}</p>
+                    <p className="mt-0.5 text-[14px] text-mut">
                       {scopeLabel} · entro {fmtDate(g.date, { month: "short", year: "numeric" })}
                     </p>
                   </div>
-                  <p className={`num shrink-0 text-[15px] font-semibold ${done ? "text-up" : "text-ink-2"}`}>{Math.round(progress * 100)}%</p>
+                  <div className="num shrink-0 text-right">
+                    <p className="sensitive text-[17px] font-medium">{fmtEur0(current)}</p>
+                    <p className="text-[14px] text-mut">di {fmtEur0(g.target)}</p>
+                  </div>
                 </div>
-                <p className="num mt-3 text-[22px] font-semibold tracking-[-0.03em]">
-                  <span className="sensitive">{fmtEur0(current)}</span> <span className="text-[15px] font-medium text-mut">di {fmtEur0(g.target)}</span>
-                </p>
-                <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-chip">
+                <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-chip">
                   <div className={`h-full rounded-full ${done ? "bg-up" : "bg-accent"}`} style={{ width: `${Math.max(2, progress * 100)}%` }} />
                 </div>
-                <p className="mt-2.5 text-[13px] leading-snug text-mut">
+                <p className="mt-2 text-[14px] leading-snug text-mut">
                   {done ? (
                     <span className="font-semibold text-up">Obiettivo raggiunto.</span>
                   ) : months === 0 ? (
                     "La scadenza è arrivata: sposta la data o rivedi l'importo."
                   ) : (
                     <>
-                      Versa <b className="num text-ink">{fmtEur0(need)}</b> al mese per arrivarci, con un rendimento del{" "}
-                      {(plan.expectedReturn * 100).toLocaleString("it-IT")}% annuo.
+                      {Math.round(progress * 100)}% · versa <b className="num font-semibold text-ink">{fmtEur0(need)}</b> al mese per arrivarci
                     </>
                   )}
                 </p>
-              </Panel>
             </button>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
-      {totals && <Ribilanciamento views={views} targets={data.targets} monthly={plan.monthly} />}
+      {!editing && totals && <Ribilanciamento views={views} targets={data.targets} monthly={plan.monthly} />}
 
-      {totals && <Pianificazione start={totals.value} plan={plan} />}
+      {!editing && totals && <Pianificazione start={totals.value} plan={plan} />}
     </div>
   );
 }
@@ -144,23 +143,21 @@ function GoalForm({ initial, accounts, isNew, onDone }: { initial: Goal; account
         <Field label="Entro il">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
         </Field>
+        <div className="flex min-h-[56px] items-center justify-between gap-3 px-4">
+          <span className="text-[16px]">Cosa conta</span>
+          <SelectButton
+            label="Cosa conta per l'obiettivo"
+            value={scope}
+            onChange={setScope}
+            options={[
+              { value: "tutto", label: "Tutto il patrimonio" },
+              { value: "liquidita", label: "Solo liquidità" },
+              ...accounts.map((a) => ({ value: a.id, label: a.name })),
+            ]}
+          />
+        </div>
       </Panel>
-      <p className="px-5 pb-2 pt-4 text-[13px] font-medium text-mut">Cosa conta per l&apos;obiettivo</p>
-      <ChipRow>
-        <Chip active={scope === "tutto"} onClick={() => setScope("tutto")}>
-          Tutto
-        </Chip>
-        <Chip active={scope === "liquidita"} onClick={() => setScope("liquidita")}>
-          Liquidità
-        </Chip>
-        {accounts.map((a) => (
-          <Chip key={a.id} active={scope === a.id} onClick={() => setScope(a.id)}>
-            <BankDot color={a.color} />
-            {a.name}
-          </Chip>
-        ))}
-      </ChipRow>
-      <div className="flex gap-2 px-4 pt-4">
+      <div className="flex gap-2 px-4 pt-5">
         <button onClick={onDone} className="h-[50px] flex-1 rounded-[16px] bg-chip text-[16px] font-semibold text-ink-2 active:opacity-70">
           Annulla
         </button>
@@ -183,7 +180,7 @@ function GoalForm({ initial, accounts, isNew, onDone }: { initial: Goal; account
               onDone();
             }
           }}
-          className="mx-auto mt-2 flex items-center gap-2 px-4 py-2 text-[15px] font-semibold text-dn"
+          className="mx-auto mt-2 flex min-h-[44px] items-center gap-2 px-4 text-[15px] font-semibold text-dn"
         >
           <Trash2 size={16} /> Elimina obiettivo
         </button>
@@ -225,7 +222,38 @@ function Pianificazione({ start, plan }: { start: number; plan: Plan }) {
   return (
     <>
       <SectionHeader>Pianificazione</SectionHeader>
-      <Panel>
+      <div className="px-4 pt-1">
+        <p className="text-[14px] text-mut">
+          Tra {years} anni, nel {new Date().getFullYear() + years}
+        </p>
+        <p className="hero-number num mt-1">{fmtEur0(end)}</p>
+        <p className="mt-2 text-[14px] text-mut">
+          di cui <span className="num font-semibold text-ink-2">{fmtEur0(paid)}</span> versati e{" "}
+          <span className="num font-semibold text-up">{fmtEur0(end - paid)}</span> di crescita
+        </p>
+      </div>
+
+      <div className="mt-6 pl-4 pr-3">
+        <InteractiveChart
+          points={points}
+          height={220}
+          compare={contributed}
+          format={fmtEur0}
+          formatAxis={(v) => (v >= 1_000_000 ? `${(v / 1_000_000).toLocaleString("it-IT", { maximumFractionDigits: 1 })}M €` : `${Math.round(v / 1000)}k €`)}
+          describePoint={(i) => `${fmtEur0(points[i].value)} · versati ${fmtEur0(contributed[i])}`}
+          describeRange={(a, b) => `+${fmtEur0(points[b].value - points[a].value)}`}
+        />
+      </div>
+      <p className="flex items-center gap-4 px-4 pt-3 text-[13px] text-mut">
+        <span className="flex items-center gap-1.5">
+          <span className="h-0.5 w-4 rounded bg-up" /> Valore atteso
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-4 border-t-2 border-dashed border-accent" /> Versato
+        </span>
+      </p>
+
+      <Panel className="mt-6">
         <Field label="Versamento mensile (€)">
           <input inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="500" className={inputCls} />
         </Field>
@@ -244,54 +272,14 @@ function Pianificazione({ start, plan }: { start: number; plan: Plan }) {
         </div>
       </Panel>
 
-      <div className="px-4 pt-6">
-        <p className="text-[14px] font-medium text-mut">
-          Tra {years} anni, nel {new Date().getFullYear() + years}
-        </p>
-        <p className="num mt-1 text-[40px] font-semibold leading-none tracking-[-0.045em]">{fmtEur0(end)}</p>
-        <p className="mt-2 text-[14px] text-mut">
-          di cui <span className="num font-semibold text-ink-2">{fmtEur0(paid)}</span> versati e{" "}
-          <span className="num font-semibold text-up">{fmtEur0(end - paid)}</span> di crescita
-        </p>
-      </div>
-
-      <div className="mt-6 px-4">
-        <InteractiveChart
-          points={points}
-          height={220}
-          compare={contributed}
-          format={fmtEur0}
-          formatAxis={(v) => (v >= 1_000_000 ? `${(v / 1_000_000).toLocaleString("it-IT", { maximumFractionDigits: 1 })}M €` : `${Math.round(v / 1000)}k €`)}
-          describePoint={(i) => `${fmtEur0(points[i].value)} · versati ${fmtEur0(contributed[i])}`}
-          describeRange={(a, b) => `+${fmtEur0(points[b].value - points[a].value)}`}
-        />
-      </div>
-      <p className="flex items-center gap-3 px-5 pt-3 text-[12px] text-mut">
-        <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-4 rounded bg-up" /> Valore atteso
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-4 border-t-2 border-dashed border-accent" /> Versato
-        </span>
-      </p>
-
-      <div className="mt-5 grid grid-cols-2 gap-2.5 px-4">
-        <Scenario label={`Scenario prudente (${((Math.max(0, rate - 0.02)) * 100).toLocaleString("it-IT")}%)`} value={fmtEur0(low)} />
-        <Scenario label={`Scenario ottimista (${((rate + 0.02) * 100).toLocaleString("it-IT")}%)`} value={fmtEur0(high)} />
-      </div>
+      <Panel className="mt-3">
+        <InfoRow label={`Se rende il ${(Math.max(0, rate - 0.02) * 100).toLocaleString("it-IT")}%`} hint="Scenario prudente" value={fmtEur0(low)} />
+        <InfoRow label={`Se rende il ${((rate + 0.02) * 100).toLocaleString("it-IT")}%`} hint="Scenario ottimista" value={fmtEur0(high)} />
+      </Panel>
       <p className="px-6 pb-2 pt-4 text-center text-[12px] leading-relaxed text-mut">
         Proiezione al lordo di tasse e inflazione, a rendimento costante.
       </p>
     </>
-  );
-}
-
-function Scenario({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[16px] bg-panel p-3.5">
-      <p className="text-[12px] leading-snug text-mut">{label}</p>
-      <p className="num mt-2 text-[19px] font-semibold tracking-[-0.03em]">{value}</p>
-    </div>
   );
 }
 
