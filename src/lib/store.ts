@@ -20,6 +20,7 @@ export interface PortfolioData {
 }
 
 const DATA_KEY = "portafoglio:data:v1";
+const SYNC_KEY = "portafoglio:sync:v1";
 const QUOTES_KEY = "portafoglio:quotes:v1";
 export const REFRESH_MS = 5 * 60_000;
 
@@ -56,14 +57,54 @@ function getData(): PortfolioData {
   return current;
 }
 
-export function setData(next: PortfolioData) {
+export function getCurrentData(): PortfolioData {
+  return getData();
+}
+
+/** Stato della sincronizzazione locale: versione del server di partenza e modifiche non inviate. */
+export interface SyncMeta {
+  updatedAt: string | null;
+  dirty: boolean;
+}
+
+export function getSyncMeta(): SyncMeta {
+  return (typeof window !== "undefined" && read<SyncMeta>(SYNC_KEY)) || { updatedAt: null, dirty: false };
+}
+
+export function setSyncMeta(meta: SyncMeta) {
+  write(SYNC_KEY, meta);
+}
+
+/**
+ * Aggiorna i dati. Le modifiche dell'utente (non quelle arrivate dal server)
+ * vengono segnate come da inviare; il portafoglio di esempio non si sincronizza mai.
+ */
+export function setData(next: PortfolioData, opts: { fromServer?: boolean } = {}) {
   current = next;
   write(DATA_KEY, next);
+  if (!opts.fromServer && !next.isDemo) setSyncMeta({ ...getSyncMeta(), dirty: true });
   listeners.forEach((l) => l());
 }
 
 export function resetToDemo() {
-  setData(DEMO);
+  current = DEMO;
+  write(DATA_KEY, DEMO);
+  listeners.forEach((l) => l());
+}
+
+/** Cancella i dati dal dispositivo (all'uscita dall'account). */
+export function clearLocalData() {
+  try {
+    localStorage.removeItem(DATA_KEY);
+    localStorage.removeItem(SYNC_KEY);
+    localStorage.removeItem("portafoglio:quotes:v1");
+  } catch {}
+  current = DEMO;
+  listeners.forEach((l) => l());
+}
+
+export function subscribeData(cb: () => void) {
+  return subscribe(cb);
 }
 
 function subscribe(cb: () => void) {

@@ -2,7 +2,7 @@ import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { getMigrations } from "better-auth/db/migration";
 import { APIError } from "better-auth/api";
-import { Pool } from "pg";
+import { pool } from "./db";
 
 /**
  * Account e sessioni con Better Auth su Postgres (Neon via Vercel).
@@ -11,11 +11,6 @@ import { Pool } from "pg";
  * quelle email possono registrarsi; altrimenti solo il primo account.
  */
 
-const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
-
-const pool = connectionString
-  ? new Pool({ connectionString, max: 3, ssl: connectionString.includes("localhost") ? undefined : { rejectUnauthorized: false } })
-  : undefined;
 
 const baseURL =
   process.env.BETTER_AUTH_URL ??

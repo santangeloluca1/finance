@@ -15,6 +15,7 @@ import { buildPortfolio } from "@/lib/engine/portfolio";
 import type { AssetClass, PortfolioState } from "@/lib/engine/types";
 import { usePortfolio, useQuotes, type PortfolioData } from "@/lib/store";
 import { usePathname } from "next/navigation";
+import { useCloudSync } from "@/lib/sync";
 
 type Series = Record<string, [string, number][]>;
 
@@ -37,6 +38,7 @@ const PortfolioContext = createContext<Ctx | null>(null);
 export function PortfolioProvider({ children }: { children: ReactNode }) {
   const { data, state } = usePortfolio();
   const onLogin = usePathname().startsWith("/accedi");
+  useCloudSync(!onLogin);
   const tickers = useMemo(() => {
     if (onLogin) return [];
     const open = new Set(state?.positions.filter((p) => p.quantity > 0).map((p) => p.isin));

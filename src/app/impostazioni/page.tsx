@@ -5,7 +5,9 @@ import { Download, LogOut, RotateCcw, Upload } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BackLink, LargeTitle, Panel, SectionHeader, Segmented } from "@/components/ui";
-import { resetToDemo, setData, type PortfolioData } from "@/lib/store";
+import { clearLocalData, resetToDemo, setData, type PortfolioData } from "@/lib/store";
+import { useSyncStatus } from "@/lib/sync";
+import { fmtTime } from "@/lib/format";
 import { useTheme, type ThemePref } from "@/lib/theme";
 import { BasisMark } from "@/components/BasisMark";
 
@@ -13,6 +15,7 @@ export default function Impostazioni() {
   const { data } = usePortfolioCtx();
   const [theme, setTheme] = useTheme();
   const { data: session } = authClient.useSession();
+  const sync = useSyncStatus();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -59,6 +62,7 @@ export default function Impostazioni() {
             <button
               onClick={async () => {
                 await authClient.signOut();
+                clearLocalData();
                 window.location.replace("/accedi");
               }}
               className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-[16px] text-dn active:bg-panel-2"
@@ -93,7 +97,7 @@ export default function Impostazioni() {
         </button>
         <button
           onClick={() => {
-            if (confirm("Sostituire i tuoi dati con il portafoglio di esempio? L'operazione non si può annullare senza un backup.")) resetToDemo();
+            if (confirm("Mostrare il portafoglio di esempio su questo dispositivo? I tuoi dati restano salvati nel tuo account e torneranno alla prossima sincronizzazione.")) resetToDemo();
           }}
           className={`${row} text-dn`}
         >
@@ -102,7 +106,24 @@ export default function Impostazioni() {
       </Panel>
       <input ref={fileRef} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importBackup(e.target.files[0])} />
       {msg && <p className="px-8 pt-2 text-[13px] text-mut">{msg}</p>}
-      <p className="px-8 pt-2 text-[13px] leading-snug text-mut">I dati restano su questo dispositivo. La sincronizzazione tra dispositivi arriverà in seguito.</p>
+      <p className="flex items-center gap-2 px-8 pt-2 text-[13px] leading-snug text-mut">
+        <span
+          className={`h-2 w-2 shrink-0 rounded-full ${
+            sync.state === "ok" ? "bg-up" : sync.state === "syncing" ? "animate-pulse bg-accent" : sync.state === "idle" ? "bg-faint" : "bg-warn"
+          }`}
+        />
+        {data.isDemo
+          ? "Stai vedendo l'esempio: i tuoi dati si sincronizzano dal primo movimento che inserisci."
+          : sync.state === "syncing"
+            ? "Sincronizzazione in corso…"
+            : sync.state === "ok"
+              ? `Sincronizzato con il tuo account${sync.at ? ` alle ${fmtTime(sync.at)}` : ""}. I dati sono disponibili su tutti i tuoi dispositivi.`
+              : sync.state === "offline"
+                ? "Sei offline: le modifiche restano sul telefono e verranno inviate appena torni online."
+                : sync.state === "error"
+                  ? "Sincronizzazione non riuscita: riprovo automaticamente. Le modifiche restano sul telefono."
+                  : "In attesa di sincronizzazione."}
+      </p>
 
       <div className="flex flex-col items-center px-8 pb-2 pt-10 text-center">
         <span className="overflow-hidden rounded-[15px] shadow-[0_0_0_1px_var(--sep),0_8px_24px_rgb(0_0_0/0.18)]">
