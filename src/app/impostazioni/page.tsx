@@ -6,7 +6,7 @@ import { authClient } from "@/lib/auth-client";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BackLink, LargeTitle, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { clearLocalData, resetToDemo, setData, type PortfolioData } from "@/lib/store";
-import { useSyncStatus } from "@/lib/sync";
+import { merge, useSyncStatus } from "@/lib/sync";
 import { fmtTime } from "@/lib/format";
 import { useTheme, type ThemePref } from "@/lib/theme";
 import { BasisMark } from "@/components/BasisMark";
@@ -32,10 +32,18 @@ export default function Impostazioni() {
     try {
       const parsed = JSON.parse(await file.text()) as PortfolioData;
       if (!Array.isArray(parsed.transactions) || !Array.isArray(parsed.instruments) || !Array.isArray(parsed.accounts)) throw new Error("il file non è un backup di Basis");
-      setData({ ...parsed, isDemo: false });
-      setMsg(`Ripristinate ${parsed.transactions.length} operazioni.`);
+      // Con dati reali già presenti il file si aggiunge (a parità di id vince il file),
+      // così importare una sola banca non cancella le altre.
+      if (data.isDemo) {
+        setData({ ...parsed, isDemo: false });
+        setMsg(`Importate ${parsed.transactions.length} operazioni.`);
+      } else {
+        const next = merge(parsed, data);
+        setData(next);
+        setMsg(`Importate ${parsed.transactions.length} operazioni (${next.transactions.length - data.transactions.length} nuove), unite a quelle già presenti.`);
+      }
     } catch (e) {
-      setMsg(`Ripristino non riuscito: ${(e as Error).message}. Scegli un file .json esportato da qui.`);
+      setMsg(`Ripristino non riuscito: ${(e as Error).message}. Scegli un file .json di Basis.`);
     }
   };
 
@@ -93,7 +101,7 @@ export default function Impostazioni() {
           <Download size={20} className="text-accent" /> Esporta backup
         </button>
         <button onClick={() => fileRef.current?.click()} className={row}>
-          <Upload size={20} className="text-accent" /> Ripristina da backup
+          <Upload size={20} className="text-accent" /> Importa da file
         </button>
         <button
           onClick={() => {
