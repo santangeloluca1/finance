@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { Gauge } from "@/components/Gauge";
-import { BankDot, Panel, SectionHeader, Segmented } from "@/components/ui";
+import { BankDot, Chip, ChipRow, Logo, Panel, SectionHeader } from "@/components/ui";
+import { lookThrough, topCompanies, useCompositions } from "@/lib/xray-client";
+import { isFundLike } from "@/lib/engine/tax";
 import { ASSET_CLASS_COLOR, ASSET_CLASS_LABEL, groupBy, type PositionView, type Slice, type Totals } from "@/lib/analytics";
 import type { Account } from "@/lib/engine/types";
 import { fmtEur, fmtEur0, fmtPct, fmtSignedPct } from "@/lib/format";
 
-type By = "asset" | "banca" | "valuta" | "titolo";
+type By = "asset" | "banca" | "paese" | "settore" | "valuta" | "titolo";
 const PALETTE = ["#5468ff", "#22b8cf", "#9b6bff", "#2dd4a7", "#f5a524", "#f472b6", "#ff7a45", "#94a3b8"];
 
 export function Analisi({
@@ -24,7 +26,10 @@ export function Analisi({
   const [by, setBy] = useState<By>("asset");
   const byAcc = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
 
-  const slices: Slice[] = useMemo(() => withCash(computeSlices(), by), [views, by, byAcc, cash]);
+  const fundIsins = useMemo(() => views.filter((v) => isFundLike(v.instrument)).map((v) => v.instrument.isin), [views]);
+  const { compositions, loading: xrayLoading } = useCompositions(fundIsins);
+  const slices: Slice[] = useMemo(() => withCash(computeSlices(), by), [views, by, byAcc, cash, compositions]);
+  const companies = useMemo(() => topCompanies(views, compositions).slice(0, 10), [views, compositions]);
 
   function withCash(list: Slice[], mode: By): Slice[] {
     const entries = Object.entries(cash).filter(([, c]) => c.amount > 0);
@@ -49,6 +54,14 @@ export function Analisi({
   }
 
   function computeSlices(): Slice[] {
+    if (by === "paese" || by === "settore") {
+      return lookThrough(views, compositions, by === "paese" ? "countries" : "sectors").map((x, i) => ({
+        key: x.name,
+        label: x.name,
+        value: x.value,
+        color: x.name === "Altri" || x.name === "Non disponibile" ? "#64748b" : PALETTE[i % PALETTE.length],
+      }));
+    }
     if (by === "asset") return groupBy(views, (v) => ({ key: v.instrument.assetClass, label: ASSET_CLASS_LABEL[v.instrument.assetClass], color: ASSET_CLASS_COLOR[v.instrument.assetClass] }));
     if (by === "banca")
       return groupBy(views, (v) => {
@@ -71,17 +84,23 @@ export function Analisi({
 
   return (
     <div>
-      <div className="px-4 pt-2">
-        <Segmented
-          value={by}
-          onChange={setBy}
-          options={[
-            { value: "asset", label: "Asset" },
-            { value: "banca", label: "Banca" },
-            { value: "valuta", label: "Valuta" },
-            { value: "titolo", label: "Titolo" },
-          ]}
-        />
+      <div className="pt-4">
+        <ChipRow>
+          {(
+            [
+              ["asset", "Asset"],
+              ["paese", "Paese"],
+              ["settore", "Settore"],
+              ["banca", "Banca"],
+              ["valuta", "Valuta"],
+              ["titolo", "Titolo"],
+            ] as [By, string][]
+          ).map(([k, label]) => (
+            <Chip key={k} active={by === k} onClick={() => setBy(k)}>
+              {label}
+            </Chip>
+          ))}
+        </ChipRow>
       </div>
 
       <div className="pt-9">
@@ -111,6 +130,36 @@ export function Analisi({
           );
         })}
       </Panel>
+
+      {(by === "paese" || by === "settore") && (
+        <p className="px-5 pt-2 text-[12px] leading-snug text-faint">
+          {xrayLoading ? "Lettura della composizione degli ETF…" : "Esposizione reale dentro gli ETF, dai principali paesi e settori pubblicati da justETF; il resto è in \"Altri\"."}
+        </p>
+      )}
+
+      {companies.length > 0 && (
+        <>
+          <SectionHeader>Prime aziende</SectionHeader>
+          <Panel>
+            {companies.map((c, i) => (
+              <div key={c.name} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0">
+                <span className="num w-5 shrink-0 text-center text-[13px] font-semibold text-faint">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[15px] font-semibold">{c.name}</p>
+                  <p className="truncate text-[12px] text-mut">{c.via.map((v) => (v === "diretta" ? "azione diretta" : v)).join(" · ")}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="num text-[15px] font-semibold">{fmtPct(c.value / (totals.value || 1))}</p>
+                  <p className="num sensitive text-[12px] text-mut">{fmtEur0(c.value)}</p>
+                </div>
+              </div>
+            ))}
+          </Panel>
+          <p className="px-5 pt-2 text-[12px] leading-snug text-faint">
+            Somma delle prime 10 partecipazioni di ogni ETF più le azioni che possiedi direttamente. Un&apos;azione presente in più ETF compare una volta sola.
+          </p>
+        </>
+      )}
 
       <SectionHeader>Rendimento per banca</SectionHeader>
       <Panel>
