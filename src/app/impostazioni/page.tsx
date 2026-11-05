@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, LogOut, RotateCcw, Upload } from "lucide-react";
+import { ClipboardPaste, Download, LogOut, RotateCcw, Upload } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BackLink, LargeTitle, Panel, SectionHeader, Segmented } from "@/components/ui";
@@ -28,9 +28,9 @@ export default function Impostazioni() {
     URL.revokeObjectURL(a.href);
   };
 
-  const importBackup = async (file: File) => {
+  const importText = (text: string) => {
     try {
-      const parsed = JSON.parse(await file.text()) as PortfolioData;
+      const parsed = JSON.parse(text.trim()) as PortfolioData;
       if (!Array.isArray(parsed.transactions) || !Array.isArray(parsed.instruments) || !Array.isArray(parsed.accounts)) throw new Error("il file non è un backup di Basis");
       // Con dati reali già presenti il file si aggiunge (a parità di id vince il file),
       // così importare una sola banca non cancella le altre.
@@ -43,7 +43,17 @@ export default function Impostazioni() {
         setMsg(`Importate ${parsed.transactions.length} operazioni (${next.transactions.length - data.transactions.length} nuove), unite a quelle già presenti.`);
       }
     } catch (e) {
-      setMsg(`Ripristino non riuscito: ${(e as Error).message}. Scegli un file .json di Basis.`);
+      setMsg(`Ripristino non riuscito: ${(e as Error).message}. Usa un file .json di Basis.`);
+    }
+  };
+
+  const importFile = async (file: File) => importText(await file.text());
+
+  const importClipboard = async () => {
+    try {
+      importText(await navigator.clipboard.readText());
+    } catch {
+      setMsg("Non riesco a leggere gli appunti: copia il contenuto del file e riprova, consentendo l'accesso quando Safari lo chiede.");
     }
   };
 
@@ -103,6 +113,9 @@ export default function Impostazioni() {
         <button onClick={() => fileRef.current?.click()} className={row}>
           <Upload size={20} className="text-accent" /> Importa da file
         </button>
+        <button onClick={importClipboard} className={row}>
+          <ClipboardPaste size={20} className="text-accent" /> Incolla dagli appunti
+        </button>
         <button
           onClick={() => {
             if (confirm("Mostrare il portafoglio di esempio su questo dispositivo? I tuoi dati restano salvati nel tuo account e torneranno alla prossima sincronizzazione.")) resetToDemo();
@@ -112,7 +125,17 @@ export default function Impostazioni() {
           <RotateCcw size={20} /> Carica portafoglio di esempio
         </button>
       </Panel>
-      <input ref={fileRef} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importBackup(e.target.files[0])} />
+      {/* Senza "accept": su iOS il filtro application/json rende i file .json non selezionabili. */}
+      <input
+        ref={fileRef}
+        type="file"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) void importFile(f);
+        }}
+      />
       {msg && <p className="px-8 pt-2 text-[13px] text-mut">{msg}</p>}
       <p className="flex items-center gap-2 px-8 pt-2 text-[13px] leading-snug text-mut">
         <span
