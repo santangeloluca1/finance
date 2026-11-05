@@ -157,6 +157,8 @@ export interface HistoryPoint {
   invested: number;
   /** Guadagno totale cumulato: latente + realizzato (lordo) + cedole nette. */
   gain: number;
+  /** Liquidità compresa in value e invested. */
+  cash?: number;
 }
 
 /**
@@ -224,7 +226,7 @@ export function buildHistory(
       value += px !== undefined && rate ? (p.quantity * px) / rate : p.totalCost;
       invested += p.totalCost;
     }
-    out.push({ date, value, invested, gain: value - invested + realized + income });
+    out.push({ date, value, invested, gain: value - invested + realized + income, cash: cashNow });
   }
   return out;
 }

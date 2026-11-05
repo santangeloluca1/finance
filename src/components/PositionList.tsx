@@ -97,7 +97,7 @@ export function PositionList({
       ))}
       {cashRows.map(([account, c]) => (
         <li key={`cash-${account}`}>
-          <Link href={`/movimenti/nuovo?tipo=cash&conto=${account}`} className="flex min-h-[68px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">
+          <Link href={`/movimenti/nuovo?tipo=deposit&conto=${account}`} className="flex min-h-[68px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">
             <span className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-chip text-ink-2">
               <Wallet size={19} />
             </span>

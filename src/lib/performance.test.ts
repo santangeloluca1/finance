@@ -31,13 +31,13 @@ describe("XIRR", () => {
     expect(xirr([{ date: "2025-01-01", amount: -1000 }, { date: "2026-01-01", amount: 1100 }])).toBeCloseTo(0.0998, 3);
   });
 
-  it("ricava i flussi da acquisti, cedole e liquidità", () => {
+  it("ricava i flussi da acquisti e cedole, lasciando fuori la liquidità", () => {
     const f = cashFlows([
       { id: "1", date: "2025-01-01", account: "a", type: "buy", isin: "X", quantity: 10, price: 100, fees: 5 },
       { id: "2", date: "2025-06-01", account: "a", type: "dividend", isin: "X", amount: 20 },
       { id: "3", date: "2025-02-01", account: "b", type: "cash", isin: "", amount: 500 },
       { id: "4", date: "2025-03-01", account: "b", type: "cash", isin: "", amount: 300 },
     ]);
-    expect(f.map((x) => x.amount)).toEqual([-1005, -500, 200, 20]);
+    expect(f.map((x) => x.amount)).toEqual([-1005, 20]);
   });
 });

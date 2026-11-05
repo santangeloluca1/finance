@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPortfolio, simulateSale, PortfolioError } from "./portfolio";
+import { buildPortfolio, CashError, simulateSale, PortfolioError } from "./portfolio";
 import { effectiveRate } from "./tax";
 import type { Instrument, Transaction } from "./types";
 
@@ -213,7 +213,7 @@ describe("simulatore di vendita", () => {
 });
 
 describe("liquidità", () => {
-  it("tiene l'ultimo saldo per conto senza toccare posizioni e fisco", () => {
+  it("parte dall'ultimo saldo per conto e scala gli acquisti successivi", () => {
     const s = buildPortfolio(
       [
         tx({ date: "2025-01-01", account: "isybank", type: "cash", isin: "", amount: 8000 }),
@@ -223,8 +223,50 @@ describe("liquidità", () => {
       ],
       ALL,
     );
-    expect(s.cash).toEqual({ isybank: { date: "2025-03-01", amount: 12500 }, fineco: { date: "2025-02-01", amount: 300 } });
+    expect(s.cash).toEqual({ isybank: { date: "2025-03-01", amount: 12500 }, fineco: { date: "2025-02-10", amount: 200 } });
     expect(s.positions).toHaveLength(1);
     expect(s.realized).toHaveLength(0);
+  });
+});
+
+describe("liquidità del conto", () => {
+  it("si muove con versamenti, acquisti, vendite, cedole e prelievi", () => {
+    const s = buildPortfolio(
+      [
+        tx({ date: "2025-01-01", account: "fineco", type: "deposit", isin: "", amount: 2000, note: "Stipendio" }),
+        tx({ date: "2025-01-10", account: "fineco", type: "buy", isin: STOCK.isin, quantity: 10, price: 100, fees: 5 }),
+        tx({ date: "2025-03-10", account: "fineco", type: "dividend", isin: STOCK.isin, amount: 15 }),
+        tx({ date: "2025-04-10", account: "fineco", type: "sell", isin: STOCK.isin, quantity: 5, price: 110, fees: 5 }),
+        tx({ date: "2025-05-01", account: "fineco", type: "withdrawal", isin: "", amount: 300 }),
+      ],
+      ALL,
+    );
+    // 2000 − 1005 + 15 + (550 − 5) − 300
+    expect(s.cash.fineco.amount).toBeCloseTo(1255, 6);
+  });
+
+  it("senza un saldo iniziale gli acquisti non toccano la liquidità", () => {
+    const s = buildPortfolio([tx({ date: "2025-01-10", account: "fineco", type: "buy", isin: STOCK.isin, quantity: 1, price: 100 })], ALL);
+    expect(s.cash).toEqual({});
+  });
+
+  it("un saldo inserito a mano riallinea la liquidità", () => {
+    const s = buildPortfolio(
+      [
+        tx({ date: "2025-01-01", account: "fineco", type: "deposit", isin: "", amount: 500 }),
+        tx({ date: "2025-02-01", account: "fineco", type: "cash", isin: "", amount: 548.93 }),
+        tx({ date: "2025-03-01", account: "fineco", type: "deposit", isin: "", amount: 1000 }),
+      ],
+      ALL,
+    );
+    expect(s.cash.fineco.amount).toBeCloseTo(1548.93, 6);
+  });
+
+  it("blocca un acquisto che supera la liquidità disponibile", () => {
+    const buy = tx({ date: "2025-01-10", account: "fineco", type: "buy", isin: STOCK.isin, quantity: 10, price: 100, fees: 5 });
+    const txs = [tx({ date: "2025-01-01", account: "fineco", type: "cash", isin: "", amount: 800 }), buy];
+    expect(() => buildPortfolio(txs, ALL, { checkCashFor: buy.id })).toThrow(CashError);
+    // Senza controllo (storico importato) il calcolo procede.
+    expect(buildPortfolio(txs, ALL).cash.fineco.amount).toBeCloseTo(-205, 6);
   });
 });

@@ -47,19 +47,13 @@ export interface CashFlow {
  * sono entrate. Il valore finale va aggiunto come ultimo flusso positivo.
  */
 export function cashFlows(transactions: Transaction[]): CashFlow[] {
-  const lastCash = new Map<string, number>();
   const flows: CashFlow[] = [];
   for (const t of [...transactions].sort((a, b) => a.date.localeCompare(b.date))) {
     const fx = t.fxRate ?? 1;
     if (t.type === "buy") flows.push({ date: t.date, amount: -((t.quantity ?? 0) * (t.price ?? 0)) / fx - (t.fees ?? 0) });
     else if (t.type === "sell") flows.push({ date: t.date, amount: ((t.quantity ?? 0) * (t.price ?? 0)) / fx - (t.fees ?? 0) });
     else if (t.type === "dividend") flows.push({ date: t.date, amount: t.amount ?? 0 });
-    else if (t.type === "cash") {
-      const prev = lastCash.get(t.account) ?? 0;
-      const next = t.amount ?? 0;
-      lastCash.set(t.account, next);
-      if (next !== prev) flows.push({ date: t.date, amount: -(next - prev) });
-    }
+    // Liquidità, versamenti e prelievi restano fuori: il rendimento è quello degli investimenti.
   }
   return flows;
 }

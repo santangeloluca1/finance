@@ -10,6 +10,8 @@ export interface Alert {
   title: string;
   detail: string;
   href: string;
+  /** Presente se l'avviso nasce da un promemoria dell'utente. */
+  reminderId?: string;
 }
 
 const eur = (n: number) => `${Math.round(n).toLocaleString("it-IT")} €`;
@@ -71,6 +73,18 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
     }
   }
 
+  for (const r of data.reminders ?? []) {
+    if (r.date > today) continue;
+    out.push({
+      id: `promemoria-${r.id}-${r.date}`,
+      level: "attenzione",
+      title: r.title,
+      detail: `Promemoria del ${new Date(`${r.date}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}`,
+      href: "/avvisi",
+      reminderId: r.id,
+    });
+  }
+
   for (const g of data.goals ?? []) {
     const current = g.scope === "tutto" ? totalValue : null;
     if (current !== null && current >= g.target) {
@@ -78,5 +92,12 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
     }
   }
 
-  return out;
+  const dismissed = new Set(data.alertsDismissed ?? []);
+  return out.filter((a) => !dismissed.has(a.id));
+}
+
+/** Avvisi che accendono la campanella: importanti e non ancora visti. */
+export function unseenAlerts(alerts: Alert[], data: PortfolioData) {
+  const seen = new Set(data.alertsSeen ?? []);
+  return alerts.filter((a) => a.level !== "info" && !seen.has(a.id));
 }

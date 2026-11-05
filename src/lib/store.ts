@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { DEMO_ACCOUNTS, DEMO_INSTRUMENTS, DEMO_TRANSACTIONS } from "./demo";
-import { buildPortfolio } from "./engine/portfolio";
+import { buildPortfolio, CashError } from "./engine/portfolio";
+import { fmtEur as eurFmt } from "./format";
 import type { Account, Instrument, PortfolioState, Transaction } from "./engine/types";
 import type { FxRates, Quotes } from "./analytics";
 
@@ -38,6 +39,19 @@ export interface PortfolioData {
   plan?: Plan;
   /** Allocazione obiettivo per asset class (pesi 0..1). */
   targets?: Record<string, number>;
+  reminders?: Reminder[];
+  /** Avvisi già visti (non accendono più la campanella). */
+  alertsSeen?: string[];
+  /** Avvisi archiviati (non compaiono più). */
+  alertsDismissed?: string[];
+}
+
+export interface Reminder {
+  id: string;
+  title: string;
+  /** Prossima scadenza YYYY-MM-DD. */
+  date: string;
+  repeat: "none" | "monthly" | "yearly";
 }
 
 const DATA_KEY = "portafoglio:data:v1";
@@ -226,8 +240,14 @@ export function saveTransaction(tx: Transaction, instrument?: Instrument) {
   const exists = base.transactions.some((t) => t.id === tx.id);
   const transactions = exists ? base.transactions.map((t) => (t.id === tx.id ? tx : t)) : [...base.transactions, tx];
   try {
-    buildPortfolio(transactions, instruments);
+    buildPortfolio(transactions, instruments, { checkCashFor: tx.id });
   } catch (e) {
+    if (e instanceof CashError) {
+      const name = base.accounts.find((a) => a.id === e.account)?.name ?? e.account;
+      throw new SaveError(
+        `Liquidità insufficiente su ${name}: il ${tx.date.split("-").reverse().join("/")} avevi ${eurFmt(Math.max(0, e.available))}, ne servono ${eurFmt(e.needed)}. Registra prima un versamento.`,
+      );
+    }
     throw new SaveError(humanize((e as Error).message));
   }
   setData({ ...base, instruments, transactions });
@@ -253,6 +273,50 @@ export function newId() {
 function humanize(msg: string) {
   if (msg.includes("quantità disponibile")) return "Stai vendendo più quote di quelle possedute su questo conto a quella data.";
   return msg;
+}
+
+// ---- avvisi e promemoria ----
+
+/** Segna come visti gli avvisi indicati (spegne la campanella). */
+export function markAlertsSeen(ids: string[]) {
+  const base = getData();
+  if (base.isDemo) return;
+  const seen = new Set(base.alertsSeen ?? []);
+  if (ids.every((id) => seen.has(id))) return;
+  ids.forEach((id) => seen.add(id));
+  setData({ ...base, alertsSeen: [...seen].slice(-300) });
+}
+
+export function dismissAlert(id: string) {
+  const base = getData();
+  setData({ ...base, alertsDismissed: [...new Set([...(base.alertsDismissed ?? []), id])].slice(-300) });
+}
+
+export function saveReminder(r: Reminder) {
+  const base = editableBase();
+  const list = base.reminders ?? [];
+  setData({ ...base, reminders: list.some((x) => x.id === r.id) ? list.map((x) => (x.id === r.id ? r : x)) : [...list, r] });
+}
+
+export function deleteReminder(id: string) {
+  const base = getData();
+  setData({ ...base, reminders: (base.reminders ?? []).filter((r) => r.id !== id) });
+}
+
+/** Segna fatto: passa alla prossima ricorrenza o elimina se non si ripete. */
+export function completeReminder(id: string) {
+  const r = (getData().reminders ?? []).find((x) => x.id === id);
+  if (!r) return;
+  if (r.repeat === "none") return deleteReminder(id);
+  saveReminder({ ...r, date: nextOccurrence(r.date, r.repeat) });
+}
+
+export function nextOccurrence(date: string, repeat: "monthly" | "yearly") {
+  const [y, m, d] = date.split("-").map(Number);
+  const ny = repeat === "yearly" ? y + 1 : m === 12 ? y + 1 : y;
+  const nm = repeat === "yearly" ? m : (m % 12) + 1;
+  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+  return `${ny}-${String(nm).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
 }
 
 // ---- obiettivi e pianificazione ----

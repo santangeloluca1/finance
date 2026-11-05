@@ -67,7 +67,7 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
 
       {year !== "tutti" && (
         <p className="num mt-2 px-4 text-[14px] text-mut">
-          Rendimento {pct((paid + expected) / (totals.value || 1))}
+          Rendimento {pct((paid + expected) / (totals.value - totals.cash || 1))}
           <span className="mx-1.5 text-faint">·</span>
           sul costo {pct((paid + expected) / (totals.cost || 1))}
           <span className="mx-1.5 text-faint">·</span>

@@ -16,42 +16,20 @@ export function Analisi({
   views,
   totals,
   accounts,
-  cash = {},
 }: {
   views: PositionView[];
   totals: Totals;
   accounts: Account[];
-  cash?: Record<string, { date: string; amount: number }>;
 }) {
   const [by, setBy] = useState<By>("asset");
   const byAcc = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
 
   const fundIsins = useMemo(() => views.filter((v) => isFundLike(v.instrument)).map((v) => v.instrument.isin), [views]);
   const { compositions, loading: xrayLoading } = useCompositions(fundIsins);
-  const slices: Slice[] = useMemo(() => withCash(computeSlices(), by), [views, by, byAcc, cash, compositions]);
+  const slices: Slice[] = useMemo(() => computeSlices(), [views, by, byAcc, compositions]);
+  // Solo investimenti: la liquidità resta nel patrimonio della Home.
+  const invested = totals.value - totals.cash;
   const companies = useMemo(() => topCompanies(views, compositions).slice(0, 10), [views, compositions]);
-
-  function withCash(list: Slice[], mode: By): Slice[] {
-    const entries = Object.entries(cash).filter(([, c]) => c.amount > 0);
-    if (!entries.length) return list;
-    const out = list.map((s) => ({ ...s }));
-    if (mode === "banca") {
-      for (const [id, c] of entries) {
-        const s = out.find((x) => x.key === id);
-        const a = byAcc.get(id);
-        if (s) s.value += c.amount;
-        else out.push({ key: id, label: a?.name ?? id, color: a?.color ?? "#888", value: c.amount });
-      }
-    } else if (mode === "valuta") {
-      const eur = out.find((x) => x.key === "EUR");
-      const total = entries.reduce((a, [, c]) => a + c.amount, 0);
-      if (eur) eur.value += total;
-      else out.push({ key: "EUR", label: "Euro", color: "#5468ff", value: total });
-    } else {
-      out.push({ key: "liquidita", label: "Liquidità", color: "#94a3b8", value: entries.reduce((a, [, c]) => a + c.amount, 0) });
-    }
-    return out.sort((a, b) => b.value - a.value);
-  }
 
   function computeSlices(): Slice[] {
     if (by === "paese" || by === "settore") {
@@ -86,8 +64,8 @@ export function Analisi({
     <div>
       <div className="pt-7">
         <Gauge slices={slices} size={280}>
-          <p className="text-[13px] text-mut">Valore del portafoglio</p>
-          <p className="num sensitive text-[28px] font-bold tracking-[-0.035em]">{fmtEur(totals.value)}</p>
+          <p className="text-[13px] text-mut">Valore degli investimenti</p>
+          <p className="num sensitive text-[28px] font-bold tracking-[-0.035em]">{fmtEur(invested)}</p>
         </Gauge>
       </div>
 
@@ -112,7 +90,7 @@ export function Analisi({
       </SectionHeader>
       <ul>
         {slices.map((s) => {
-          const share = s.value / (totals.value || 1);
+          const share = s.value / (invested || 1);
           return (
             <li key={s.key} className="px-4 py-3">
               <div className="flex items-baseline gap-2.5">
@@ -146,7 +124,7 @@ export function Analisi({
                   <p className="truncate text-[14px] text-mut">{c.via.map((v) => (v === "diretta" ? "Azione diretta" : v)).join(" · ")}</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="num text-[17px] font-medium">{fmtPct(c.value / (totals.value || 1))}</p>
+                  <p className="num text-[17px] font-medium">{fmtPct(c.value / (invested || 1))}</p>
                   <p className="num sensitive text-[14px] text-mut">{fmtEur0(c.value)}</p>
                 </div>
               </li>
@@ -172,9 +150,9 @@ export function Analisi({
 
       <SectionHeader>Costi annui</SectionHeader>
       <Panel>
-        <InfoRow label="TER medio ponderato" value={`${((ter / (totals.value || 1)) * 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`} />
+        <InfoRow label="TER medio ponderato" value={`${((ter / (invested || 1)) * 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`} />
         <InfoRow label="Costi di gestione degli ETF" value={<span className="sensitive">{fmtEur0(ter)}</span>} />
-        <InfoRow label="Imposta di bollo" hint="0,2% del valore" value={<span className="sensitive">{fmtEur0(totals.value * 0.002)}</span>} />
+        <InfoRow label="Imposta di bollo" hint="0,2% del valore" value={<span className="sensitive">{fmtEur0(invested * 0.002)}</span>} />
       </Panel>
     </div>
   );

@@ -50,7 +50,9 @@ export type TransactionType =
   | "sell"
   | "dividend" // dividendi e cedole, importo NETTO accreditato
   | "split"
-  | "cash"; // saldo di liquidità del conto a una data (amount = saldo in EUR)
+  | "cash" // saldo di liquidità del conto a una data (amount = saldo in EUR)
+  | "deposit" // versamento sul conto (es. stipendio), amount in EUR
+  | "withdrawal"; // prelievo dal conto, amount in EUR
 
 export interface Transaction {
   id: string;
@@ -140,6 +142,9 @@ export interface PortfolioState {
   losses: LossLot[];
   /** Dividendi/cedole netti per anno. */
   incomeByYear: Record<string, number>;
-  /** Ultimo saldo di liquidità noto per conto. */
+  /**
+   * Liquidità per conto: parte dal primo saldo o versamento inserito e da lì si
+   * muove con versamenti, prelievi, acquisti, vendite e cedole del conto.
+   */
   cash: Record<AccountId, { date: string; amount: number }>;
 }

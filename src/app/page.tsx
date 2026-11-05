@@ -17,7 +17,7 @@ import type { AssetClass } from "@/lib/engine/types";
 import { usableLosses } from "@/lib/engine/portfolio";
 import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime } from "@/lib/format";
 import { usePrivacy } from "@/lib/privacy";
-import { computeAlerts } from "@/lib/alerts";
+import { computeAlerts, unseenAlerts } from "@/lib/alerts";
 import { twrSeries } from "@/lib/performance";
 
 type Tab = "panoramica" | "analisi" | "dividendi";
@@ -98,7 +98,7 @@ type View = ReturnType<typeof usePortfolioView>;
 
 function AlertsBell({ view }: { view: View }) {
   const count = useMemo(
-    () => (view.state && view.totals ? computeAlerts(view.data, view.state, view.views, view.totals.value).filter((a) => a.level !== "info").length : 0),
+    () => (view.state && view.totals ? unseenAlerts(computeAlerts(view.data, view.state, view.views, view.totals.value), view.data).length : 0),
     [view.data, view.state, view.views, view.totals],
   );
   return (
@@ -120,7 +120,7 @@ function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
     return view.data.transactions.filter(
       (t) =>
         (filter.account === "all" || t.account === filter.account) &&
-        (filter.asset === "all" || (filter.asset === "liquidita" ? t.type === "cash" : assetOf.get(t.isin) === filter.asset)),
+        (filter.asset === "all" || (filter.asset === "liquidita" ? ["cash", "deposit", "withdrawal"].includes(t.type) : assetOf.get(t.isin) === filter.asset)),
     );
   }, [view.data, filter]);
   if (!view.totals || !view.state) return null;
@@ -149,7 +149,7 @@ function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
           accounts={view.data.accounts}
         />
       ) : sub === "allocazione" ? (
-        <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} cash={view.state.cash} />
+        <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} />
       ) : (
         <Salute views={view.views} totals={view.totals} state={view.state} accounts={view.data.accounts} />
       )}
@@ -162,7 +162,7 @@ function Filters({ filter, setFilter, view }: { filter: Filter; setFilter: (f: F
     const set = new Set(view.data.instruments.map((i) => i.assetClass));
     return (Object.keys(ASSET_CLASS_LABEL) as AssetClass[]).filter((a) => set.has(a));
   }, [view.data.instruments]);
-  const hasCash = view.data.transactions.some((t) => t.type === "cash");
+  const hasCash = view.data.transactions.some((t) => ["cash", "deposit", "withdrawal"].includes(t.type));
   const bank = view.data.accounts.find((a) => a.id === filter.account);
   return (
     <div className="flex min-w-0 items-center gap-4 pl-4">
@@ -202,11 +202,11 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
     const today = new Date().toISOString().slice(0, 10);
     const slice = history.filter((h) => h.date >= cutoff && h.date < today);
     const realized = state.realized.reduce((a, r) => a + r.gain, 0);
-    return [...slice, { date: today, value: totals.value, invested: totals.cost + totals.cash, gain: totals.unrealized + realized + totals.income }];
+    return [...slice, { date: today, value: totals.value, invested: totals.cost + totals.cash, gain: totals.unrealized + realized + totals.income, cash: totals.cash }];
   }, [history, totals, range, state]);
 
   // Rendimento ponderato nel tempo dall'inizio del periodo: i versamenti non lo gonfiano.
-  const twr = useMemo(() => twrSeries(series).map((p) => p.value), [series]);
+  const twr = useMemo(() => twrSeries(series.map((h) => ({ ...h, value: h.value - (h.cash ?? 0) }))).map((p) => p.value), [series]);
   const points = useMemo<SeriesPoint[]>(() => series.map((h, i) => ({ date: h.date, value: twr[i] })), [series, twr]);
 
   // Operazioni da mostrare sulla linea del tempo.

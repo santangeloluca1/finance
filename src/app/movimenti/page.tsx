@@ -14,6 +14,8 @@ const META = {
   dividend: { verb: "Cedola o dividendo" },
   split: { verb: "Frazionamento" },
   cash: { verb: "Saldo del conto" },
+  deposit: { verb: "Versamento" },
+  withdrawal: { verb: "Prelievo" },
 } as const;
 
 type Kind = "all" | Transaction["type"];
@@ -70,7 +72,9 @@ export default function Movimenti() {
             { value: "buy", label: "Acquisti" },
             { value: "sell", label: "Vendite" },
             { value: "dividend", label: "Cedole" },
-            { value: "cash", label: "Liquidità" },
+            { value: "deposit", label: "Versamenti" },
+            { value: "withdrawal", label: "Prelievi" },
+            { value: "cash", label: "Saldi" },
           ]}
         />
         <Link href="/impostazioni" className="ml-auto flex min-h-[36px] items-center gap-1 text-[15px] font-semibold text-accent">
@@ -87,14 +91,15 @@ export default function Movimenti() {
             {txs.map((t) => {
               const ins = instruments.get(t.isin);
               const m = META[t.type];
-              const total = t.type === "dividend" || t.type === "cash" ? t.amount ?? 0 : ((t.quantity ?? 0) * (t.price ?? 0)) / (t.fxRate ?? 1);
-              const name = t.type === "cash" ? "Liquidità" : ins?.shortName ?? ins?.name ?? t.isin;
+              const cashTx = t.type === "cash" || t.type === "deposit" || t.type === "withdrawal";
+              const total = t.type === "dividend" || cashTx ? t.amount ?? 0 : ((t.quantity ?? 0) * (t.price ?? 0)) / (t.fxRate ?? 1);
+              const name = t.type === "deposit" ? "Versamento" : t.type === "withdrawal" ? "Prelievo" : t.type === "cash" ? "Liquidità" : ins?.shortName ?? ins?.name ?? t.isin;
               const detail =
                 t.type === "buy" || t.type === "sell"
                   ? `${m.verb} ${fmtNum(t.quantity ?? 0)} a ${fmtPrice(t.price ?? 0, ins?.currency ?? "EUR")}`
                   : t.type === "split"
                     ? `Frazionamento ${t.splitRatio}:1`
-                    : m.verb;
+                    : t.note || m.verb;
               return (
                 <li key={t.id}>
                   <Link
@@ -109,8 +114,8 @@ export default function Movimenti() {
                         <span className="num truncate">{detail}</span>
                       </p>
                     </div>
-                    <p className={`num sensitive shrink-0 text-[17px] font-medium ${t.type === "dividend" || t.type === "sell" ? "text-up" : ""}`}>
-                      {t.type === "split" ? "" : t.type === "cash" ? fmtEur(total) : `${t.type === "buy" ? "−" : "+"}${fmtEur(total)}`}
+                    <p className={`num sensitive shrink-0 text-[17px] font-medium ${t.type === "dividend" || t.type === "sell" || t.type === "deposit" ? "text-up" : ""}`}>
+                      {t.type === "split" ? "" : t.type === "cash" ? fmtEur(total) : `${t.type === "buy" || t.type === "withdrawal" ? "−" : "+"}${fmtEur(total)}`}
                     </p>
                   </Link>
                 </li>

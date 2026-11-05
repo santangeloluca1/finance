@@ -19,6 +19,17 @@ const EPSILON = 1e-9;
 
 export class PortfolioError extends Error {}
 
+/** Un acquisto o prelievo supera la liquidità disponibile sul conto. */
+export class CashError extends PortfolioError {
+  constructor(
+    public account: AccountId,
+    public available: number,
+    public needed: number,
+  ) {
+    super(`Liquidità insufficiente su ${account}: disponibili ${available.toFixed(2)}, servono ${needed.toFixed(2)}`);
+  }
+}
+
 type InstrumentMap = Map<string, Instrument>;
 
 function key(account: AccountId, isin: string) {
@@ -45,7 +56,11 @@ export function sortTransactions(txs: Transaction[]): Transaction[] {
 export function buildPortfolio(
   transactions: Transaction[],
   instruments: Instrument[],
-  options: { asOf?: string } = {},
+  options: {
+    asOf?: string;
+    /** Se impostato, blocca il movimento con questo id quando lascia il conto in rosso. */
+    checkCashFor?: string;
+  } = {},
 ): PortfolioState {
   const byIsin: InstrumentMap = new Map(instruments.map((i) => [i.isin, i]));
   const positions = new Map<string, Position>();
@@ -54,10 +69,25 @@ export function buildPortfolio(
   const incomeByYear: Record<string, number> = {};
   const cash: PortfolioState["cash"] = {};
 
+  // Movimento di cassa: conta solo se il conto ha già un saldo noto.
+  const move = (tx: Transaction, delta: number, open = false) => {
+    const cur = cash[tx.account];
+    if (!cur && !open) return;
+    cash[tx.account] = { date: tx.date, amount: (cur?.amount ?? 0) + delta };
+    if (tx.id === options.checkCashFor && cash[tx.account].amount < -0.005) {
+      throw new CashError(tx.account, cash[tx.account].amount - delta, -delta);
+    }
+  };
+
   for (const tx of sortTransactions(transactions)) {
     if (options.asOf && tx.date > options.asOf) break;
     if (tx.type === "cash") {
       cash[tx.account] = { date: tx.date, amount: tx.amount ?? 0 };
+      continue;
+    }
+    if (tx.type === "deposit" || tx.type === "withdrawal") {
+      const amount = requirePositive(tx.amount, tx, "amount");
+      move(tx, tx.type === "deposit" ? amount : -amount, true);
       continue;
     }
     const instrument = byIsin.get(tx.isin);
@@ -85,6 +115,7 @@ export function buildPortfolio(
         pos.quantity += qty;
         pos.totalCost += cost;
         pos.avgCost = pos.totalCost / pos.quantity;
+        move(tx, -cost);
         break;
       }
 
@@ -108,6 +139,7 @@ export function buildPortfolio(
           commit: true,
         });
         realized.push({ txId: tx.id, isin: tx.isin, ...event });
+        move(tx, proceeds);
 
         pos.quantity -= qty;
         pos.totalCost -= pos.avgCost * qty;
@@ -133,6 +165,7 @@ export function buildPortfolio(
           });
         const year = tx.date.slice(0, 4);
         incomeByYear[year] = (incomeByYear[year] ?? 0) + amount;
+        move(tx, amount);
         break;
       }
 

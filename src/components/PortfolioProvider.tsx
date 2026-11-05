@@ -128,7 +128,7 @@ export function usePortfolioView(filter: Filter = ALL) {
     return data.transactions.filter(
       (t) =>
         (filter.account === "all" || t.account === filter.account) &&
-        (filter.asset === "all" || (filter.asset === "liquidita" ? t.type === "cash" : assetOf.get(t.isin) === filter.asset)),
+        (filter.asset === "all" || (filter.asset === "liquidita" ? ["cash", "deposit", "withdrawal"].includes(t.type) : assetOf.get(t.isin) === filter.asset)),
     );
   }, [data, filter.account, filter.asset]);
 

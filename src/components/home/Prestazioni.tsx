@@ -55,8 +55,9 @@ export function Prestazioni({
     if (!history?.length) return [];
     const today = new Date().toISOString().slice(0, 10);
     const realized = state.realized.reduce((a, r) => a + r.gain, 0);
-    const live = { date: today, value: totals.value, invested: totals.cost + totals.cash, gain: totals.unrealized + realized + totals.income };
-    const all = [...history.filter((h) => h.date < today), live];
+    // Solo investimenti: la liquidità resta nel patrimonio della Home.
+    const live = { date: today, value: totals.value - totals.cash, invested: totals.cost, gain: totals.unrealized + realized + totals.income };
+    const all = [...history.filter((h) => h.date < today).map((h) => ({ ...h, value: h.value - (h.cash ?? 0), invested: h.invested - (h.cash ?? 0) })), live];
     const from = range === "MAX" ? "0000" : range === "YTD" ? `${new Date().getFullYear()}-01-01` : cutoffDate(range === "1A" ? 366 : 1096);
     return all.filter((h) => h.date >= from);
   }, [history, state, totals, range]);
@@ -64,7 +65,10 @@ export function Prestazioni({
   const twr = useMemo(() => twrSeries(series), [series]);
   const twrAll = useMemo(() => {
     if (!history?.length) return [];
-    return twrSeries([...history, { date: new Date().toISOString().slice(0, 10), value: totals.value, invested: 0, gain: totals.unrealized + state.realized.reduce((a, r) => a + r.gain, 0) + totals.income }]);
+    return twrSeries([
+      ...history.map((h) => ({ ...h, value: h.value - (h.cash ?? 0) })),
+      { date: new Date().toISOString().slice(0, 10), value: totals.value - totals.cash, invested: 0, gain: totals.unrealized + state.realized.reduce((a, r) => a + r.gain, 0) + totals.income },
+    ]);
   }, [history, totals, state]);
   const months = useMemo(() => monthlyReturns(twrAll), [twrAll]);
 
@@ -106,8 +110,8 @@ export function Prestazioni({
   const irr = useMemo(() => {
     const flows = cashFlows(transactions);
     if (!flows.length) return null;
-    return xirr([...flows, { date: new Date().toISOString().slice(0, 10), amount: totals.value }]);
-  }, [transactions, totals.value]);
+    return xirr([...flows, { date: new Date().toISOString().slice(0, 10), amount: totals.value - totals.cash }]);
+  }, [transactions, totals.value, totals.cash]);
 
   const period: Period = range === "MAX" ? "totale" : "1A";
   const contributions = useMemo(
@@ -125,8 +129,8 @@ export function Prestazioni({
       {/* Patrimonio e rendimento del periodo, come in Panoramica */}
       <div className="flex items-end justify-between gap-3 px-4 pt-6">
         <div className="min-w-0">
-          <p className="text-[14px] text-mut">Valore del portafoglio</p>
-          <BigAmount value={totals.value} className="mt-1" />
+          <p className="text-[14px] text-mut">Valore degli investimenti</p>
+          <BigAmount value={totals.value - totals.cash} className="mt-1" />
         </div>
         <div className={`num sensitive shrink-0 pb-1 text-right ${tone(total)}`}>
           <p className="text-[17px] font-semibold">{fmtSignedPct(total)}</p>

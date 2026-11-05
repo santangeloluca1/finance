@@ -23,12 +23,19 @@ interface SearchResult {
   price: number | null;
 }
 
-const KIND_OPTIONS: { value: Kind; label: string }[] = [
+type Group = "buy" | "sell" | "dividend" | "liquidita";
+const GROUP_OPTIONS: { value: Group; label: string }[] = [
   { value: "buy", label: "Acquisto" },
   { value: "sell", label: "Vendita" },
   { value: "dividend", label: "Cedola" },
-  { value: "cash", label: "Liquidità" },
+  { value: "liquidita", label: "Liquidità" },
 ];
+const CASH_OPTIONS: { value: Kind; label: string }[] = [
+  { value: "deposit", label: "Versamento" },
+  { value: "withdrawal", label: "Prelievo" },
+  { value: "cash", label: "Saldo" },
+];
+const isCashKind = (k: Kind) => k === "cash" || k === "deposit" || k === "withdrawal";
 
 export default function NuovoMovimentoPage() {
   // I dati stanno nel browser: il modulo parte dopo il montaggio, con i dati veri.
@@ -58,14 +65,18 @@ function NuovoMovimento() {
   const [fees, setFees] = useState(editing?.fees?.toString().replace(".", ",") ?? "");
   const [fx, setFx] = useState(editing?.fxRate?.toString().replace(".", ",") ?? "");
   const [amount, setAmount] = useState(editing?.amount?.toString().replace(".", ",") ?? "");
+  const [note, setNote] = useState(editing?.note ?? (params.get("tipo") === "deposit" ? "Stipendio" : ""));
   const [error, setError] = useState<string | null>(null);
 
   const currency = instrument?.currency ?? "EUR";
-  const needsInstrument = kind !== "cash";
+  const needsInstrument = !isCashKind(kind);
+  const group: Group = isCashKind(kind) ? "liquidita" : (kind as Group);
+  // Liquidità disponibile oggi sul conto (se il conto ne tiene traccia).
+  const available = state?.cash[account]?.amount;
 
   // Cambio BCE del giorno, per i titoli non in euro.
   useEffect(() => {
-    if (kind === "cash" || kind === "dividend" || currency === "EUR" || editing?.fxRate) return;
+    if (isCashKind(kind) || kind === "dividend" || currency === "EUR" || editing?.fxRate) return;
     let stop = false;
     fetch(`/api/fx?date=${date}&c=${currency}`)
       .then((r) => r.json())
@@ -89,8 +100,8 @@ function NuovoMovimento() {
   const valid =
     account &&
     /^\d{4}-\d{2}-\d{2}$/.test(date) &&
-    (kind === "cash"
-      ? amount !== ""
+    (isCashKind(kind)
+      ? amount !== "" && (kind === "cash" || num(amount) > 0)
       : instrument && (kind === "dividend" ? num(amount) > 0 : q > 0 && p > 0 && (currency === "EUR" || num(fx) > 0)));
 
   const save = () => {
@@ -100,10 +111,11 @@ function NuovoMovimento() {
       date,
       account,
       type: kind,
-      isin: kind === "cash" ? "" : instrument!.isin,
+      isin: isCashKind(kind) ? "" : instrument!.isin,
       ...(kind === "buy" || kind === "sell"
         ? { quantity: q, price: p, fees: num(fees) || undefined, fxRate: currency === "EUR" ? undefined : num(fx) }
         : { amount: num(amount) }),
+      ...(note.trim() && (kind === "deposit" || kind === "withdrawal") ? { note: note.trim() } : {}),
     };
     try {
       saveTransaction(tx, isNew && instrument ? instrument : undefined);
@@ -140,7 +152,12 @@ function NuovoMovimento() {
       )}
 
       <div className="mt-5 px-4">
-        <Segmented value={kind} onChange={(k) => setKind(k)} options={KIND_OPTIONS} />
+        <Segmented value={group} onChange={(g) => setKind(g === "liquidita" ? "deposit" : g)} options={GROUP_OPTIONS} />
+        {group === "liquidita" && (
+          <div className="mt-2">
+            <Segmented size="sm" value={kind} onChange={setKind} options={CASH_OPTIONS} />
+          </div>
+        )}
       </div>
 
       <p className="px-5 pb-2 pt-6 text-[13px] font-medium text-mut">Conto</p>
@@ -213,13 +230,29 @@ function NuovoMovimento() {
           </Field>
         )}
         {kind === "cash" && (
-          <Field label="Saldo del conto (€)" hint="La liquidità disponibile sul conto in questa data">
+          <Field label="Saldo del conto (€)" hint="Riallinea la liquidità a quella che vedi in banca">
             <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" className={inputCls} />
           </Field>
         )}
+        {(kind === "deposit" || kind === "withdrawal") && (
+          <>
+            <Field label={kind === "deposit" ? "Importo versato (€)" : "Importo prelevato (€)"}>
+              <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" className={inputCls} />
+            </Field>
+            <Field label="Descrizione">
+              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={kind === "deposit" ? "Stipendio" : "Spese"} className={inputCls} />
+            </Field>
+          </>
+        )}
       </div>
 
-      {valid && kind !== "cash" && (
+      {(kind === "buy" || kind === "withdrawal") && available !== undefined && (
+        <p className={`px-5 pt-2 text-[14px] ${valid && total > available + 0.005 ? "font-semibold text-dn" : "text-mut"}`}>
+          Liquidità disponibile su {data.accounts.find((a) => a.id === account)?.name}: <span className="num">{fmtEur(available)}</span>
+        </p>
+      )}
+
+      {valid && !isCashKind(kind) && (
         <div className="mx-4 mt-4 flex items-center justify-between rounded-[16px] bg-panel-2 px-4 py-3.5">
           <p className="text-[15px] text-ink-2">{kind === "buy" ? "Totale addebitato" : kind === "sell" ? "Totale accreditato" : "Accreditato"}</p>
           <p className="num text-[20px] font-semibold tracking-[-0.03em]">{fmtEur(total)}</p>
