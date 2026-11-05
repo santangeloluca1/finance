@@ -79,3 +79,54 @@ export function getHistory(ticker: string, from: string): Promise<[string, numbe
     return out;
   });
 }
+
+export interface YahooHit {
+  symbol: string;
+  exchange?: string;
+  exchDisp?: string;
+  quoteType?: string;
+  longname?: string;
+  shortname?: string;
+}
+
+/** Ricerca Yahoo per nome, ticker o ISIN (cache 10 minuti). */
+export function searchYahoo(q: string, count = 10): Promise<YahooHit[]> {
+  return cached(`s:${q}:${count}`, 10 * 60_000, async () => {
+    const res = await fetch(`https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=${count}&newsCount=0`, {
+      headers: HEADERS,
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { quotes?: YahooHit[] };
+    return (json.quotes ?? []).filter((h) => h.symbol && h.quoteType !== "OPTION" && h.quoteType !== "FUTURE");
+  });
+}
+
+/** Borse preferite per un investitore italiano, in ordine. */
+const PREFERRED = ["MIL", "GER", "AMS", "PAR", "EBS", "NMS", "NYQ", "LSE"];
+
+export function exchangeRank(exchange?: string) {
+  const i = PREFERRED.indexOf(exchange ?? "");
+  return i < 0 ? 99 : i;
+}
+
+/**
+ * Trova un simbolo Yahoo che quota davvero lo strumento: cerca per ISIN e per
+ * nome, tiene le quotazioni nella valuta attesa e, se c'è un prezzo di
+ * riferimento (es. il prezzo medio), scarta quelle fuori scala (altre classi o
+ * altre valute). Preferisce Milano e Xetra.
+ */
+export async function resolveTicker(opts: { isin: string; name?: string; currency: string; refPrice?: number }): Promise<Quote | null> {
+  const hits = [...(await searchYahoo(opts.isin)), ...(opts.name ? await searchYahoo(opts.name, 15) : [])];
+  const seen = new Set<string>();
+  const unique = hits.filter((h) => !seen.has(h.symbol) && seen.add(h.symbol)).sort((a, b) => exchangeRank(a.exchange) - exchangeRank(b.exchange)).slice(0, 12);
+  const quotes = await Promise.allSettled(unique.map((h) => getQuote(h.symbol)));
+  for (const r of quotes) {
+    if (r.status !== "fulfilled") continue;
+    const q = r.value;
+    if (q.currency !== opts.currency || !(q.price > 0)) continue;
+    if (opts.refPrice && (q.price > opts.refPrice * 4 || q.price < opts.refPrice / 4)) continue;
+    return q;
+  }
+  return null;
+}

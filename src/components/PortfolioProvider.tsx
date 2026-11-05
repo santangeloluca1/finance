@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   buildHistory,
   totals as computeTotals,
@@ -13,7 +13,7 @@ import {
 } from "@/lib/analytics";
 import { buildPortfolio } from "@/lib/engine/portfolio";
 import type { AssetClass, PortfolioState } from "@/lib/engine/types";
-import { usePortfolio, useQuotes, type PortfolioData } from "@/lib/store";
+import { getCurrentData, setData, usePortfolio, useQuotes, type PortfolioData } from "@/lib/store";
 import { usePathname } from "next/navigation";
 import { useCloudSync } from "@/lib/sync";
 
@@ -47,6 +47,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
 
   const { quotes, fx, fetchedAt, loading, error, refresh } = useQuotes(tickers);
   const series = useHistorySeries(data, onLogin);
+  useTickerRepair(data, state, quotes, fetchedAt, loading);
 
   return (
     <PortfolioContext.Provider
@@ -67,6 +68,37 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
       {children}
     </PortfolioContext.Provider>
   );
+}
+
+/**
+ * Se un titolo aperto non riceve quotazioni (simbolo Yahoo sbagliato o non più
+ * valido), chiede al server un simbolo funzionante per lo stesso ISIN e lo
+ * salva nella scheda del titolo. Una sola prova per titolo e sessione.
+ */
+function useTickerRepair(data: PortfolioData, state: PortfolioState | null, quotes: Quotes, fetchedAt: number | null, loading: boolean) {
+  const tried = useRef(new Set<string>());
+  useEffect(() => {
+    if (data.isDemo || !state || !fetchedAt || loading) return;
+    const open = state.positions.filter((p) => p.quantity > 0);
+    for (const ins of data.instruments) {
+      const pos = open.filter((p) => p.isin === ins.isin);
+      if (!pos.length || quotes[ins.ticker] || tried.current.has(ins.isin)) continue;
+      tried.current.add(ins.isin);
+      const qty = pos.reduce((a, p) => a + p.quantity, 0);
+      const avg = pos.reduce((a, p) => a + p.totalCost, 0) / qty;
+      const params = new URLSearchParams({ isin: ins.isin, currency: ins.currency, name: ins.name });
+      // Il prezzo medio è in euro: vale come riferimento di scala solo per i titoli in euro.
+      if (ins.currency === "EUR" && avg > 0) params.set("ref", String(avg));
+      fetch(`/api/resolve?${params}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((res: { ticker: string | null } | null) => {
+          if (!res?.ticker || res.ticker === ins.ticker) return;
+          const cur = getCurrentData();
+          setData({ ...cur, instruments: cur.instruments.map((i) => (i.isin === ins.isin ? { ...i, ticker: res.ticker! } : i)) });
+        })
+        .catch(() => {});
+    }
+  }, [data, state, quotes, fetchedAt, loading]);
 }
 
 export function usePortfolioCtx() {

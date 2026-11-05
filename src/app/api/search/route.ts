@@ -1,17 +1,7 @@
 import { NextResponse } from "next/server";
-import { getQuote } from "@/lib/market/yahoo";
-import { cached } from "@/lib/market/cache";
+import { exchangeRank as rank, getQuote, searchYahoo as search } from "@/lib/market/yahoo";
 
 export const dynamic = "force-dynamic";
-
-interface YahooHit {
-  symbol: string;
-  exchange?: string;
-  exchDisp?: string;
-  quoteType?: string;
-  longname?: string;
-  shortname?: string;
-}
 
 export interface SearchResult {
   ticker: string;
@@ -24,20 +14,6 @@ export interface SearchResult {
 }
 
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
-/** Borse preferite per un investitore italiano, in ordine. */
-const PREFERRED = ["MIL", "GER", "AMS", "PAR", "EBS", "NMS", "NYQ", "LSE"];
-
-function search(q: string, count = 10): Promise<YahooHit[]> {
-  return cached(`s:${q}:${count}`, 10 * 60_000, async () => {
-    const res = await fetch(`https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=${count}&newsCount=0`, {
-      headers: { "User-Agent": "Mozilla/5.0 (portafoglio personale)" },
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    const json = (await res.json()) as { quotes?: YahooHit[] };
-    return (json.quotes ?? []).filter((h) => h.symbol && h.quoteType !== "OPTION" && h.quoteType !== "FUTURE");
-  });
-}
 
 /**
  * Cerca un titolo per nome, ticker o ISIN. Con un ISIN cerca anche per nome,
@@ -80,7 +56,4 @@ export async function GET(req: Request) {
   return NextResponse.json({ results });
 }
 
-function rank(exchange?: string) {
-  const i = PREFERRED.indexOf(exchange ?? "");
-  return i < 0 ? 99 : i;
-}
+
