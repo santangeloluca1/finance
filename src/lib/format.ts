@@ -21,3 +21,32 @@ export function fmtTime(ms: number) {
 }
 
 export const tone = (n: number) => (n > 0.004 ? "text-gain" : n < -0.004 ? "text-loss" : "text-muted");
+
+/** Borsa da cui arriva la quotazione, dal suffisso del simbolo Yahoo. */
+export function exchangeName(ticker: string) {
+  const suffix = ticker.includes(".") ? ticker.split(".").pop()!.toUpperCase() : "";
+  const map: Record<string, string> = {
+    MI: "Borsa Italiana",
+    DE: "Xetra",
+    F: "Francoforte",
+    AS: "Amsterdam",
+    PA: "Parigi",
+    L: "Londra",
+    SW: "Zurigo",
+    CO: "Copenaghen",
+    MC: "Madrid",
+  };
+  return suffix ? map[suffix] ?? suffix : "Borsa USA";
+}
+
+/** "oggi alle 17:35", "ieri alle 17:35", "il 3 nov alle 17:35". */
+export function fmtWhen(ms: number, now = Date.now()) {
+  const d = new Date(ms);
+  const day = (x: Date) => x.toLocaleDateString("it-IT");
+  const today = new Date(now);
+  const yesterday = new Date(now - 86400_000);
+  const time = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  if (day(d) === day(today)) return `oggi alle ${time}`;
+  if (day(d) === day(yesterday)) return `ieri alle ${time}`;
+  return `il ${d.toLocaleDateString("it-IT", { day: "numeric", month: "short" })} alle ${time}`;
+}

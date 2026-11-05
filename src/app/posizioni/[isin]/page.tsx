@@ -13,7 +13,7 @@ import { simulateSale } from "@/lib/engine/portfolio";
 import { detectPac } from "@/lib/pac";
 import { effectiveRate } from "@/lib/engine/tax";
 import type { Account, Instrument, PortfolioState } from "@/lib/engine/types";
-import { fmtDate, fmtEur, fmtNum, fmtPct, fmtPrice, fmtSignedEur, fmtSignedPct } from "@/lib/format";
+import { exchangeName, fmtDate, fmtEur, fmtNum, fmtPct, fmtPrice, fmtSignedEur, fmtSignedPct, fmtWhen } from "@/lib/format";
 
 type Range = "1S" | "1M" | "6M" | "1A" | "MAX";
 const RANGE_DAYS: Record<Range, number> = { "1S": 7, "1M": 31, "6M": 183, "1A": 366, MAX: 99999 };
@@ -100,6 +100,12 @@ export default function PositionDetail() {
                 </>
               )}
             </p>
+            {q && (
+              <p className="mt-1 text-[13px] text-mut">
+                {exchangeName(instrument.ticker)} · prezzo {fmtWhen(q.time)}
+                {Date.now() - q.time > 30 * 60_000 ? " (borsa chiusa o in pausa)" : ", ritardo ~15 min"}
+              </p>
+            )}
           </>
         )}
       </div>
