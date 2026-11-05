@@ -21,7 +21,7 @@ const baseURL =
   process.env.BETTER_AUTH_URL ??
   (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
 
-const trustedOrigins = [baseURL, process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`, process.env.VERCEL_BRANCH_URL && `https://${process.env.VERCEL_BRANCH_URL}`].filter(
+const staticOrigins = [baseURL, process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`, process.env.VERCEL_BRANCH_URL && `https://${process.env.VERCEL_BRANCH_URL}`].filter(
   (o): o is string => Boolean(o),
 );
 
@@ -33,7 +33,13 @@ const allowed = (process.env.ALLOWED_EMAILS ?? "")
 export const authOptions: BetterAuthOptions = {
   appName: "Basis",
   baseURL,
-  trustedOrigins,
+  // Oltre agli indirizzi noti, accetta le richieste che arrivano dallo stesso host
+  // su cui gira l'app (dominio di produzione, alias di Vercel, anteprime).
+  trustedOrigins: (request) => {
+    const host = request?.headers.get("x-forwarded-host") ?? request?.headers.get("host");
+    const proto = request?.headers.get("x-forwarded-proto") ?? "https";
+    return host ? [...staticOrigins, `${proto}://${host}`] : staticOrigins;
+  },
   secret: process.env.BETTER_AUTH_SECRET,
   database: pool,
   emailAndPassword: { enabled: true, minPasswordLength: 8, autoSignIn: true },
