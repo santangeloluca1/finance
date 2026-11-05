@@ -274,29 +274,8 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
       </div>
       <p className="mt-3 px-4 text-[12px] text-faint">Scorri sul grafico · due dita per confrontare due date</p>
 
-      {/* Riepilogo: tre numeri chiave in un unico pannello, come la posizione nel dettaglio titolo */}
-      <Panel className="mt-7">
-        <div className="grid grid-cols-3">
-          <SummaryCell
-            label="Rendimento"
-            value={compactSigned(totalReturn)}
-            valueClass={tint(totalReturn)}
-            note={`${fmtSignedPct(totals.cost ? totalReturn / totals.cost : 0)} totale`}
-          />
-          <SummaryCell href="/fisco" label="Netto se vendi" value={compactPlain(totals.netLiquidation)} note={`−${compactPlain(totals.taxIfSold)} tasse`} border />
-          <SummaryCell
-            onClick={() => goto("dividendi")}
-            label={`Cedole ${new Date().getFullYear()}`}
-            value={compactPlain(state.incomeByYear[String(new Date().getFullYear())] ?? 0)}
-            valueClass="text-up"
-            note="nette"
-            border
-          />
-        </div>
-      </Panel>
-
       {/* Azioni rapide */}
-      <div className="mt-7 grid grid-cols-4 px-2">
+      <div className="mt-8 grid grid-cols-4 px-2">
         <QuickAction href="/movimenti" label="Importa" icon={<FileUp size={20} />} />
         <QuickAction href="/posizioni" label="Simula vendita" icon={<Calculator size={20} />} />
         <QuickAction href="/fisco" label="Zainetto" icon={<Landmark size={20} />} badge={backpack > 0} />
@@ -317,6 +296,27 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         ) : (
           <p className="px-4 py-8 text-center text-[15px] text-mut">Nessun titolo con questi filtri.</p>
         )}
+      </Panel>
+
+      {/* Riepilogo: tre numeri chiave in un unico pannello, come la posizione nel dettaglio titolo */}
+      <Panel className="mt-4">
+        <div className="grid grid-cols-3">
+          <SummaryCell
+            label="Rendimento"
+            value={compactSigned(totalReturn)}
+            valueClass={tint(totalReturn)}
+            note={`${fmtSignedPct(totals.cost ? totalReturn / totals.cost : 0)} totale`}
+          />
+          <SummaryCell href="/fisco" label="Netto se vendi" value={compactPlain(totals.netLiquidation)} note={`−${compactPlain(totals.taxIfSold)} tasse`} border />
+          <SummaryCell
+            onClick={() => goto("dividendi")}
+            label={`Cedole ${new Date().getFullYear()}`}
+            value={compactPlain(state.incomeByYear[String(new Date().getFullYear())] ?? 0)}
+            valueClass="text-up"
+            note="nette"
+            border
+          />
+        </div>
       </Panel>
 
       {data.isDemo && (
