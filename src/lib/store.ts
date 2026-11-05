@@ -12,11 +12,30 @@ import type { FxRates, Quotes } from "./analytics";
  * sincronizzazione tra dispositivi.
  */
 
+export interface Goal {
+  id: string;
+  name: string;
+  target: number;
+  /** Scadenza YYYY-MM-DD. */
+  date: string;
+  /** Cosa conta per l'obiettivo: tutto il patrimonio, un conto o solo la liquidità. */
+  scope: "tutto" | "liquidita" | string;
+}
+
+export interface Plan {
+  monthly: number;
+  /** Rendimento annuo atteso, es. 0.05. */
+  expectedReturn: number;
+  years: number;
+}
+
 export interface PortfolioData {
   accounts: Account[];
   instruments: Instrument[];
   transactions: Transaction[];
   isDemo: boolean;
+  goals?: Goal[];
+  plan?: Plan;
 }
 
 const DATA_KEY = "portafoglio:data:v1";
@@ -230,4 +249,34 @@ export function newId() {
 function humanize(msg: string) {
   if (msg.includes("quantità disponibile")) return "Stai vendendo più quote di quelle possedute su questo conto a quella data.";
   return msg;
+}
+
+// ---- obiettivi e pianificazione ----
+
+/** Dati di partenza per le modifiche: l'esempio viene sostituito da un portafoglio vuoto. */
+function editableBase(): PortfolioData {
+  const current = getData();
+  return current.isDemo ? { accounts: current.accounts, instruments: [], transactions: [], isDemo: false } : current;
+}
+
+export function saveGoal(goal: Goal) {
+  const base = editableBase();
+  const goals = base.goals ?? [];
+  setData({ ...base, goals: goals.some((g) => g.id === goal.id) ? goals.map((g) => (g.id === goal.id ? goal : g)) : [...goals, goal] });
+}
+
+export function deleteGoal(id: string) {
+  const base = getData();
+  setData({ ...base, goals: (base.goals ?? []).filter((g) => g.id !== id) });
+}
+
+export function savePlan(plan: Plan) {
+  const base = getData();
+  // La pianificazione funziona anche sull'esempio, senza sostituirlo.
+  if (base.isDemo) {
+    current = { ...base, plan };
+    listeners.forEach((l) => l());
+    return;
+  }
+  setData({ ...base, plan });
 }

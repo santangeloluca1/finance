@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeftRight, ChartPie, House, Landmark } from "lucide-react";
+import { ArrowLeftRight, ChartPie, House, Landmark, Target } from "lucide-react";
 
 const TABS = [
   { href: "/", label: "Home", icon: House },
   { href: "/posizioni", label: "Titoli", icon: ChartPie },
+  { href: "/obiettivi", label: "Obiettivi", icon: Target },
   { href: "/fisco", label: "Fisco", icon: Landmark },
   { href: "/movimenti", label: "Movimenti", icon: ArrowLeftRight },
 ];
@@ -20,7 +21,7 @@ export function TabBar() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-sep bg-panel/80 backdrop-blur-xl backdrop-saturate-150"
       style={{ paddingBottom: "max(env(safe-area-inset-bottom), 6px)" }}
     >
-      <ul className="mx-auto grid max-w-xl grid-cols-4">
+      <ul className="mx-auto grid max-w-xl grid-cols-5">
         {TABS.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? path === "/" || path === "/impostazioni" : path.startsWith(href);
           return (
