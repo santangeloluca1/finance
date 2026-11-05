@@ -55,19 +55,21 @@ const EVENT_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola" } as 
  */
 export function InteractiveChart({ points, height = 220, format, formatAxis, reference, showInvested, events = [], marker, onSelect, loading, describePoint, describeRange, trend }: Props) {
   const gid = useId().replace(/:/g, "");
-  const boxRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(390);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(0);
   const [sel, setSel] = useState<Selection | null>(null);
   const pointers = useRef(new Map<number, number>());
   const dragAnchor = useRef<number | null>(null);
 
+  // Il contenitore compare solo quando ci sono dati: lo misuriamo appena esiste.
   useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([e]) => setWidth(Math.max(200, e.contentRect.width)));
-    ro.observe(el);
+    if (!box) return;
+    setWidth(box.clientWidth);
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    ro.observe(box);
     return () => ro.disconnect();
-  }, []);
+  }, [box]);
 
   const H = height - AXIS_H;
 
@@ -202,7 +204,10 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
 
   return (
     <div
-      ref={boxRef}
+      ref={(n) => {
+        boxRef.current = n;
+        setBox(n);
+      }}
       role="application"
       aria-label="Grafico navigabile: frecce sinistra e destra per scorrere, Esc per uscire"
       tabIndex={0}
@@ -216,7 +221,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
       className="relative select-none outline-none"
       style={{ height, touchAction: "pan-y" }}
     >
-      <svg width={width} height={height} className="block" aria-hidden>
+      {width > 0 && <svg width={width} height={height} className="block" aria-hidden>
         <defs>
           <linearGradient id={`f-${gid}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={stroke} stopOpacity="0.26" />
@@ -272,7 +277,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
             {axisDate(points[i].date, points)}
           </text>
         ))}
-      </svg>
+      </svg>}
 
       {/* Etichette della griglia (asse Y, a destra) */}
       {!sel &&

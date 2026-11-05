@@ -212,7 +212,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
       </div>
 
       {/* Grafico navigabile */}
-      <div className="mt-8">
+      <div className="mt-8 px-4">
         <InteractiveChart
           points={points}
           height={250}

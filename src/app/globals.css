@@ -118,7 +118,7 @@ input[type="range"] {
 }
 
 .pt-safe {
-  padding-top: calc(env(safe-area-inset-top) + 12px);
+  padding-top: calc(env(safe-area-inset-top) + 28px);
 }
 
 .pb-tabbar {

@@ -91,7 +91,7 @@ export default function PositionDetail() {
         </p>
       </div>
 
-      <div className="mt-7">
+      <div className="mt-7 px-4">
         <InteractiveChart
           points={points}
           height={220}
