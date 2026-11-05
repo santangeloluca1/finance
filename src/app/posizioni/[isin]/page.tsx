@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
-import { AreaChart, type ChartPoint } from "@/components/AreaChart";
+import { type ChartPoint } from "@/components/AreaChart";
+import { InteractiveChart } from "@/components/InteractiveChart";
 import { ChevronLeft } from "lucide-react";
 import { BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { ASSET_CLASS_LABEL, cutoffDate, type FxRates, type PositionView } from "@/lib/analytics";
@@ -91,13 +92,21 @@ export default function PositionDetail() {
       </div>
 
       <div className="mt-7">
-        <AreaChart
+        <InteractiveChart
           points={points}
-          height={170}
-          onScrub={setScrub}
+          height={220}
+          onSelect={(sel) => setScrub(sel ? points[sel.b ?? sel.a] : null)}
           loading={!historyReady}
-          tooltip={(p) => `${fmtPrice(p.value, instrument.currency)} · ${fmtDate(p.date, { day: "numeric", month: "short" })}`}
+          format={(v) => fmtPrice(v, instrument.currency)}
+          formatAxis={(v) => fmtPrice(v, instrument.currency).replace(/,\d+/, "")}
           marker={pmcMarker}
+          events={txs
+            .filter((t) => t.type !== "split")
+            .map((t) => ({
+              date: t.date,
+              kind: t.type as "buy" | "sell" | "dividend",
+              label: t.type === "dividend" ? `+${fmtEur(t.amount ?? 0)}` : `${fmtNum(t.quantity ?? 0)} quote a ${fmtPrice(t.price ?? 0, instrument.currency)}`,
+            }))}
         />
       </div>
       <div className="mt-3 flex px-3">
