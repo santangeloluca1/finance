@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { InteractiveChart } from "@/components/InteractiveChart";
-import { buildRows } from "@/components/PositionList";
-import { InfoRow, Logo, Panel, SectionHeader, SelectButton } from "@/components/ui";
+import { buildRows, PERIOD_OPTIONS } from "@/components/PositionList";
+import { InfoRow, Logo, Panel, SectionHeader, Segmented, SelectButton } from "@/components/ui";
 import { BigAmount } from "@/components/BigAmount";
 import { cutoffDate, type FxRates, type HistoryPoint, type Period, type PositionView, type Totals } from "@/lib/analytics";
 import type { Account, PortfolioState, Transaction } from "@/lib/engine/types";
@@ -47,6 +47,8 @@ export function Prestazioni({
 }) {
   const [range, setRange] = useState<Range>("1A");
   const [openMonth, setOpenMonth] = useState<string | null>(null);
+  const [contribPeriod, setContribPeriod] = useState<Period>("1A");
+  const [contribUnit, setContribUnit] = useState<"eur" | "pct">("eur");
   const [bench, setBench] = useState<Bench>("SWDA.MI");
   const [benchSeries, setBenchSeries] = useState<[string, number][] | null>(null);
 
@@ -113,12 +115,12 @@ export function Prestazioni({
     return xirr([...flows, { date: new Date().toISOString().slice(0, 10), amount: totals.value - totals.cash }]);
   }, [transactions, totals.value, totals.cash]);
 
-  const period: Period = range === "MAX" ? "totale" : "1A";
   const contributions = useMemo(
-    () => buildRows(views, range === "YTD" ? "6M" : period, priceSeries, fx, true).sort((a, b) => b.change.abs - a.change.abs),
-    [views, range, period, priceSeries, fx],
+    () => buildRows(views, contribPeriod, priceSeries, fx, true).sort((a, b) => (contribUnit === "eur" ? b.change.abs - a.change.abs : b.change.pct - a.change.pct)),
+    [views, contribPeriod, contribUnit, priceSeries, fx],
   );
-  const maxAbs = Math.max(1, ...contributions.map((c) => Math.abs(c.change.abs)));
+  const measure = (c: (typeof contributions)[number]) => (contribUnit === "eur" ? c.change.abs : c.change.pct);
+  const maxAbs = Math.max(contribUnit === "eur" ? 1 : 0.0001, ...contributions.map((c) => Math.abs(measure(c))));
 
   const years = [...new Set(Object.keys(months).map((m) => m.slice(0, 4)))].sort().reverse();
 
@@ -222,9 +224,22 @@ export function Prestazioni({
       </Panel>
 
       {/* Contributo di ogni titolo */}
-      <SectionHeader right={<span className="text-[13px] text-mut">{range === "MAX" ? "dall'acquisto" : range === "YTD" ? "6 mesi" : "1 anno"}</span>}>
+      <SectionHeader right={<SelectButton label="Periodo del contributo" value={contribPeriod} onChange={setContribPeriod} options={PERIOD_OPTIONS} />}>
         Chi ha contribuito
       </SectionHeader>
+      <div className="px-4 pb-2">
+        <div className="w-[120px]">
+          <Segmented
+            size="sm"
+            value={contribUnit}
+            onChange={setContribUnit}
+            options={[
+              { value: "eur", label: "€" },
+              { value: "pct", label: "%" },
+            ]}
+          />
+        </div>
+      </div>
       <ul>
         {contributions.map((c) => (
           <li key={c.key}>
@@ -233,12 +248,15 @@ export function Prestazioni({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="truncate text-[17px] font-semibold">{c.instrument.shortName ?? c.instrument.name}</p>
-                <p className={`num sensitive shrink-0 text-[17px] font-medium ${c.change.abs > 0.005 ? "text-up" : c.change.abs < -0.005 ? "text-dn" : "text-mut"}`}>{fmtSignedEur(c.change.abs)}</p>
+                <p className={`num sensitive shrink-0 text-[17px] font-medium ${c.change.abs > 0.005 ? "text-up" : c.change.abs < -0.005 ? "text-dn" : "text-mut"}`}>
+                  {contribUnit === "eur" ? fmtSignedEur(c.change.abs) : fmtSignedPct(c.change.pct)}
+                </p>
               </div>
-              <div className="mt-2 h-1 overflow-hidden rounded-full">
+              <p className="num sensitive text-[14px] text-mut">{contribUnit === "eur" ? fmtSignedPct(c.change.pct) : fmtSignedEur(c.change.abs)}</p>
+              <div className="mt-1.5 h-1 overflow-hidden rounded-full">
                 <div
-                  className={`h-full rounded-full ${c.change.abs >= 0 ? "bg-up" : "bg-dn"}`}
-                  style={{ width: `${(Math.abs(c.change.abs) / maxAbs) * 100}%` }}
+                  className={`h-full rounded-full ${measure(c) >= 0 ? "bg-up" : "bg-dn"}`}
+                  style={{ width: `${(Math.abs(measure(c)) / maxAbs) * 100}%` }}
                 />
               </div>
             </div>

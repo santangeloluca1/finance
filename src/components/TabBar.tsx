@@ -19,7 +19,7 @@ export function TabBar() {
     <nav
       aria-label="Sezioni"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-sep bg-panel/80 backdrop-blur-xl backdrop-saturate-150"
-      style={{ paddingBottom: "max(calc(env(safe-area-inset-bottom) - 18px), 6px)" }}
+      style={{ paddingBottom: "max(env(safe-area-inset-bottom), 6px)" }}
     >
       <ul className="mx-auto grid max-w-xl grid-cols-5">
         {TABS.map(({ href, label, icon: Icon }) => {

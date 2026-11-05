@@ -121,7 +121,7 @@ input[type="range"] {
 }
 
 .pb-tabbar {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 72px);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 88px);
 }
 
 .no-scrollbar::-webkit-scrollbar {
