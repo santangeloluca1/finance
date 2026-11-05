@@ -13,6 +13,7 @@ const TABS = [
 
 export function TabBar() {
   const path = usePathname();
+  if (path.startsWith("/accedi")) return null;
   return (
     <nav
       aria-label="Sezioni"

@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, RotateCcw, Upload } from "lucide-react";
+import { Download, LogOut, RotateCcw, Upload } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BackLink, LargeTitle, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { resetToDemo, setData, type PortfolioData } from "@/lib/store";
@@ -11,6 +12,7 @@ import { BasisMark } from "@/components/BasisMark";
 export default function Impostazioni() {
   const { data } = usePortfolioCtx();
   const [theme, setTheme] = useTheme();
+  const { data: session } = authClient.useSession();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -40,6 +42,32 @@ export default function Impostazioni() {
     <div>
       <BackLink href="/" label="Home" />
       <LargeTitle>Impostazioni</LargeTitle>
+
+      {session?.user && (
+        <>
+          <SectionHeader>Account</SectionHeader>
+          <Panel>
+            <div className="flex items-center gap-3 border-b border-sep px-4 py-3.5">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-chip text-[17px] font-semibold">
+                {(session.user.name || session.user.email)[0]?.toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[16px] font-semibold">{session.user.name}</p>
+                <p className="truncate text-[13px] text-mut">{session.user.email}</p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                await authClient.signOut();
+                window.location.replace("/accedi");
+              }}
+              className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-[16px] text-dn active:bg-panel-2"
+            >
+              <LogOut size={20} /> Esci
+            </button>
+          </Panel>
+        </>
+      )}
 
       <SectionHeader>Aspetto</SectionHeader>
       <div className="px-4">

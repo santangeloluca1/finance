@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { PortfolioProvider } from "@/components/PortfolioProvider";
 import { TabBar } from "@/components/TabBar";
+import { Shell } from "@/components/Shell";
 import { BOOT_SCRIPT } from "@/lib/boot";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
@@ -33,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <PortfolioProvider>
-          <main className="mx-auto max-w-xl pt-safe pb-tabbar">{children}</main>
+          <Shell>{children}</Shell>
           <TabBar />
         </PortfolioProvider>
       </body>

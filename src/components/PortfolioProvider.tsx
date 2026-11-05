@@ -14,6 +14,7 @@ import {
 import { buildPortfolio } from "@/lib/engine/portfolio";
 import type { AssetClass, PortfolioState } from "@/lib/engine/types";
 import { usePortfolio, useQuotes, type PortfolioData } from "@/lib/store";
+import { usePathname } from "next/navigation";
 
 type Series = Record<string, [string, number][]>;
 
@@ -35,13 +36,15 @@ const PortfolioContext = createContext<Ctx | null>(null);
 
 export function PortfolioProvider({ children }: { children: ReactNode }) {
   const { data, state } = usePortfolio();
+  const onLogin = usePathname().startsWith("/accedi");
   const tickers = useMemo(() => {
+    if (onLogin) return [];
     const open = new Set(state?.positions.filter((p) => p.quantity > 0).map((p) => p.isin));
     return data.instruments.filter((i) => open.has(i.isin)).map((i) => i.ticker);
-  }, [data.instruments, state]);
+  }, [data.instruments, state, onLogin]);
 
   const { quotes, fx, fetchedAt, loading, error, refresh } = useQuotes(tickers);
-  const series = useHistorySeries(data);
+  const series = useHistorySeries(data, onLogin);
 
   return (
     <PortfolioContext.Provider
@@ -111,16 +114,16 @@ export function usePortfolioView(filter: Filter = ALL) {
   return { ...ctx, state, views, totals, history };
 }
 
-function useHistorySeries(data: PortfolioData) {
+function useHistorySeries(data: PortfolioData, disabled = false) {
   const [series, setSeries] = useState<{ prices: Series; fx: Series } | null>(null);
 
   const request = useMemo(() => {
     const first = data.transactions.map((t) => t.date).sort()[0];
-    if (!first) return null;
+    if (!first || disabled) return null;
     const tickers = [...new Set(data.instruments.map((i) => i.ticker))].sort();
     const currencies = [...new Set(data.instruments.map((i) => i.currency).filter((c) => c !== "EUR"))].sort();
     return `/api/history?from=${first}&t=${encodeURIComponent(tickers.join(","))}&c=${currencies.join(",")}`;
-  }, [data]);
+  }, [data, disabled]);
 
   useEffect(() => {
     if (!request) return;
