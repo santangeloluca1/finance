@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Coins, Eye, EyeOff, FileUp, Landmark, Calculator, SlidersHorizontal, Settings } from "lucide-react";
+import { Bell, ChevronRight, Coins, Eye, EyeOff, FileUp, Landmark, Calculator, SlidersHorizontal, Settings } from "lucide-react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
 import { InteractiveChart, type ChartEvent, type Selection, type SeriesPoint } from "@/components/InteractiveChart";
 import { BigAmount } from "@/components/BigAmount";
@@ -17,12 +17,13 @@ import type { AssetClass } from "@/lib/engine/types";
 import { usableLosses } from "@/lib/engine/portfolio";
 import { fmtDate, fmtEur, fmtEur0, fmtNum, fmtSignedEur, fmtSignedPct, fmtTime } from "@/lib/format";
 import { usePrivacy } from "@/lib/privacy";
+import { computeAlerts } from "@/lib/alerts";
 
 type Tab = "panoramica" | "analisi" | "dividendi";
 const TABS: { id: Tab; label: string }[] = [
   { id: "panoramica", label: "Panoramica" },
   { id: "analisi", label: "Analisi" },
-  { id: "dividendi", label: "Dividendi" },
+  { id: "dividendi", label: "Cedole" },
 ];
 
 type Range = "1S" | "1M" | "3M" | "YTD" | "1A" | "MAX";
@@ -54,8 +55,8 @@ export default function Home() {
   return (
     <div>
       {/* Schede testuali in alto (getquin) + privacy e impostazioni */}
-      <div className="flex items-center justify-between pl-4 pr-2">
-        <div role="tablist" className="no-scrollbar flex min-w-0 gap-3.5 overflow-x-auto">
+      <div className="flex items-center justify-between gap-1 pl-4 pr-1.5">
+        <div role="tablist" className="no-scrollbar flex min-w-0 gap-3 overflow-x-auto">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -69,11 +70,12 @@ export default function Home() {
           ))}
         </div>
         <div className="flex shrink-0">
-          <button onClick={togglePrivacy} aria-label={privacy ? "Mostra importi" : "Nascondi importi"} aria-pressed={privacy} className="rounded-full p-2 text-mut active:opacity-50">
-            {privacy ? <EyeOff size={21} strokeWidth={1.8} /> : <Eye size={21} strokeWidth={1.8} />}
+          <button onClick={togglePrivacy} aria-label={privacy ? "Mostra importi" : "Nascondi importi"} aria-pressed={privacy} className="rounded-full p-1.5 text-mut active:opacity-50">
+            {privacy ? <EyeOff size={20} strokeWidth={1.8} /> : <Eye size={20} strokeWidth={1.8} />}
           </button>
-          <Link href="/impostazioni" aria-label="Impostazioni" className="rounded-full p-2 text-mut active:opacity-50">
-            <Settings size={21} strokeWidth={1.8} />
+          <AlertsBell view={view} />
+          <Link href="/impostazioni" aria-label="Impostazioni" className="rounded-full p-1.5 text-mut active:opacity-50">
+            <Settings size={20} strokeWidth={1.8} />
           </Link>
         </div>
       </div>
@@ -87,7 +89,7 @@ export default function Home() {
         ) : tab === "analisi" ? (
           <AnalisiTab view={view} filter={filter} />
         ) : (
-          <Dividendi data={view.data} state={view.state} totals={view.totals} />
+          <Dividendi data={view.data} state={view.state} totals={view.totals} views={view.views} />
         )
       ) : null}
     </div>
@@ -95,6 +97,23 @@ export default function Home() {
 }
 
 type View = ReturnType<typeof usePortfolioView>;
+
+function AlertsBell({ view }: { view: View }) {
+  const count = useMemo(
+    () => (view.state && view.totals ? computeAlerts(view.data, view.state, view.views, view.totals.value).filter((a) => a.level !== "info").length : 0),
+    [view.data, view.state, view.views, view.totals],
+  );
+  return (
+    <Link href="/avvisi" aria-label={count ? `Avvisi, ${count} nuovi` : "Avvisi"} className="relative rounded-full p-1.5 text-mut active:opacity-50">
+      <Bell size={20} strokeWidth={1.8} />
+      {count > 0 && (
+        <span className="num absolute right-0.5 top-0.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-bg bg-dn px-1 text-[10px] font-bold text-white">
+          {count}
+        </span>
+      )}
+    </Link>
+  );
+}
 
 function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
   const [sub, setSub] = useState<"prestazioni" | "allocazione" | "salute">("prestazioni");

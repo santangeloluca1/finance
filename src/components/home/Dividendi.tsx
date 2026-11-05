@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { BankDot, Chip, ChipRow, Logo, Panel, SectionHeader } from "@/components/ui";
 import { BigAmount } from "@/components/BigAmount";
-import { dividendsForYear } from "@/lib/dividends";
+import { dividendsForYear, trailingDividends } from "@/lib/dividends";
+import type { PositionView } from "@/lib/analytics";
 import type { PortfolioData } from "@/lib/store";
 import type { PortfolioState } from "@/lib/engine/types";
 import type { Totals } from "@/lib/analytics";
@@ -11,7 +12,7 @@ import { fmtDate, fmtEur } from "@/lib/format";
 
 const MONTHS = ["G", "F", "M", "A", "M", "G", "L", "A", "S", "O", "N", "D"];
 
-export function Dividendi({ data, state, totals }: { data: PortfolioData; state: PortfolioState; totals: Totals }) {
+export function Dividendi({ data, state, totals, views = [] }: { data: PortfolioData; state: PortfolioState; totals: Totals; views?: PositionView[] }) {
   const thisYear = new Date().getFullYear().toString();
   const years = useMemo(() => {
     const ys = new Set([thisYear, ...data.transactions.filter((t) => t.type === "dividend").map((t) => t.date.slice(0, 4))]);
@@ -33,6 +34,12 @@ export function Dividendi({ data, state, totals }: { data: PortfolioData; state:
   const max = Math.max(1, ...byMonth.map((m) => m.paid + m.forecast));
   const currentMonth = year === thisYear ? new Date().getMonth() : -1;
   const instruments = new Map(data.instruments.map((i) => [i.isin, i]));
+  const perTitle = trailingDividends(data.transactions).map((d) => {
+    const vs = views.filter((v) => v.instrument.isin === d.isin);
+    const value = vs.reduce((a, v) => a + v.value, 0);
+    const cost = vs.reduce((a, v) => a + v.position.totalCost, 0);
+    return { ...d, value, yieldNow: value ? d.trailing / value : 0, yieldCost: cost ? d.trailing / cost : 0 };
+  });
   const accounts = new Map(data.accounts.map((a) => [a.id, a]));
 
   return (
@@ -94,6 +101,31 @@ export function Dividendi({ data, state, totals }: { data: PortfolioData; state:
           </span>
         </div>
       </div>
+
+      {perTitle.length > 0 && (
+        <>
+          <SectionHeader right={<span className="text-[13px] text-mut">ultimi 12 mesi</span>}>Per titolo</SectionHeader>
+          <Panel>
+            {perTitle.map((d) => {
+              const ins = instruments.get(d.isin);
+              const name = ins?.shortName ?? ins?.name ?? d.isin;
+              return (
+                <div key={d.isin} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0">
+                  <Logo isin={d.isin} name={name} size={38} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold">{name}</p>
+                    <p className="num text-[12px] text-mut">
+                      {d.payments} {d.payments === 1 ? "pagamento" : "pagamenti"}
+                      {d.value > 0 && ` · rend. ${pct(d.yieldNow)} · sul costo ${pct(d.yieldCost)}`}
+                    </p>
+                  </div>
+                  <p className="num sensitive shrink-0 text-[15px] font-semibold text-up">+{fmtEur(d.trailing)}</p>
+                </div>
+              );
+            })}
+          </Panel>
+        </>
+      )}
 
       <SectionHeader>Calendario</SectionHeader>
       <Panel>

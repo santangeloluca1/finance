@@ -51,6 +51,7 @@ export function merge(local: PortfolioData, remote: PortfolioData): PortfolioDat
     transactions: byId(local.transactions, remote.transactions, (t) => t.id),
     goals: byId(local.goals ?? [], remote.goals ?? [], (g) => g.id),
     plan: local.plan ?? remote.plan,
+    targets: local.targets ?? remote.targets,
     isDemo: false,
   };
 }

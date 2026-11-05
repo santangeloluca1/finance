@@ -36,6 +36,8 @@ export interface PortfolioData {
   isDemo: boolean;
   goals?: Goal[];
   plan?: Plan;
+  /** Allocazione obiettivo per asset class (pesi 0..1). */
+  targets?: Record<string, number>;
 }
 
 const DATA_KEY = "portafoglio:data:v1";
@@ -217,8 +219,10 @@ export function saveTransaction(tx: Transaction, instrument?: Instrument) {
   const base: PortfolioData = current.isDemo
     ? { accounts: current.accounts, instruments: [], transactions: [], isDemo: false }
     : current;
+  // Se il titolo arriva dal portafoglio di esempio, la sua scheda va portata nei dati veri.
+  const needed = instrument ?? (tx.isin ? current.instruments.find((i) => i.isin === tx.isin) : undefined);
   const instruments =
-    instrument && !base.instruments.some((i) => i.isin === instrument.isin) ? [...base.instruments, instrument] : base.instruments;
+    needed && !base.instruments.some((i) => i.isin === needed.isin) ? [...base.instruments, needed] : base.instruments;
   const exists = base.transactions.some((t) => t.id === tx.id);
   const transactions = exists ? base.transactions.map((t) => (t.id === tx.id ? tx : t)) : [...base.transactions, tx];
   try {
@@ -279,4 +283,14 @@ export function savePlan(plan: Plan) {
     return;
   }
   setData({ ...base, plan });
+}
+
+export function saveTargets(targets: Record<string, number>) {
+  const base = getData();
+  if (base.isDemo) {
+    current = { ...base, targets };
+    listeners.forEach((l) => l());
+    return;
+  }
+  setData({ ...base, targets });
 }

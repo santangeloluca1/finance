@@ -41,3 +41,24 @@ export function dividendsForYear(
   }
   return [...paid, ...forecast].sort((a, b) => a.date.localeCompare(b.date));
 }
+
+export interface DividendStat {
+  isin: string;
+  /** Incassato netto negli ultimi 12 mesi. */
+  trailing: number;
+  payments: number;
+}
+
+/** Cedole e dividendi netti degli ultimi 12 mesi per titolo. */
+export function trailingDividends(transactions: Transaction[], today = new Date().toISOString().slice(0, 10)): DividendStat[] {
+  const from = new Date(Date.parse(`${today}T12:00:00Z`) - 365 * 86400_000).toISOString().slice(0, 10);
+  const map = new Map<string, DividendStat>();
+  for (const t of transactions) {
+    if (t.type !== "dividend" || t.date < from || t.date > today) continue;
+    const s = map.get(t.isin) ?? { isin: t.isin, trailing: 0, payments: 0 };
+    s.trailing += t.amount ?? 0;
+    s.payments += 1;
+    map.set(t.isin, s);
+  }
+  return [...map.values()].sort((a, b) => b.trailing - a.trailing);
+}

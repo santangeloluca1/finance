@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Check, Plus, Target, Trash2 } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { InteractiveChart } from "@/components/InteractiveChart";
+import { Ribilanciamento } from "@/components/Ribilanciamento";
 import { BankDot, Chip, ChipRow, LargeTitle, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { fmtDate, fmtEur0 } from "@/lib/format";
 import { futureValue, monthsUntil, requiredMonthly } from "@/lib/planning";
@@ -119,6 +120,8 @@ export default function Obiettivi() {
           );
         })}
       </div>
+
+      {totals && <Ribilanciamento views={views} targets={data.targets} monthly={plan.monthly} />}
 
       {totals && <Pianificazione start={totals.value} plan={plan} />}
     </div>

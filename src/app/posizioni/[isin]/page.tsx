@@ -10,6 +10,7 @@ import { ChevronLeft } from "lucide-react";
 import { BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { ASSET_CLASS_LABEL, cutoffDate, type FxRates, type PositionView } from "@/lib/analytics";
 import { simulateSale } from "@/lib/engine/portfolio";
+import { detectPac } from "@/lib/pac";
 import { effectiveRate } from "@/lib/engine/tax";
 import type { Account, Instrument, PortfolioState } from "@/lib/engine/types";
 import { fmtDate, fmtEur, fmtNum, fmtPct, fmtPrice, fmtSignedEur, fmtSignedPct } from "@/lib/format";
@@ -155,6 +156,19 @@ export default function PositionDetail() {
               <InfoRow label="Netto se vendi oggi" value={<span className="sensitive">{fmtEur(value - tax)}</span>} />
             </div>
           </Panel>
+          {allRows.map((r) => {
+            const pac = detectPac(data.transactions, isin, r.position.account);
+            if (!pac) return null;
+            return (
+              <div key={`pac-${r.position.account}`} className="mx-4 mt-3 flex items-center gap-3 rounded-[18px] bg-accent/10 px-4 py-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[13px] font-bold text-accent">PAC</span>
+                <p className="text-[13px] leading-snug text-ink-2">
+                  Piano di accumulo su {accounts.get(r.position.account)?.name}: circa <b className="num">{fmtEur(pac.monthly)}</b> al mese,{" "}
+                  {pac.installments} rate dal {fmtDate(pac.since, { month: "short", year: "numeric" })}.
+                </p>
+              </div>
+            );
+          })}
           {bank === "all" && allRows.length > 1 && (
             <p className="px-8 pt-2 text-[12px] leading-snug text-mut">Il prezzo medio è calcolato separatamente per ogni banca, come fanno gli intermediari.</p>
           )}
