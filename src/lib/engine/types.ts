@@ -52,7 +52,8 @@ export type TransactionType =
   | "split"
   | "cash" // saldo di liquidità del conto a una data (amount = saldo in EUR)
   | "deposit" // versamento sul conto (es. stipendio), amount in EUR
-  | "withdrawal"; // prelievo dal conto, amount in EUR
+  | "withdrawal" // prelievo dal conto, amount in EUR
+  | "transfer"; // bonifico tra due conti: esce da account, entra in toAccount
 
 export interface Transaction {
   id: string;
@@ -80,6 +81,10 @@ export interface Transaction {
   /** Rapporto di frazionamento per gli split (es. 4 per uno split 4:1). */
   splitRatio?: number;
   note?: string;
+  /** Conto di destinazione di un bonifico. */
+  toAccount?: AccountId;
+  /** Rata di un'operazione ricorrente da cui nasce il movimento (`${piano}:${YYYY-MM}`). */
+  plan?: string;
 }
 
 /** Natura fiscale di una plus/minusvalenza realizzata. */

@@ -170,6 +170,8 @@ export function buildHistory(
   instruments: Instrument[],
   series: Record<string, [string, number][]>,
   fxSeries: Record<string, [string, number][]>,
+  /** Con un filtro per banca: conta solo la liquidità di questo conto. */
+  cashAccount?: string,
 ): HistoryPoint[] {
   const txs = sortTransactions(transactions);
   if (txs.length === 0) return [];
@@ -215,7 +217,9 @@ export function buildHistory(
     const realized = state.realized.reduce((a, r) => a + r.gain, 0);
     const income = Object.values(state.incomeByYear).reduce((a, b) => a + b, 0);
     // La liquidità entra nel valore e nel capitale: non cambia il guadagno.
-    const cashNow = Object.values(state.cash).reduce((a, c) => a + c.amount, 0);
+    const cashNow = Object.entries(state.cash)
+      .filter(([acc]) => !cashAccount || acc === cashAccount)
+      .reduce((a, [, c]) => a + c.amount, 0);
     value += cashNow;
     invested += cashNow;
     for (const p of state.positions) {

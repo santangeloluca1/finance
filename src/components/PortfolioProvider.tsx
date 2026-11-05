@@ -127,15 +127,18 @@ export function usePortfolioView(filter: Filter = ALL) {
     const assetOf = new Map(data.instruments.map((i) => [i.isin, i.assetClass]));
     return data.transactions.filter(
       (t) =>
-        (filter.account === "all" || t.account === filter.account) &&
-        (filter.asset === "all" || (filter.asset === "liquidita" ? ["cash", "deposit", "withdrawal"].includes(t.type) : assetOf.get(t.isin) === filter.asset)),
+        (filter.account === "all" || t.account === filter.account || t.toAccount === filter.account) &&
+        (filter.asset === "all" || (filter.asset === "liquidita" ? ["cash", "deposit", "withdrawal", "transfer"].includes(t.type) : assetOf.get(t.isin) === filter.asset)),
     );
   }, [data, filter.account, filter.asset]);
 
   const state = useMemo(() => {
     if (filter.account === "all" && filter.asset === "all") return ctx.state;
     try {
-      return buildPortfolio(txs, data.instruments);
+      const s = buildPortfolio(txs, data.instruments);
+      // Un bonifico verso questo conto non deve mostrare il conto di partenza.
+      if (filter.account !== "all") s.cash = Object.fromEntries(Object.entries(s.cash).filter(([acc]) => acc === filter.account));
+      return s;
     } catch {
       return null;
     }
@@ -144,8 +147,8 @@ export function usePortfolioView(filter: Filter = ALL) {
   const views: PositionView[] = useMemo(() => (state ? valuePositions(state, data.instruments, quotes, fx) : []), [state, data.instruments, quotes, fx]);
   const totals: Totals | null = useMemo(() => (state ? computeTotals(views, state) : null), [views, state]);
   const history: HistoryPoint[] | null = useMemo(
-    () => (ctx.historyReady ? buildHistory(txs, data.instruments, priceSeries, fxSeries) : null),
-    [ctx.historyReady, txs, data.instruments, priceSeries, fxSeries],
+    () => (ctx.historyReady ? buildHistory(txs, data.instruments, priceSeries, fxSeries, filter.account === "all" ? undefined : filter.account) : null),
+    [ctx.historyReady, txs, data.instruments, priceSeries, fxSeries, filter.account],
   );
 
   return { ...ctx, state, views, totals, history };

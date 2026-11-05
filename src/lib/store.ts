@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { DEMO_ACCOUNTS, DEMO_INSTRUMENTS, DEMO_TRANSACTIONS } from "./demo";
 import { buildPortfolio, CashError } from "./engine/portfolio";
 import { fmtEur as eurFmt } from "./format";
+import type { RecurringPlan } from "./recurring";
 import type { Account, Instrument, PortfolioState, Transaction } from "./engine/types";
 import type { FxRates, Quotes } from "./analytics";
 
@@ -40,6 +41,10 @@ export interface PortfolioData {
   /** Allocazione obiettivo per asset class (pesi 0..1). */
   targets?: Record<string, number>;
   reminders?: Reminder[];
+  /** Operazioni ricorrenti (stipendio, bonifici, PAC). */
+  recurring?: RecurringPlan[];
+  /** Rate saltate (`${piano}:${YYYY-MM}`). */
+  recurringSkipped?: string[];
   /** Avvisi già visti (non accendono più la campanella). */
   alertsSeen?: string[];
   /** Avvisi archiviati (non compaiono più). */
@@ -273,6 +278,24 @@ export function newId() {
 function humanize(msg: string) {
   if (msg.includes("quantità disponibile")) return "Stai vendendo più quote di quelle possedute su questo conto a quella data.";
   return msg;
+}
+
+// ---- operazioni ricorrenti ----
+
+export function saveRecurring(plan: RecurringPlan) {
+  const base = editableBase();
+  const list = base.recurring ?? [];
+  setData({ ...base, recurring: list.some((p) => p.id === plan.id) ? list.map((p) => (p.id === plan.id ? plan : p)) : [...list, plan] });
+}
+
+export function deleteRecurring(id: string) {
+  const base = getData();
+  setData({ ...base, recurring: (base.recurring ?? []).filter((p) => p.id !== id) });
+}
+
+export function skipOccurrence(occurrenceId: string) {
+  const base = getData();
+  setData({ ...base, recurringSkipped: [...new Set([...(base.recurringSkipped ?? []), occurrenceId])] });
 }
 
 // ---- avvisi e promemoria ----

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Bell, ChevronRight, Eye, EyeOff, Settings } from "lucide-react";
+import { Bell, ChevronRight, Eye, EyeOff, Repeat, Settings } from "lucide-react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
 import { InteractiveChart, type ChartEvent, type Selection, type SeriesPoint } from "@/components/InteractiveChart";
 import { BigAmount } from "@/components/BigAmount";
@@ -19,6 +19,7 @@ import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime } 
 import { usePrivacy } from "@/lib/privacy";
 import { computeAlerts, unseenAlerts } from "@/lib/alerts";
 import { twrSeries } from "@/lib/performance";
+import { pendingOccurrences } from "@/lib/recurring";
 
 type Tab = "panoramica" | "analisi" | "dividendi";
 const TABS: { id: Tab; label: string }[] = [
@@ -119,8 +120,8 @@ function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
     const assetOf = new Map(view.data.instruments.map((i) => [i.isin, i.assetClass]));
     return view.data.transactions.filter(
       (t) =>
-        (filter.account === "all" || t.account === filter.account) &&
-        (filter.asset === "all" || (filter.asset === "liquidita" ? ["cash", "deposit", "withdrawal"].includes(t.type) : assetOf.get(t.isin) === filter.asset)),
+        (filter.account === "all" || t.account === filter.account || t.toAccount === filter.account) &&
+        (filter.asset === "all" || (filter.asset === "liquidita" ? ["cash", "deposit", "withdrawal", "transfer"].includes(t.type) : assetOf.get(t.isin) === filter.asset)),
     );
   }, [view.data, filter]);
   if (!view.totals || !view.state) return null;
@@ -162,7 +163,7 @@ function Filters({ filter, setFilter, view }: { filter: Filter; setFilter: (f: F
     const set = new Set(view.data.instruments.map((i) => i.assetClass));
     return (Object.keys(ASSET_CLASS_LABEL) as AssetClass[]).filter((a) => set.has(a));
   }, [view.data.instruments]);
-  const hasCash = view.data.transactions.some((t) => ["cash", "deposit", "withdrawal"].includes(t.type));
+  const hasCash = view.data.transactions.some((t) => ["cash", "deposit", "withdrawal", "transfer"].includes(t.type));
   const bank = view.data.accounts.find((a) => a.id === filter.account);
   return (
     <div className="flex min-w-0 items-center gap-4 pl-4">
@@ -224,6 +225,10 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   }, [data, filter]);
 
   const rows = useMemo(() => buildRows(views, period, priceSeries, fx, filter.account === "all"), [views, period, priceSeries, fx, filter.account]);
+  const pending = useMemo(
+    () => pendingOccurrences(data.recurring ?? [], data.transactions, data.recurringSkipped ?? [], new Date().toISOString().slice(0, 10)),
+    [data.recurring, data.transactions, data.recurringSkipped],
+  );
 
   if (!totals || !state) return null;
 
@@ -307,6 +312,17 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           </button>
         ))}
       </div>
+
+      {pending.length > 0 && (
+        <Link href="/ricorrenti" className="mx-4 mt-6 flex min-h-[56px] items-center gap-3 rounded-[16px] bg-accent/12 px-4 py-2.5 active:opacity-80">
+          <Repeat size={20} className="shrink-0 text-accent" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[16px] font-semibold">{pending.length === 1 ? `${pending[0].plan.label} da confermare` : `${pending.length} rate da confermare`}</span>
+            <span className="block truncate text-[14px] text-mut">{pending.map((o) => o.plan.label).join(", ")}</span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-accent" />
+        </Link>
+      )}
 
       <SectionHeader right={<SelectButton label="Periodo della variazione" value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />}>Titoli</SectionHeader>
       {rows.length || totals.cash > 0 ? (

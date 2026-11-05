@@ -70,12 +70,12 @@ export function buildPortfolio(
   const cash: PortfolioState["cash"] = {};
 
   // Movimento di cassa: conta solo se il conto ha già un saldo noto.
-  const move = (tx: Transaction, delta: number, open = false) => {
-    const cur = cash[tx.account];
+  const move = (tx: Transaction, delta: number, open = false, account = tx.account) => {
+    const cur = cash[account];
     if (!cur && !open) return;
-    cash[tx.account] = { date: tx.date, amount: (cur?.amount ?? 0) + delta };
-    if (tx.id === options.checkCashFor && cash[tx.account].amount < -0.005) {
-      throw new CashError(tx.account, cash[tx.account].amount - delta, -delta);
+    cash[account] = { date: tx.date, amount: (cur?.amount ?? 0) + delta };
+    if (tx.id === options.checkCashFor && cash[account].amount < -0.005) {
+      throw new CashError(account, cash[account].amount - delta, -delta);
     }
   };
 
@@ -88,6 +88,13 @@ export function buildPortfolio(
     if (tx.type === "deposit" || tx.type === "withdrawal") {
       const amount = requirePositive(tx.amount, tx, "amount");
       move(tx, tx.type === "deposit" ? amount : -amount, true);
+      continue;
+    }
+    if (tx.type === "transfer") {
+      const amount = requirePositive(tx.amount, tx, "amount");
+      if (!tx.toAccount || tx.toAccount === tx.account) throw new PortfolioError(`Bonifico ${tx.id} senza conto di destinazione`);
+      move(tx, -amount, true);
+      move(tx, amount, true, tx.toAccount);
       continue;
     }
     const instrument = byIsin.get(tx.isin);

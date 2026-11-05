@@ -270,3 +270,14 @@ describe("liquidità del conto", () => {
     expect(buildPortfolio(txs, ALL).cash.fineco.amount).toBeCloseTo(-205, 6);
   });
 });
+
+describe("bonifico tra conti", () => {
+  it("sposta la liquidità e blocca se il conto di partenza non ha fondi", () => {
+    const sal = tx({ date: "2026-11-10", account: "isybank", type: "deposit", isin: "", amount: 1800 });
+    const bon = tx({ date: "2026-11-10", account: "isybank", type: "transfer", toAccount: "fineco", isin: "", amount: 300 });
+    const s = buildPortfolio([tx({ date: "2026-11-05", account: "fineco", type: "cash", isin: "", amount: 548.93 }), sal, bon], ALL, { checkCashFor: bon.id });
+    expect(s.cash.isybank.amount).toBeCloseTo(1500, 6);
+    expect(s.cash.fineco.amount).toBeCloseTo(848.93, 6);
+    expect(() => buildPortfolio([bon], ALL, { checkCashFor: bon.id })).toThrow(CashError);
+  });
+});

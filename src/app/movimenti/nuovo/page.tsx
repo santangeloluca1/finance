@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Check, LoaderCircle, Search, Trash2, X } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
-import { BankDot, Chip, ChipRow, Logo, Segmented } from "@/components/ui";
+import { BankDot, Chip, ChipRow, Logo, Segmented, SelectButton } from "@/components/ui";
 import { ASSET_CLASS_LABEL } from "@/lib/analytics";
 import type { AssetClass, Instrument, Transaction, TransactionType } from "@/lib/engine/types";
 import { fmtEur, fmtNum, fmtPrice } from "@/lib/format";
@@ -33,9 +33,10 @@ const GROUP_OPTIONS: { value: Group; label: string }[] = [
 const CASH_OPTIONS: { value: Kind; label: string }[] = [
   { value: "deposit", label: "Versamento" },
   { value: "withdrawal", label: "Prelievo" },
+  { value: "transfer", label: "Bonifico" },
   { value: "cash", label: "Saldo" },
 ];
-const isCashKind = (k: Kind) => k === "cash" || k === "deposit" || k === "withdrawal";
+const isCashKind = (k: Kind) => k === "cash" || k === "deposit" || k === "withdrawal" || k === "transfer";
 
 export default function NuovoMovimentoPage() {
   // I dati stanno nel browser: il modulo parte dopo il montaggio, con i dati veri.
@@ -65,6 +66,7 @@ function NuovoMovimento() {
   const [fees, setFees] = useState(editing?.fees?.toString().replace(".", ",") ?? "");
   const [fx, setFx] = useState(editing?.fxRate?.toString().replace(".", ",") ?? "");
   const [amount, setAmount] = useState(editing?.amount?.toString().replace(".", ",") ?? "");
+  const [toAccount, setToAccount] = useState(editing?.toAccount ?? data.accounts.find((a) => a.id !== (editing?.account ?? params.get("conto") ?? data.accounts[0]?.id))?.id ?? "");
   const [note, setNote] = useState(editing?.note ?? (params.get("tipo") === "deposit" ? "Stipendio" : ""));
   const [error, setError] = useState<string | null>(null);
 
@@ -101,7 +103,7 @@ function NuovoMovimento() {
     account &&
     /^\d{4}-\d{2}-\d{2}$/.test(date) &&
     (isCashKind(kind)
-      ? amount !== "" && (kind === "cash" || num(amount) > 0)
+      ? amount !== "" && (kind === "cash" || num(amount) > 0) && (kind !== "transfer" || (!!toAccount && toAccount !== account))
       : instrument && (kind === "dividend" ? num(amount) > 0 : q > 0 && p > 0 && (currency === "EUR" || num(fx) > 0)));
 
   const save = () => {
@@ -115,7 +117,9 @@ function NuovoMovimento() {
       ...(kind === "buy" || kind === "sell"
         ? { quantity: q, price: p, fees: num(fees) || undefined, fxRate: currency === "EUR" ? undefined : num(fx) }
         : { amount: num(amount) }),
-      ...(note.trim() && (kind === "deposit" || kind === "withdrawal") ? { note: note.trim() } : {}),
+      ...(note.trim() && (kind === "deposit" || kind === "withdrawal" || kind === "transfer") ? { note: note.trim() } : {}),
+      ...(kind === "transfer" ? { toAccount } : {}),
+      ...(editing?.plan ? { plan: editing.plan } : {}),
     };
     try {
       saveTransaction(tx, isNew && instrument ? instrument : undefined);
@@ -234,9 +238,20 @@ function NuovoMovimento() {
             <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" className={inputCls} />
           </Field>
         )}
-        {(kind === "deposit" || kind === "withdrawal") && (
+        {(kind === "deposit" || kind === "withdrawal" || kind === "transfer") && (
           <>
-            <Field label={kind === "deposit" ? "Importo versato (€)" : "Importo prelevato (€)"}>
+            {kind === "transfer" && (
+              <div className="flex min-h-[52px] items-center justify-between gap-3 border-b border-sep px-4">
+                <span className="text-[16px]">Verso</span>
+                <SelectButton
+                  label="Conto di destinazione"
+                  value={toAccount}
+                  onChange={setToAccount}
+                  options={data.accounts.filter((a) => a.id !== account).map((a) => ({ value: a.id, label: a.name }))}
+                />
+              </div>
+            )}
+            <Field label={kind === "deposit" ? "Importo versato (€)" : kind === "transfer" ? "Importo del bonifico (€)" : "Importo prelevato (€)"}>
               <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" className={inputCls} />
             </Field>
             <Field label="Descrizione">
@@ -246,7 +261,7 @@ function NuovoMovimento() {
         )}
       </div>
 
-      {(kind === "buy" || kind === "withdrawal") && available !== undefined && (
+      {(kind === "buy" || kind === "withdrawal" || kind === "transfer") && available !== undefined && (
         <p className={`px-5 pt-2 text-[14px] ${valid && total > available + 0.005 ? "font-semibold text-dn" : "text-mut"}`}>
           Liquidità disponibile su {data.accounts.find((a) => a.id === account)?.name}: <span className="num">{fmtEur(available)}</span>
         </p>

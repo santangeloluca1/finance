@@ -3,6 +3,7 @@ import { dividendsForYear } from "./dividends";
 import { usableLosses } from "./engine/portfolio";
 import type { PortfolioState } from "./engine/types";
 import type { PortfolioData } from "./store";
+import { pendingOccurrences } from "./recurring";
 
 export interface Alert {
   id: string;
@@ -71,6 +72,17 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
         href: "/#dividendi",
       });
     }
+  }
+
+  const pending = pendingOccurrences(data.recurring ?? [], data.transactions, data.recurringSkipped ?? [], today);
+  if (pending.length) {
+    out.push({
+      id: `ricorrenti-${pending[pending.length - 1].id}-${pending.length}`,
+      level: "attenzione",
+      title: pending.length === 1 ? `${pending[0].plan.label} da confermare` : `${pending.length} rate ricorrenti da confermare`,
+      detail: pending.map((o) => o.plan.label).join(", "),
+      href: "/ricorrenti",
+    });
   }
 
   for (const r of data.reminders ?? []) {

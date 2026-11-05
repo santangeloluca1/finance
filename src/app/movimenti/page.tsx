@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { FileUp, Plus } from "lucide-react";
+import { Plus, Repeat } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BankDot, LargeTitle, SelectButton } from "@/components/ui";
 import { fmtDate, fmtEur, fmtNum, fmtPrice } from "@/lib/format";
@@ -16,6 +16,7 @@ const META = {
   cash: { verb: "Saldo del conto" },
   deposit: { verb: "Versamento" },
   withdrawal: { verb: "Prelievo" },
+  transfer: { verb: "Bonifico" },
 } as const;
 
 type Kind = "all" | Transaction["type"];
@@ -30,7 +31,7 @@ export default function Movimenti() {
 
   const months = useMemo(() => {
     const txs = data.transactions
-      .filter((t) => (account === "all" || t.account === account) && (kind === "all" || t.type === kind))
+      .filter((t) => (account === "all" || t.account === account || t.toAccount === account) && (kind === "all" || t.type === kind))
       .sort((a, b) => b.date.localeCompare(a.date));
     const map = new Map<string, Transaction[]>();
     for (const t of txs) map.set(t.date.slice(0, 7), [...(map.get(t.date.slice(0, 7)) ?? []), t]);
@@ -74,11 +75,12 @@ export default function Movimenti() {
             { value: "dividend", label: "Cedole" },
             { value: "deposit", label: "Versamenti" },
             { value: "withdrawal", label: "Prelievi" },
+            { value: "transfer", label: "Bonifici" },
             { value: "cash", label: "Saldi" },
           ]}
         />
-        <Link href="/impostazioni" className="ml-auto flex min-h-[36px] items-center gap-1 text-[15px] font-semibold text-accent">
-          <FileUp size={17} /> Importa
+        <Link href="/ricorrenti" className="ml-auto flex min-h-[36px] items-center gap-1 text-[15px] font-semibold text-accent">
+          <Repeat size={17} /> Ricorrenti
         </Link>
       </div>
 
@@ -91,15 +93,17 @@ export default function Movimenti() {
             {txs.map((t) => {
               const ins = instruments.get(t.isin);
               const m = META[t.type];
-              const cashTx = t.type === "cash" || t.type === "deposit" || t.type === "withdrawal";
+              const cashTx = t.type === "cash" || t.type === "deposit" || t.type === "withdrawal" || t.type === "transfer";
               const total = t.type === "dividend" || cashTx ? t.amount ?? 0 : ((t.quantity ?? 0) * (t.price ?? 0)) / (t.fxRate ?? 1);
-              const name = t.type === "deposit" ? "Versamento" : t.type === "withdrawal" ? "Prelievo" : t.type === "cash" ? "Liquidità" : ins?.shortName ?? ins?.name ?? t.isin;
+              const name = t.type === "transfer" ? "Bonifico" : t.type === "deposit" ? "Versamento" : t.type === "withdrawal" ? "Prelievo" : t.type === "cash" ? "Liquidità" : ins?.shortName ?? ins?.name ?? t.isin;
               const detail =
                 t.type === "buy" || t.type === "sell"
                   ? `${m.verb} ${fmtNum(t.quantity ?? 0)} a ${fmtPrice(t.price ?? 0, ins?.currency ?? "EUR")}`
                   : t.type === "split"
                     ? `Frazionamento ${t.splitRatio}:1`
-                    : t.note || m.verb;
+                    : t.type === "transfer"
+                      ? `${accounts.get(t.account)?.name ?? t.account} → ${accounts.get(t.toAccount ?? "")?.name ?? t.toAccount}`
+                      : t.note || m.verb;
               return (
                 <li key={t.id}>
                   <Link
@@ -115,7 +119,7 @@ export default function Movimenti() {
                       </p>
                     </div>
                     <p className={`num sensitive shrink-0 text-[17px] font-medium ${t.type === "dividend" || t.type === "sell" || t.type === "deposit" ? "text-up" : ""}`}>
-                      {t.type === "split" ? "" : t.type === "cash" ? fmtEur(total) : `${t.type === "buy" || t.type === "withdrawal" ? "−" : "+"}${fmtEur(total)}`}
+                      {t.type === "split" ? "" : t.type === "cash" || t.type === "transfer" ? fmtEur(total) : `${t.type === "buy" || t.type === "withdrawal" ? "−" : "+"}${fmtEur(total)}`}
                     </p>
                   </Link>
                 </li>
