@@ -56,7 +56,7 @@ export default function Accedi() {
         </p>
 
         <form onSubmit={submit} className="mt-9" noValidate>
-          <div className="overflow-hidden rounded-[18px] bg-panel shadow-panel">
+          <div className="overflow-hidden rounded-[16px] bg-panel">
             {isSignup && (
               <Field label="Nome" htmlFor="name">
                 <input id="name" autoComplete="given-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Come ti chiami" className={inputCls} />
@@ -108,7 +108,7 @@ export default function Accedi() {
           <button
             type="submit"
             disabled={busy || !email || password.length < (isSignup ? 8 : 1)}
-            className="mt-3 flex h-[56px] w-full items-center justify-center gap-2 rounded-[18px] bg-ink text-[17px] font-semibold text-bg transition-opacity active:opacity-80 disabled:opacity-40"
+            className="mt-3 flex h-[56px] w-full items-center justify-center gap-2 rounded-[16px] bg-ink text-[17px] font-semibold text-bg transition-opacity active:opacity-80 disabled:opacity-40"
           >
             {busy ? <LoaderCircle size={20} className="animate-spin" /> : isSignup ? "Crea account" : "Accedi"}
             {!busy && <ArrowRight size={19} strokeWidth={2.4} />}

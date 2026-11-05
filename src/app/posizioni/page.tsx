@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { buildRows, PERIOD_OPTIONS, PositionList, type SortKey } from "@/components/PositionList";
-import { BankDot, LargeTitle, Panel, Segmented, SelectButton } from "@/components/ui";
+import { BankDot, LargeTitle, SelectButton } from "@/components/ui";
 import type { Period } from "@/lib/analytics";
 import { fmtEur } from "@/lib/format";
 
@@ -36,8 +36,9 @@ export default function Posizioni() {
   return (
     <div>
       <LargeTitle>Titoli</LargeTitle>
-      <div className="px-4">
-        <Segmented
+      <div className="flex items-center gap-5 px-4">
+        <SelectButton
+          label="Raggruppa"
           value={view}
           onChange={setView}
           options={[
@@ -45,39 +46,37 @@ export default function Posizioni() {
             { value: "banca", label: "Per banca" },
           ]}
         />
-        <div className="mt-3 flex items-center justify-between">
-          <SelectButton label="Periodo della variazione" value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
+        <SelectButton label="Periodo della variazione" value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
+        <span className="ml-auto">
           <SelectButton
             label="Ordina per"
             value={sort}
             onChange={setSort}
             options={[
-              { value: "valore", label: "Per valore" },
-              { value: "variazione", label: "Per variazione" },
-              { value: "nome", label: "Per nome" },
+              { value: "valore", label: "Valore" },
+              { value: "variazione", label: "Variazione" },
+              { value: "nome", label: "Nome" },
             ]}
           />
-        </div>
+        </span>
       </div>
 
       {groups.map((g) => {
         const value = g.rows.reduce((a, r) => a + r.value, 0);
         return (
-          <section key={g.id} className="mt-5">
+          <section key={g.id} className={g.account ? "mt-8" : "mt-3"}>
             {g.account && (
-              <div className="flex items-baseline justify-between px-4 pb-2">
-                <h2 className="flex items-center gap-2 text-[20px] font-bold tracking-[-0.02em]">
-                  <BankDot color={g.account.color} size={10} />
+              <div className="flex items-baseline justify-between px-4 pb-1">
+                <h2 className="flex items-center gap-2 text-[22px] font-bold tracking-[-0.025em]">
+                  <BankDot color={g.account.color} size={9} />
                   {g.account.name}
                 </h2>
-                <p className="num text-[15px] text-mut">
+                <p className="num sensitive text-[15px] text-mut">
                   {fmtEur(value)} · {Math.round((value / (totals?.value || 1)) * 100)}%
                 </p>
               </div>
             )}
-            <Panel>
-              <PositionList rows={g.rows} accounts={data.accounts} showBanks={view === "titolo"} />
-            </Panel>
+            <PositionList rows={g.rows} accounts={data.accounts} showBanks={view === "titolo"} />
           </section>
         );
       })}

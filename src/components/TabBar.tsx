@@ -29,7 +29,7 @@ export function TabBar() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`flex flex-col items-center gap-0.5 pb-1 pt-2 text-[10px] font-medium ${active ? "text-accent" : "text-faint"}`}
+                className={`flex flex-col items-center gap-0.5 pb-1 pt-2 text-[11px] font-medium ${active ? "text-accent" : "text-faint"}`}
               >
                 <Icon size={24} strokeWidth={active ? 2.2 : 1.7} />
                 {label}

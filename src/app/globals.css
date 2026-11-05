@@ -2,20 +2,20 @@
 
 /* ---------- Tokens: tema chiaro (default) ---------- */
 :root {
-  --bg: #f2f3f7;
-  --panel: #ffffff;
-  --panel-2: #f6f7fa;
-  --chip: #e5e7ed;
+  --bg: #ffffff;
+  --panel: #f4f5f8;
+  --panel-2: #eceef2;
+  --chip: #eceef2;
   --ink: #0b0d12;
   --ink-2: #2f3440;
   --mut: #646a78;
-  --faint: #a0a6b2;
+  --faint: #6f7581;
   --sep: rgb(11 13 18 / 0.08);
   --accent: #4255ff;
   --accent-ink: #ffffff;
-  --up: #0a9150;
-  --dn: #d9333a;
-  --warn: #b86e00;
+  --up: #077a43;
+  --dn: #c4262e;
+  --warn: #965800;
   --shadow: 0 1px 2px rgb(11 13 18 / 0.04), 0 8px 24px -12px rgb(11 13 18 / 0.12);
   color-scheme: light;
 }
@@ -30,7 +30,7 @@
     --ink: #f5f6f8;
     --ink-2: #d5d8de;
     --mut: #8d929c;
-    --faint: #5e636d;
+    --faint: #80858f;
     --sep: rgb(255 255 255 / 0.08);
     --accent: #7486ff;
     --accent-ink: #0b0d12;
@@ -49,7 +49,7 @@
   --ink: #f5f6f8;
   --ink-2: #d5d8de;
   --mut: #8d929c;
-  --faint: #5e636d;
+  --faint: #80858f;
   --sep: rgb(255 255 255 / 0.08);
   --accent: #7486ff;
   --accent-ink: #0b0d12;
@@ -92,7 +92,6 @@ body {
 
 body {
   min-height: 100dvh;
-  font-family: var(--font-display);
 }
 
 ::selection {
@@ -132,25 +131,17 @@ input[type="range"] {
   scrollbar-width: none;
 }
 
-/* Cifre e titoli in Geist: numeri tabellari, carattere più deciso del font di sistema */
-.font-display,
-.hero-number,
-.num {
-  font-family: var(--font-display);
-}
-
+/* Un solo carattere (SF dell'iPhone); le cifre sono sempre tabellari. */
 .hero-number {
-  font-size: 54px;
-  line-height: 1;
-  font-weight: 600;
-  letter-spacing: -0.05em;
+  font-size: 44px;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.035em;
   font-variant-numeric: tabular-nums;
 }
 .hero-number .dec {
-  font-size: 0.48em;
+  font-size: 0.6em;
   letter-spacing: -0.02em;
-  vertical-align: 0.84em;
-  margin-left: 1px;
 }
 
 /* Modalità privacy: importi sfocati, come in getquin e Revolut */

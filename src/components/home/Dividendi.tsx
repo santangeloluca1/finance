@@ -66,11 +66,13 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
       </div>
 
       {year !== "tutti" && (
-        <div className="mt-6 grid grid-cols-3 gap-2.5 px-4">
-          <Stat label="Rendimento" value={pct((paid + expected) / (totals.value || 1))} />
-          <Stat label="Sul costo" value={pct((paid + expected) / (totals.cost || 1))} />
-          <Stat label="Al mese" value={fmtEur((paid + expected) / 12)} sensitive />
-        </div>
+        <p className="num mt-2 px-4 text-[14px] text-mut">
+          Rendimento {pct((paid + expected) / (totals.value || 1))}
+          <span className="mx-1.5 text-faint">·</span>
+          sul costo {pct((paid + expected) / (totals.cost || 1))}
+          <span className="mx-1.5 text-faint">·</span>
+          <span className="sensitive">{fmtEur((paid + expected) / 12)}</span> al mese
+        </p>
       )}
 
       <div className="mt-8 px-4">
@@ -162,14 +164,7 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
   );
 }
 
-function Stat({ label, value, sensitive }: { label: string; value: string; sensitive?: boolean }) {
-  return (
-    <div className="rounded-[18px] bg-panel px-3.5 py-3 shadow-panel">
-      <p className="text-[12px] text-mut">{label}</p>
-      <p className={`num mt-2 text-[18px] font-semibold ${sensitive ? "sensitive" : ""}`}>{value}</p>
-    </div>
-  );
-}
+
 
 function pct(n: number) {
   return n.toLocaleString("it-IT", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });

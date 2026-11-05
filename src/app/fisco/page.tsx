@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Lightbulb } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { BankDot, ChipRow, Chip, InfoRow, LargeTitle, Panel, SectionHeader } from "@/components/ui";
 import { BigAmount } from "@/components/BigAmount";
@@ -60,7 +60,7 @@ export default function Fisco() {
       </div>
 
       <Panel className="mt-6">
-        {plusDiversi + plusCapitale + income > 0 && (
+        {[plusDiversi, plusCapitale, income].filter((v) => v > 0).length > 1 && (
           <div className="mx-4 mb-1 mt-4 flex h-2.5 gap-[3px] overflow-hidden rounded-full">
             <span className="bg-accent" style={{ width: `${(plusDiversi / (plusDiversi + plusCapitale + income)) * 100}%` }} />
             <span style={{ width: `${(plusCapitale / (plusDiversi + plusCapitale + income)) * 100}%`, background: "#22b8cf" }} />
@@ -82,7 +82,7 @@ export default function Fisco() {
         <div className="space-y-3">
           {backpack.map(({ acc, lots }) => {
             const available = sum(lots.map((l) => l.remaining));
-            const candidates = views.filter((v) => v.position.account === acc.id && !isFundLike(v.instrument) && v.unrealized > 0);
+            const candidates = views.filter((v) => v.position.account === acc.id && !isFundLike(v.instrument) && Math.min(v.unrealized, available) * TAX_RATE >= 0.5);
             const soon = lots.some((l) => l.expires <= nextYearEnd);
             return (
               <Panel key={acc.id}>
@@ -108,7 +108,7 @@ export default function Fisco() {
                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-chip">
                           <div className={`h-full rounded-full ${expiring ? "bg-dn" : "bg-warn"}`} style={{ width: `${Math.max(3, (left / total) * 100)}%` }} />
                         </div>
-                        <div className="num mt-1.5 flex justify-between text-[11px] text-faint">
+                        <div className="num mt-1.5 flex justify-between text-[11px] text-mut">
                           {Array.from({ length: Number(l.expires.slice(0, 4)) - Number(l.date.slice(0, 4)) + 1 }, (_, k) => (
                             <span key={k}>{Number(l.date.slice(0, 4)) + k}</span>
                           ))}
@@ -117,30 +117,27 @@ export default function Fisco() {
                     );
                   })}
                 </ul>
-                <div className={`flex gap-3 px-4 py-3.5 ${soon ? "bg-warn/10" : "bg-panel-2"}`}>
-                  <span className={`mt-0.5 shrink-0 ${soon ? "text-warn" : "text-accent"}`}>{soon ? <AlertTriangle size={18} /> : <Lightbulb size={18} />}</span>
-                  <div className="text-[14px] leading-snug">
-                    {candidates.length ? (
-                      <>
-                        <p className="font-semibold">Puoi recuperare queste minus</p>
-                        <p className="mt-0.5 text-mut">Vendendo e riacquistando titoli in plus su {acc.name}:</p>
-                        <ul className="mt-2 space-y-1">
-                          {candidates.map((c) => (
-                            <li key={c.instrument.isin} className="flex justify-between">
-                              <span>{c.instrument.shortName ?? c.instrument.name}</span>
-                              <span className="num font-semibold text-up">risparmi {fmtEur(Math.min(c.unrealized, available) * TAX_RATE)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    ) : (
-                      <p className="text-mut">
-                        <span className="font-semibold text-ink">Nessuna plus compensabile su {acc.name}.</span> Le plus degli ETF non valgono: servono azioni, obbligazioni, ETC o
-                        certificati in guadagno su questo conto.
-                      </p>
-                    )}
+                {candidates.length === 0 && (
+                  <p className="border-t border-sep px-4 py-3 text-[14px] leading-snug text-mut">
+                    Per recuperarle servono plus su azioni, obbligazioni o ETC detenuti su {acc.name}: le plus degli ETF non le compensano.
+                  </p>
+                )}
+                {candidates.length > 0 && (
+                  <div className="border-t border-sep">
+                    <p className={`flex items-center gap-2 px-4 pt-3 text-[15px] font-semibold ${soon ? "text-warn" : ""}`}>
+                      {soon && <AlertTriangle size={16} />}
+                      Recuperale vendendo e ricomprando
+                    </p>
+                    {candidates.map((c) => (
+                      <InfoRow
+                        key={c.instrument.isin}
+                        label={c.instrument.shortName ?? c.instrument.name}
+                        value={`risparmi ${fmtEur(Math.min(c.unrealized, available) * TAX_RATE)}`}
+                        valueClass="text-up"
+                      />
+                    ))}
                   </div>
-                </div>
+                )}
               </Panel>
             );
           })}
@@ -164,8 +161,8 @@ export default function Fisco() {
         <InfoRow label="Costi di gestione degli ETF" hint="TER sul valore attuale" value={fmtEur(terCost)} />
       </Panel>
 
-      <p className="px-8 pb-2 pt-6 text-center text-[12px] leading-relaxed text-faint">
-        Stime con il metodo del costo medio ponderato, separate per intermediario. In regime amministrato fa fede il calcolo della banca. Non è consulenza fiscale.
+      <p className="px-6 pb-2 pt-8 text-center text-[12px] leading-relaxed text-mut">
+        Stime con il prezzo medio ponderato per banca. Fa fede il calcolo dell&apos;intermediario.
       </p>
     </div>
   );

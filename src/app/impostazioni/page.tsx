@@ -9,7 +9,6 @@ import { clearLocalData, resetToDemo, setData, type PortfolioData } from "@/lib/
 import { merge, useSyncStatus } from "@/lib/sync";
 import { fmtTime } from "@/lib/format";
 import { useTheme, type ThemePref } from "@/lib/theme";
-import { BasisMark } from "@/components/BasisMark";
 
 /**
  * Legge un backup anche se arriva "sporco": testo codificato come URL (%7B…),
@@ -134,6 +133,8 @@ export default function Impostazioni() {
         <button onClick={importClipboard} className={row}>
           <ClipboardPaste size={20} className="text-accent" /> Incolla dagli appunti
         </button>
+      </Panel>
+      <Panel className="mt-6">
         <button
           onClick={() => {
             if (confirm("Mostrare il portafoglio di esempio su questo dispositivo? I tuoi dati restano salvati nel tuo account e torneranno alla prossima sincronizzazione.")) resetToDemo();
@@ -174,20 +175,9 @@ export default function Impostazioni() {
                   : "In attesa di sincronizzazione."}
       </p>
 
-      <div className="flex flex-col items-center px-8 pb-2 pt-10 text-center">
-        <span className="overflow-hidden rounded-[15px] shadow-[0_0_0_1px_var(--sep),0_8px_24px_rgb(0_0_0/0.18)]">
-          <BasisMark size={64} />
-        </span>
-        <p className="mt-3 text-[20px] font-semibold tracking-[-0.03em]">Basis</p>
-        <p className="mt-1 text-[13px] leading-snug text-mut">Il prezzo medio di carico, per banca, come lo calcolano le banche italiane.</p>
-      </div>
-
-      <SectionHeader>Fonti</SectionHeader>
-      <Panel>
-        <p className="px-4 py-3.5 text-[14px] leading-relaxed text-ink-2">
-          Quotazioni Yahoo Finance aggiornate ogni 5 minuti, cambi BCE, loghi Parqet. Le borse europee hanno circa 15 minuti di ritardo.
-        </p>
-      </Panel>
+      <p className="px-6 pb-2 pt-10 text-center text-[12px] leading-relaxed text-mut">
+        Basis · quotazioni Yahoo Finance ogni 5 minuti (borse europee ~15 min di ritardo), cambi BCE, loghi Parqet.
+      </p>
     </div>
   );
 }

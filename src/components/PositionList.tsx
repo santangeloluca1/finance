@@ -75,52 +75,52 @@ export function PositionList({
   return (
     <ul>
       {rows.map((r) => (
-        <li key={r.key} className="border-b border-sep last:border-0">
-          <Link href={`/posizioni/${r.instrument.isin}`} className="flex items-center gap-3 px-4 py-3 active:bg-panel-2">
-            <Logo isin={r.instrument.isin} name={r.instrument.shortName ?? r.instrument.name} size={42} />
+        <li key={r.key}>
+          <Link href={`/posizioni/${r.instrument.isin}`} className="flex min-h-[68px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">
+            <Logo isin={r.instrument.isin} name={r.instrument.shortName ?? r.instrument.name} size={44} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[16px] font-semibold tracking-[-0.01em]">{r.instrument.shortName ?? r.instrument.name}</p>
-              <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-mut">
-                {showBanks && (
-                  <span className="flex -space-x-0.5">
-                    {r.accounts.map((a) => (
-                      <BankDot key={a} color={byId.get(a)?.color ?? "#888"} size={7} />
-                    ))}
-                  </span>
-                )}
-                <span className="truncate">
-                  {fmtNum(r.quantity)} quote{showBanks && r.accounts.length === 1 ? ` · ${byId.get(r.accounts[0])?.name}` : ""}
+              <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">{r.instrument.shortName ?? r.instrument.name}</p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
+                {showBanks &&
+                  r.accounts.map((a) => <BankDot key={a} color={byId.get(a)?.color ?? "#888"} size={7} />)}
+                <span className="num truncate">
+                  {symbol(r.instrument.ticker)} · {fmtNum(r.quantity)}
                 </span>
               </p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="num sensitive text-[16px] font-semibold tracking-[-0.01em]">{fmtEur(r.value)}</p>
-              <Change pct={r.change.pct} size="sm" />
+              <p className="num sensitive text-[17px] font-medium tracking-[-0.01em]">{fmtEur(r.value)}</p>
+              <Change pct={r.change.pct} size="sm" arrow />
             </div>
           </Link>
         </li>
       ))}
       {cashRows.map(([account, c]) => (
-        <li key={`cash-${account}`} className="border-b border-sep last:border-0">
-          <Link href={`/movimenti/nuovo?tipo=cash&conto=${account}`} className="flex items-center gap-3 px-4 py-3 active:bg-panel-2">
-            <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-chip text-ink">
+        <li key={`cash-${account}`}>
+          <Link href={`/movimenti/nuovo?tipo=cash&conto=${account}`} className="flex min-h-[68px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">
+            <span className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-chip text-ink-2">
               <Wallet size={19} />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[16px] font-semibold tracking-[-0.01em]">Liquidità</p>
-              <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-mut">
+              <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">Liquidità</p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
                 <BankDot color={byId.get(account)?.color ?? "#888"} size={7} />
                 <span className="truncate">
-                  {byId.get(account)?.name} · al {fmtDate(c.date, { day: "numeric", month: "short" })}
+                  {byId.get(account)?.name} · {fmtDate(c.date, { day: "numeric", month: "short" })}
                 </span>
               </p>
             </div>
-            <p className="num sensitive shrink-0 text-[16px] font-semibold tracking-[-0.01em]">{fmtEur(c.amount)}</p>
+            <p className="num sensitive shrink-0 text-[17px] font-medium tracking-[-0.01em]">{fmtEur(c.amount)}</p>
           </Link>
         </li>
       ))}
     </ul>
   );
+}
+
+/** "SPPW.DE" → "SPPW": il simbolo senza la borsa. */
+function symbol(ticker: string) {
+  return ticker.split(".")[0];
 }
 
 export const PERIOD_OPTIONS: { value: Period; label: string }[] = [

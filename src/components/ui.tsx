@@ -8,8 +8,8 @@ import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
 /** Titolo grande stile iOS. */
 export function LargeTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
-    <div className="flex items-end justify-between px-4 pb-3 pt-2">
-      <h1 className="text-[34px] font-semibold leading-tight tracking-[-0.04em]">{children}</h1>
+    <div className="flex items-end justify-between px-4 pb-4 pt-2">
+      <h1 className="text-[30px] font-bold leading-tight tracking-[-0.03em]">{children}</h1>
       {right}
     </div>
   );
@@ -27,8 +27,8 @@ export function BackLink({ href, label }: { href: string; label: string }) {
 /** Intestazione di sezione: più spazio sopra che sotto. */
 export function SectionHeader({ children, right, id }: { children: ReactNode; right?: ReactNode; id?: string }) {
   return (
-    <div className="flex items-center justify-between px-4 pb-2.5 pt-8">
-      <h2 id={id} className="text-[23px] font-semibold tracking-[-0.03em]">
+    <div className="flex items-center justify-between px-4 pb-2 pt-10">
+      <h2 id={id} className="text-[22px] font-bold tracking-[-0.025em]">
         {children}
       </h2>
       {right}
@@ -38,7 +38,7 @@ export function SectionHeader({ children, right, id }: { children: ReactNode; ri
 
 /** Pannello raggruppato (inset grouped). */
 export function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`mx-4 overflow-hidden rounded-[22px] bg-panel shadow-panel ${className}`}>{children}</div>;
+  return <div className={`mx-4 overflow-hidden rounded-[16px] bg-panel ${className}`}>{children}</div>;
 }
 
 /** Riga etichetta/valore dentro un pannello. */
@@ -69,8 +69,8 @@ export function Chip({ active, onClick, children }: { active?: boolean; onClick?
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[14px] font-semibold transition-colors ${
-        active ? "bg-ink text-bg" : "bg-chip text-ink-2 active:opacity-70"
+      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[15px] font-semibold transition-colors ${
+        active ? "bg-chip text-ink" : "text-mut active:opacity-60"
       }`}
     >
       {children}
@@ -130,12 +130,12 @@ export function SelectButton<T extends string>({
   const current = options.find((o) => o.value === value)?.label;
   const cls =
     variant === "chip"
-      ? `h-9 rounded-full px-3.5 text-[14px] font-semibold ${value === options[0].value ? "bg-chip text-ink-2" : "bg-ink text-bg"}`
-      : "text-[15px] font-semibold text-accent";
+      ? `h-9 rounded-full px-3.5 text-[15px] font-semibold ${value === options[0].value ? "text-ink" : "bg-chip text-ink"}`
+      : "min-h-[36px] text-[15px] font-semibold text-ink";
   return (
     <label className={`relative inline-flex shrink-0 items-center gap-1 ${cls}`}>
       <span>{current}</span>
-      <ChevronDown size={15} strokeWidth={2.5} />
+      <ChevronDown size={16} strokeWidth={2.4} className="text-mut" />
       <select
         aria-label={label}
         value={value}
@@ -157,8 +157,8 @@ export function Change({ abs, pct, size = "md", arrow = false }: { abs?: number;
   const [ref, eps] = abs !== undefined ? [abs, 0.005] : [pct, 0.00005];
   const cls = ref > eps ? "text-up" : ref < -eps ? "text-dn" : "text-mut";
   return (
-    <span className={`num font-semibold ${cls} ${size === "sm" ? "text-[13px]" : "text-[15px]"}`}>
-      {arrow && (ref >= 0 ? "▲ " : "▼ ")}
+    <span className={`num font-medium ${cls} ${size === "sm" ? "text-[14px]" : "text-[15px]"}`}>
+      {arrow && (ref > eps ? "↗ " : ref < -eps ? "↘ " : "")}
       {abs !== undefined && `${fmtSignedEur(abs)} · `}
       {fmtSignedPct(pct)}
     </span>

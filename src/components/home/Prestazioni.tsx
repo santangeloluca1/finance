@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { buildRows } from "@/components/PositionList";
-import { Logo, Panel, SectionHeader, SelectButton, Segmented } from "@/components/ui";
+import { InfoRow, Logo, Panel, SectionHeader, SelectButton } from "@/components/ui";
 import { cutoffDate, type FxRates, type HistoryPoint, type Period, type PositionView, type Totals } from "@/lib/analytics";
 import type { Account, PortfolioState, Transaction } from "@/lib/engine/types";
 import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
@@ -119,24 +119,27 @@ export function Prestazioni({
 
   return (
     <div>
-      <div className="px-4 pt-2">
-        <Segmented value={range} onChange={setRange} options={(Object.keys(RANGE_LABEL) as Range[]).map((r) => ({ value: r, label: r === "YTD" ? "Da gen" : r }))} />
+      {/* Rendimento del periodo: la cifra che conta, poi il confronto */}
+      <div className="px-4 pt-6">
+        <p className="text-[14px] text-mut">Rendimento ponderato nel tempo</p>
+        <p className={`hero-number num mt-1 ${tone(total)}`}>{fmtSignedPct(total)}</p>
+        {annual !== null && <p className="num mt-1 text-[14px] text-mut">{fmtSignedPct(annual)} all&apos;anno</p>}
       </div>
-
-      {/* Indicatori principali */}
-      <div className="mt-5 grid grid-cols-3 gap-2.5 px-4">
-        <Kpi label="Rendimento" value={fmtSignedPct(total)} tone={total} note={annual !== null ? `${fmtSignedPct(annual)} l'anno` : "ponderato nel tempo"} />
-        <Kpi
-          label={BENCHMARKS.find((b) => b.value === bench)?.label ?? "Indice"}
-          value={benchTotal !== null ? fmtSignedPct(benchTotal) : "—"}
-          tone={benchTotal ?? 0}
-          note={benchTotal !== null ? `${total - benchTotal >= 0 ? "batti" : "sotto"} di ${Math.abs((total - benchTotal) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })} pt` : "nessun confronto"}
-        />
-        <Kpi label="Il tuo XIRR" value={irr !== null ? fmtSignedPct(irr) : "—"} tone={irr ?? 0} note="annuo dall'inizio, con i tuoi versamenti" />
+      <div role="group" aria-label="Periodo" className="mt-4 grid grid-cols-4 gap-1 px-3">
+        {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            aria-pressed={range === r}
+            className={`num h-9 rounded-full text-[14px] font-semibold ${range === r ? "bg-chip text-ink" : "text-mut active:text-ink"}`}
+          >
+            {r === "YTD" ? "Da gen" : r}
+          </button>
+        ))}
       </div>
 
       {/* Grafico rendimento vs indice */}
-      <div className="mt-6 flex items-center justify-between px-4">
+      <div className="mt-8 flex items-center justify-between px-4">
         <p className="flex items-center gap-3 text-[12px] text-mut">
           <span className="flex items-center gap-1.5">
             <span className="h-0.5 w-4 rounded bg-up" /> Basis
@@ -149,22 +152,32 @@ export function Prestazioni({
         </p>
         <SelectButton label="Indice di confronto" value={bench} onChange={setBench} options={BENCHMARKS.map((b) => ({ value: b.value, label: b.label }))} />
       </div>
-      <div className="mt-3 px-4">
+      <div className="mt-3 pl-4 pr-3">
         <InteractiveChart
           points={twr}
           height={230}
           reference={0}
           compare={compare}
           format={(v) => fmtSignedPct(v)}
-          formatAxis={(v) => `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toLocaleString("it-IT", { maximumFractionDigits: 0 })}%`}
+          formatAxis={(v) => {
+            const n = v * 100;
+            return `${n > 0.0001 ? "+" : n < -0.0001 ? "−" : ""}${Math.abs(n).toLocaleString("it-IT", { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 })}%`;
+          }}
           describePoint={(i) => `${fmtSignedPct(twr[i].value)}${compare?.[i] != null ? ` · indice ${fmtSignedPct(compare[i]!)}` : ""}`}
           describeRange={(a, b) => `${fmtSignedPct((1 + twr[b].value) / (1 + twr[a].value) - 1)}`}
           trend={(a, b) => twr[b].value - twr[a].value}
         />
       </div>
-      <p className="px-5 pt-3 text-[12px] leading-snug text-faint">
-        Rendimento ponderato nel tempo: non tiene conto di quando e quanto hai versato, quindi è confrontabile con l&apos;indice.
-      </p>
+
+      <Panel className="mt-6">
+        <InfoRow
+          label={BENCHMARKS.find((b) => b.value === bench)?.label ?? "Indice"}
+          hint={benchTotal !== null ? `${total - benchTotal >= 0 ? "Fai meglio" : "Fai peggio"} di ${Math.abs((total - benchTotal) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })} punti` : "Nessun confronto"}
+          value={benchTotal !== null ? fmtSignedPct(benchTotal) : "—"}
+          valueClass={tone(benchTotal ?? 0)}
+        />
+        <InfoRow label="Rendimento sui tuoi versamenti" hint="XIRR annuo dall'inizio" value={irr !== null ? fmtSignedPct(irr) : "—"} valueClass={tone(irr ?? 0)} />
+      </Panel>
 
       {/* Rendimenti mensili */}
       <SectionHeader>Mese per mese</SectionHeader>
@@ -172,11 +185,11 @@ export function Prestazioni({
         <div className="grid grid-cols-[30px_repeat(12,minmax(0,1fr))_40px] gap-[3px] text-center">
           <span />
           {MONTHS.map((m, i) => (
-            <span key={i} className="pb-1 text-[10px] font-semibold text-faint">
+            <span key={i} className="pb-1 text-[11px] font-semibold text-mut">
               {m}
             </span>
           ))}
-          <span className="pb-1 text-right text-[10px] font-semibold text-faint">Anno</span>
+          <span className="pb-1 text-right text-[11px] font-semibold text-mut">Anno</span>
           {years.map((y) => (
             <YearRow key={y} year={y} months={months} />
           ))}
@@ -211,14 +224,8 @@ export function Prestazioni({
   );
 }
 
-function Kpi({ label, value, note, tone }: { label: string; value: string; note: string; tone: number }) {
-  return (
-    <div className="rounded-[18px] bg-panel p-3.5 shadow-panel">
-      <p className="truncate text-[12px] text-mut">{label}</p>
-      <p className={`num mt-2 text-[19px] font-semibold tracking-[-0.03em] ${tone > 0.0001 ? "text-up" : tone < -0.0001 ? "text-dn" : ""}`}>{value}</p>
-      <p className="mt-0.5 text-[11px] leading-snug text-mut">{note}</p>
-    </div>
-  );
+function tone(n: number) {
+  return n > 0.0001 ? "text-up" : n < -0.0001 ? "text-dn" : "";
 }
 
 function YearRow({ year, months }: { year: string; months: Record<string, number> }) {
@@ -235,7 +242,7 @@ function YearRow({ year, months }: { year: string; months: Record<string, number
             key={key}
             onClick={() => setOpen(open === key ? null : key)}
             aria-label={v === undefined ? `${key}: nessun dato` : `${key}: ${fmtSignedPct(v)}`}
-            className="num flex h-8 items-center justify-center rounded-[6px] text-[9px] font-semibold"
+            className="num flex h-8 items-center justify-center rounded-[6px] text-[11px] font-semibold"
             style={{
               background:
                 v === undefined ? "var(--chip)" : `color-mix(in srgb, ${v >= 0 ? "var(--up)" : "var(--dn)"} ${15 + strength * 65}%, transparent)`,
@@ -250,7 +257,7 @@ function YearRow({ year, months }: { year: string; months: Record<string, number
         const t = Object.entries(months)
           .filter(([k]) => k.startsWith(year))
           .reduce((a, [, r]) => a * (1 + r), 1) - 1;
-        return <span className={`num self-center text-right text-[10px] font-bold ${t >= 0 ? "text-up" : "text-dn"}`}>{`${t >= 0 ? "+" : "−"}${Math.abs(t * 100).toFixed(1).replace(".", ",")}%`}</span>;
+        return <span className={`num self-center text-right text-[11px] font-bold ${t >= 0 ? "text-up" : "text-dn"}`}>{`${t >= 0 ? "+" : "−"}${Math.abs(t * 100).toFixed(1).replace(".", ",")}%`}</span>;
       })()}
     </>
   );

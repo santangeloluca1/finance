@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Check, Plus, Target, Trash2 } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { Ribilanciamento } from "@/components/Ribilanciamento";
@@ -43,7 +43,7 @@ export default function Obiettivi() {
           !editing && (
             <button
               onClick={() => setEditing({ id: newId(), name: "", target: 0, date: `${new Date().getFullYear() + 3}-12-31`, scope: "tutto" })}
-              className="mb-1.5 flex h-10 items-center gap-1.5 rounded-full bg-ink pl-3 pr-4 text-[15px] font-semibold text-bg active:opacity-80"
+              className="mb-1 flex h-11 items-center gap-1 rounded-full bg-chip pl-3 pr-4 text-[15px] font-semibold text-ink active:opacity-70"
             >
               <Plus size={18} strokeWidth={2.6} /> Nuovo
             </button>
@@ -56,13 +56,9 @@ export default function Obiettivi() {
       {editing && <GoalForm key={editing.id} initial={editing} accounts={data.accounts} isNew={!goals.some((g) => g.id === editing.id)} onDone={() => setEditing(null)} />}
 
       {!editing && goals.length === 0 && (
-        <Panel className="p-5">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent/15 text-accent">
-            <Target size={22} />
-          </span>
-          <p className="mt-3 text-[17px] font-semibold">Dai una meta ai tuoi soldi</p>
-          <p className="mt-1 text-[14px] leading-snug text-mut">Imposta un obiettivo e Basis ti dice quanto versare ogni mese per raggiungerlo in tempo.</p>
-          <div className="mt-4 flex flex-wrap gap-2">
+        <div className="px-4">
+          <p className="text-[15px] leading-snug text-mut">Nessun obiettivo. Scegline uno per iniziare:</p>
+          <div className="-mx-1 mt-2 flex flex-wrap gap-1">
             {SUGGESTIONS.map((s) => (
               <Chip
                 key={s.name}
@@ -70,11 +66,11 @@ export default function Obiettivi() {
                   setEditing({ id: newId(), name: s.name, target: s.target, date: `${new Date().getFullYear() + s.years}-12-31`, scope: s.scope })
                 }
               >
-                {s.name}
+                <Plus size={15} strokeWidth={2.4} /> {s.name}
               </Chip>
             ))}
           </div>
-        </Panel>
+        </div>
       )}
 
       <div className="space-y-3">
@@ -283,8 +279,8 @@ function Pianificazione({ start, plan }: { start: number; plan: Plan }) {
         <Scenario label={`Scenario prudente (${((Math.max(0, rate - 0.02)) * 100).toLocaleString("it-IT")}%)`} value={fmtEur0(low)} />
         <Scenario label={`Scenario ottimista (${((rate + 0.02) * 100).toLocaleString("it-IT")}%)`} value={fmtEur0(high)} />
       </div>
-      <p className="px-6 pb-2 pt-4 text-center text-[11px] leading-relaxed text-faint">
-        Proiezione indicativa al lordo di tasse e inflazione, con rendimento costante e versamenti a fine mese. I rendimenti passati non garantiscono quelli futuri.
+      <p className="px-6 pb-2 pt-4 text-center text-[12px] leading-relaxed text-mut">
+        Proiezione al lordo di tasse e inflazione, a rendimento costante.
       </p>
     </>
   );
@@ -292,7 +288,7 @@ function Pianificazione({ start, plan }: { start: number; plan: Plan }) {
 
 function Scenario({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[18px] bg-panel p-3.5 shadow-panel">
+    <div className="rounded-[16px] bg-panel p-3.5">
       <p className="text-[12px] leading-snug text-mut">{label}</p>
       <p className="num mt-2 text-[19px] font-semibold tracking-[-0.03em]">{value}</p>
     </div>

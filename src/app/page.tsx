@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Bell, ChevronRight, Coins, Eye, EyeOff, FileUp, Landmark, Calculator, SlidersHorizontal, Settings } from "lucide-react";
+import { Bell, ChevronRight, Eye, EyeOff, Settings } from "lucide-react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
 import { InteractiveChart, type ChartEvent, type Selection, type SeriesPoint } from "@/components/InteractiveChart";
 import { BigAmount } from "@/components/BigAmount";
@@ -11,11 +11,11 @@ import { Analisi } from "@/components/home/Analisi";
 import { Prestazioni } from "@/components/home/Prestazioni";
 import { Salute } from "@/components/home/Salute";
 import { Dividendi } from "@/components/home/Dividendi";
-import { BankDot, Chip, ChipRow, Panel, SectionHeader, Segmented, SelectButton } from "@/components/ui";
+import { BankDot, SectionHeader, Segmented, SelectButton } from "@/components/ui";
 import { ASSET_CLASS_LABEL, cutoffDate, type Period } from "@/lib/analytics";
 import type { AssetClass } from "@/lib/engine/types";
 import { usableLosses } from "@/lib/engine/portfolio";
-import { fmtDate, fmtEur, fmtEur0, fmtNum, fmtSignedEur, fmtSignedPct, fmtTime } from "@/lib/format";
+import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime } from "@/lib/format";
 import { usePrivacy } from "@/lib/privacy";
 import { computeAlerts } from "@/lib/alerts";
 import { twrSeries } from "@/lib/performance";
@@ -30,7 +30,6 @@ const TABS: { id: Tab; label: string }[] = [
 type Range = "1S" | "1M" | "3M" | "YTD" | "1A" | "MAX";
 const RANGE_DAYS: Record<Exclude<Range, "YTD" | "MAX">, number> = { "1S": 7, "1M": 31, "3M": 92, "1A": 366 };
 const RANGE_LABEL: Record<Range, string> = { "1S": "nell'ultima settimana", "1M": "nell'ultimo mese", "3M": "negli ultimi 3 mesi", YTD: "da inizio anno", "1A": "nell'ultimo anno", MAX: "dall'inizio" };
-type Mode = "percentuale" | "valore";
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("panoramica");
@@ -55,34 +54,32 @@ export default function Home() {
 
   return (
     <div>
-      {/* Schede testuali in alto (getquin) + privacy e impostazioni */}
-      <div className="flex items-center justify-between gap-1 pl-4 pr-1.5">
-        <div role="tablist" className="no-scrollbar flex min-w-0 gap-3 overflow-x-auto">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => go(t.id)}
-              className={`font-display shrink-0 py-1 text-[20px] font-semibold tracking-[-0.03em] transition-colors ${tab === t.id ? "text-ink" : "text-faint"}`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex shrink-0">
-          <button onClick={togglePrivacy} aria-label={privacy ? "Mostra importi" : "Nascondi importi"} aria-pressed={privacy} className="rounded-full p-1.5 text-mut active:opacity-50">
+      {/* Schede testuali in alto, poi filtri e azioni di servizio sulla stessa riga */}
+      <div role="tablist" className="no-scrollbar flex gap-4 overflow-x-auto px-4">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => go(t.id)}
+            className={`shrink-0 py-1 text-[26px] font-bold tracking-[-0.03em] transition-colors ${tab === t.id ? "text-ink" : "text-faint"}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-1 flex items-center pr-2">
+        <Filters filter={filter} setFilter={setFilter} view={view} />
+        <div className="ml-auto flex shrink-0">
+          <button onClick={togglePrivacy} aria-label={privacy ? "Mostra importi" : "Nascondi importi"} aria-pressed={privacy} className="flex h-11 w-10 items-center justify-center text-mut active:opacity-50">
             {privacy ? <EyeOff size={20} strokeWidth={1.8} /> : <Eye size={20} strokeWidth={1.8} />}
           </button>
           <AlertsBell view={view} />
-          <Link href="/impostazioni" aria-label="Impostazioni" className="rounded-full p-1.5 text-mut active:opacity-50">
+          <Link href="/impostazioni" aria-label="Impostazioni" className="flex h-11 w-10 items-center justify-center text-mut active:opacity-50">
             <Settings size={20} strokeWidth={1.8} />
           </Link>
         </div>
       </div>
-
-      {/* Filtri banca e asset class: valgono per tutte le schede */}
-      <Filters filter={filter} setFilter={setFilter} view={view} />
 
       {view.totals && view.state ? (
         tab === "panoramica" ? (
@@ -105,10 +102,10 @@ function AlertsBell({ view }: { view: View }) {
     [view.data, view.state, view.views, view.totals],
   );
   return (
-    <Link href="/avvisi" aria-label={count ? `Avvisi, ${count} nuovi` : "Avvisi"} className="relative rounded-full p-1.5 text-mut active:opacity-50">
+    <Link href="/avvisi" aria-label={count ? `Avvisi, ${count} nuovi` : "Avvisi"} className="relative flex h-11 w-10 items-center justify-center text-mut active:opacity-50">
       <Bell size={20} strokeWidth={1.8} />
       {count > 0 && (
-        <span className="num absolute right-0.5 top-0.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-bg bg-dn px-1 text-[10px] font-bold text-white">
+        <span className="num absolute right-0 top-1.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-bg bg-dn px-1 text-[11px] font-bold text-white">
           {count}
         </span>
       )}
@@ -129,17 +126,16 @@ function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
   if (!view.totals || !view.state) return null;
   return (
     <div>
-      <div className="flex gap-2 px-4 pt-4">
-        {(["prestazioni", "allocazione", "salute"] as const).map((k) => (
-          <button
-            key={k}
-            onClick={() => setSub(k)}
-            aria-pressed={sub === k}
-            className={`rounded-full px-4 py-2 text-[14px] font-semibold ${sub === k ? "bg-accent text-accent-ink" : "bg-chip text-ink-2"}`}
-          >
-            {k === "prestazioni" ? "Prestazioni" : k === "allocazione" ? "Allocazione" : "Salute"}
-          </button>
-        ))}
+      <div className="px-4 pt-5">
+        <Segmented
+          value={sub}
+          onChange={setSub}
+          options={[
+            { value: "prestazioni", label: "Prestazioni" },
+            { value: "allocazione", label: "Allocazione" },
+            { value: "salute", label: "Salute" },
+          ]}
+        />
       </div>
       {sub === "prestazioni" ? (
         <Prestazioni
@@ -167,30 +163,28 @@ function Filters({ filter, setFilter, view }: { filter: Filter; setFilter: (f: F
     return (Object.keys(ASSET_CLASS_LABEL) as AssetClass[]).filter((a) => set.has(a));
   }, [view.data.instruments]);
   const hasCash = view.data.transactions.some((t) => t.type === "cash");
+  const bank = view.data.accounts.find((a) => a.id === filter.account);
   return (
-    <div className="mt-3">
-      <ChipRow>
-        <Chip active={filter.account === "all"} onClick={() => setFilter({ ...filter, account: "all" })}>
-          Tutti i conti
-        </Chip>
-        {view.data.accounts.map((a) => (
-          <Chip key={a.id} active={filter.account === a.id} onClick={() => setFilter({ ...filter, account: a.id })}>
-            <BankDot color={a.color} />
-            {a.name}
-          </Chip>
-        ))}
+    <div className="flex min-w-0 items-center gap-4 pl-4">
+      <span className="flex items-center gap-1.5">
+        {bank && <BankDot color={bank.color} />}
         <SelectButton
-          variant="chip"
-          label="Asset class"
-          value={filter.asset}
-          onChange={(asset) => setFilter({ ...filter, asset })}
-          options={[
-            { value: "all" as const, label: "Tutti gli asset" },
-            ...presentAssets.map((a) => ({ value: a as Filter["asset"], label: ASSET_CLASS_LABEL[a] })),
-            ...(hasCash ? [{ value: "liquidita" as const, label: "Liquidità" }] : []),
-          ]}
+          label="Conto"
+          value={filter.account}
+          onChange={(account) => setFilter({ ...filter, account })}
+          options={[{ value: "all", label: "Tutti i conti" }, ...view.data.accounts.map((a) => ({ value: a.id, label: a.name }))]}
         />
-      </ChipRow>
+      </span>
+      <SelectButton
+        label="Asset class"
+        value={filter.asset}
+        onChange={(asset) => setFilter({ ...filter, asset })}
+        options={[
+          { value: "all" as const, label: "Tutti gli asset" },
+          ...presentAssets.map((a) => ({ value: a as Filter["asset"], label: ASSET_CLASS_LABEL[a] })),
+          ...(hasCash ? [{ value: "liquidita" as const, label: "Liquidità" }] : []),
+        ]}
+      />
     </div>
   );
 }
@@ -198,8 +192,6 @@ function Filters({ filter, setFilter, view }: { filter: Filter; setFilter: (f: F
 function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: (t: Tab) => void }) {
   const { data, state, views, totals, history, priceSeries, fx, fetchedAt, loading, historyReady } = view;
   const [range, setRange] = useState<Range>("1A");
-  const [mode, setMode] = useState<Mode>("percentuale");
-  const [showInvested, setShowInvested] = useState(false);
   const [sel, setSel] = useState<Selection | null>(null);
   const [period, setPeriod] = useState<Period>("oggi");
 
@@ -215,17 +207,15 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
 
   // Rendimento ponderato nel tempo dall'inizio del periodo: i versamenti non lo gonfiano.
   const twr = useMemo(() => twrSeries(series).map((p) => p.value), [series]);
-  const points = useMemo<SeriesPoint[]>(
-    () => series.map((h, i) => (mode === "valore" ? { date: h.date, value: h.value, invested: h.invested } : { date: h.date, value: twr[i] })),
-    [series, mode, twr],
-  );
+  const points = useMemo<SeriesPoint[]>(() => series.map((h, i) => ({ date: h.date, value: twr[i] })), [series, twr]);
 
   // Operazioni da mostrare sulla linea del tempo.
   const events = useMemo<ChartEvent[]>(() => {
     const ins = new Map(data.instruments.map((i) => [i.isin, i]));
     return data.transactions
       .filter((t) => (filter.account === "all" || t.account === filter.account) && (filter.asset === "all" || ins.get(t.isin)?.assetClass === filter.asset))
-      .filter((t) => t.type !== "split")
+      // Gli acquisti ricorrenti affollerebbero la linea: si segnano solo vendite e cedole.
+      .filter((t) => t.type === "sell" || t.type === "dividend")
       .map((t) => {
         const name = ins.get(t.isin)?.shortName ?? t.isin;
         const label = t.type === "dividend" ? `${name} +${fmtEur(t.amount ?? 0)}` : `${name} · ${fmtNum(t.quantity ?? 0)} quote`;
@@ -264,145 +254,96 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
 
   return (
     <div>
-      {/* Totale: segue il dito sul grafico */}
-      <div className="px-4 pt-6">
-        <p className="h-5 truncate text-[14px] font-medium capitalize-first text-mut">{caption}</p>
-        <BigAmount value={shownValue} className="mt-1" />
-        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px]">
-          <span className={`num inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold ${pill(gain)}`}>
-            <span className="sensitive">
-              {gain >= 0 ? "▲" : "▼"} {fmtEur(Math.abs(gain))}
-            </span>
-            <span className="opacity-80">{fmtSignedPct(gainPct)}</span>
-          </span>
-          <span className="text-mut">{sel ? (sel.b != null ? "nell'intervallo" : `da inizio periodo`) : RANGE_LABEL[range]}</span>
+      {/* Totale: segue il dito sul grafico. A destra la variazione del periodo. */}
+      <div className="flex items-end justify-between gap-3 px-4 pt-7">
+        <div className="min-w-0">
+          <p className="h-5 truncate text-[14px] capitalize-first text-mut">{caption}</p>
+          <BigAmount value={shownValue} className="mt-1" />
         </div>
-        <p className="mt-2 h-5 text-[13px] text-mut">
-          {sel ? null : (
-            <>
-              Oggi{" "}
-              <span className={`num sensitive font-semibold ${tint(totals.dayChange)}`}>
-                {fmtSignedEur(totals.dayChange)} ({fmtSignedPct(totals.dayChangePct)})
-              </span>
-              <span className="mx-1.5 text-faint">·</span>
-              Investito <span className="num sensitive font-semibold text-ink-2">{fmtEur0(totals.cost)}</span>
-              {totals.cash > 0 && (
-                <>
-                  <span className="mx-1.5 text-faint">·</span>
-                  Liquidità <span className="num sensitive font-semibold text-ink-2">{fmtEur0(totals.cash)}</span>
-                </>
-              )}
-            </>
-          )}
-        </p>
+        <div className={`num sensitive shrink-0 pb-1 text-right ${tint(gain)}`}>
+          <p className="text-[17px] font-semibold">
+            {gain > 0.005 ? "↗ " : gain < -0.005 ? "↘ " : ""}
+            {fmtPct(Math.abs(gainPct))}
+          </p>
+          <p className="text-[15px] font-medium">{fmtSignedEur(gain)}</p>
+        </div>
       </div>
+      <p className="mt-2 h-5 px-4 text-[14px] text-mut">
+        {sel ? (sel.b != null ? "Nell'intervallo" : "Da inizio periodo") : (
+          <>
+            {RANGE_LABEL[range].replace(/^./, (c) => c.toUpperCase())}
+            <span className="mx-1.5 text-faint">·</span>
+            Oggi <span className={`num sensitive font-medium ${tint(totals.dayChange)}`}>{fmtSignedPct(totals.dayChangePct)}</span>
+          </>
+        )}
+      </p>
 
-      {/* Grafico navigabile */}
-      <div className="mt-8 px-4">
+      {/* Grafico del rendimento: tutta la larghezza */}
+      <div className="mt-6 pl-4 pr-3">
         <InteractiveChart
           points={points}
-          height={264}
-          reference={mode === "percentuale" ? 0 : undefined}
-          showInvested={mode === "valore" && showInvested}
+          height={240}
+          reference={0}
           events={events}
           onSelect={setSel}
           loading={!historyReady}
-          format={mode === "valore" ? fmtEur : (v) => fmtSignedPct(v)}
-          formatAxis={(v) => (mode === "valore" ? compact(v, false) : axisPct(v))}
-          describePoint={(i) =>
-            mode === "valore"
-              ? `${fmtEur(points[i].value)} · ${fmtSignedEur(gainBetween(0, i))}`
-              : `${fmtSignedPct(pctBetween(0, i))} · ${fmtSignedEur(gainBetween(0, i))}`
-          }
-          describeRange={(i, j) => `${fmtSignedEur(gainBetween(i, j))} · ${fmtSignedPct(pctBetween(i, j))}`}
+          format={(v) => fmtSignedPct(v)}
+          formatAxis={axisPct}
+          describePoint={(i) => `${fmtSignedPct(pctBetween(0, i))} · ${fmtEur(series[i].value)}`}
+          describeRange={(i, j) => `${fmtSignedPct(pctBetween(i, j))} · ${fmtSignedEur(gainBetween(i, j))}`}
           trend={gainBetween}
         />
       </div>
 
-      <div className="mt-6 grid grid-cols-6 px-3">
+      <div role="group" aria-label="Periodo del grafico" className="mt-4 grid grid-cols-6 gap-1 px-3">
         {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
           <button
             key={r}
             onClick={() => setRange(r)}
             aria-pressed={range === r}
-            className={`num rounded-full py-1.5 text-[13px] font-semibold transition-colors ${range === r ? "bg-ink text-bg" : "text-mut active:bg-chip"}`}
+            className={`num h-9 rounded-full text-[14px] font-semibold transition-colors ${range === r ? "bg-chip text-ink" : "text-mut active:text-ink"}`}
           >
             {r === "YTD" ? "Da gen" : r}
           </button>
         ))}
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3 px-4">
-        <div className="w-[190px]">
-          <Segmented
-            size="sm"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: "percentuale", label: "Rendimento %" },
-              { value: "valore", label: "Valore €" },
-            ]}
-          />
-        </div>
-        {mode === "valore" && (
-          <button
-            onClick={() => setShowInvested(!showInvested)}
-            aria-pressed={showInvested}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-semibold ${showInvested ? "bg-ink text-bg" : "bg-chip text-ink-2"}`}
-          >
-            <span className="inline-block w-3.5 border-t-[1.5px] border-dashed border-current" />
-            Investito
-          </button>
-        )}
-      </div>
-      <p className="mt-3 px-4 text-[12px] text-faint">Scorri sul grafico · due dita per confrontare due date</p>
-
-      {/* Azioni rapide */}
-      <div className="mt-8 grid grid-cols-4 px-2">
-        <QuickAction href="/movimenti" label="Importa" icon={<FileUp size={20} />} />
-        <QuickAction href="/posizioni" label="Simula vendita" icon={<Calculator size={20} />} />
-        <QuickAction href="/fisco" label="Zainetto" icon={<Landmark size={20} />} badge={backpack > 0} />
-        <QuickAction onClick={() => goto("dividendi")} label="Cedole" icon={<Coins size={20} />} />
-      </div>
 
       <SectionHeader right={<SelectButton label="Periodo della variazione" value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />}>Titoli</SectionHeader>
-      <Panel>
-        {rows.length || totals.cash > 0 ? (
-          <>
-            <PositionList rows={rows.slice(0, 6)} accounts={data.accounts} showBanks={filter.account === "all"} cash={state.cash} />
-            {rows.length > 6 && (
-              <Link href="/posizioni" className="flex items-center justify-between border-t border-sep px-4 py-3 text-[15px] font-semibold text-accent">
-                Tutti i {rows.length} titoli <ChevronRight size={18} />
+      {rows.length || totals.cash > 0 ? (
+        <>
+          <PositionList rows={rows.slice(0, 6)} accounts={data.accounts} showBanks={filter.account === "all"} cash={state.cash} />
+          {rows.length > 6 && (
+            <div className="flex justify-end px-4 pt-1">
+              <Link href="/posizioni" className="flex min-h-[44px] items-center gap-0.5 text-[15px] font-semibold text-accent">
+                Mostra tutti <ChevronRight size={17} />
               </Link>
-            )}
-          </>
-        ) : (
-          <p className="px-4 py-8 text-center text-[15px] text-mut">Nessun titolo con questi filtri.</p>
-        )}
-      </Panel>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="px-4 py-8 text-center text-[15px] text-mut">Nessun titolo con questi filtri.</p>
+      )}
 
-      {/* Riepilogo: tre numeri chiave in un unico pannello, come la posizione nel dettaglio titolo */}
-      <Panel className="mt-4">
-        <div className="grid grid-cols-3">
-          <SummaryCell
-            label="Rendimento"
-            value={compactSigned(totalReturn)}
-            valueClass={tint(totalReturn)}
-            note={`${fmtSignedPct(totals.cost ? totalReturn / totals.cost : 0)} totale`}
-          />
-          <SummaryCell href="/fisco" label="Netto se vendi" value={compactPlain(totals.netLiquidation)} note={`−${compactPlain(totals.taxIfSold)} tasse`} border />
-          <SummaryCell
-            onClick={() => goto("dividendi")}
-            label={`Cedole ${new Date().getFullYear()}`}
-            value={compactPlain(state.incomeByYear[String(new Date().getFullYear())] ?? 0)}
-            valueClass="text-up"
-            note="nette"
-            border
-          />
-        </div>
-      </Panel>
+      <SectionHeader>In sintesi</SectionHeader>
+      <ul>
+        <SummaryRow
+          label="Guadagno totale"
+          value={fmtSignedEur(totalReturn)}
+          valueClass={tint(totalReturn)}
+          note={`${fmtSignedPct(totals.cost ? totalReturn / totals.cost : 0)} sul capitale`}
+        />
+        <SummaryRow href="/fisco" label="Netto se vendi oggi" value={fmtEur(totals.netLiquidation)} note={totals.taxIfSold > 0.5 ? `${fmtEur(totals.taxIfSold)} di tasse` : "Nessuna tassa da pagare"} />
+        <SummaryRow
+          onClick={() => goto("dividendi")}
+          label={`Cedole ${new Date().getFullYear()}`}
+          value={fmtEur(state.incomeByYear[String(new Date().getFullYear())] ?? 0)}
+          note="Nette, già incassate"
+        />
+        {backpack > 0 && <SummaryRow href="/fisco" label="Zainetto fiscale" value={fmtEur(backpack)} valueClass="text-warn" note="Minusvalenze da recuperare" />}
+      </ul>
 
       {data.isDemo && (
-        <Link href="/movimenti" className="mx-4 mt-4 flex items-center justify-between rounded-[22px] bg-accent px-4 py-3.5 text-accent-ink active:opacity-80">
+        <Link href="/movimenti" className="mx-4 mt-8 flex items-center justify-between rounded-[16px] bg-accent px-4 py-3.5 text-accent-ink active:opacity-80">
           <span>
             <span className="block text-[15px] font-semibold">Stai guardando un esempio</span>
             <span className="text-[13px] opacity-85">Prezzi reali, operazioni inventate. Importa le tue.</span>
@@ -411,9 +352,8 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         </Link>
       )}
 
-      <p className="px-6 pb-2 pt-6 text-center text-[12px] leading-relaxed text-faint">
-        {loading ? "Aggiornamento quotazioni…" : fetchedAt ? `Quotazioni delle ${fmtTime(fetchedAt)}` : "Quotazioni non ancora disponibili"} · aggiornate ogni 5 minuti, borse
-        europee con circa 15 minuti di ritardo
+      <p className="num px-4 pb-2 pt-8 text-center text-[12px] text-faint">
+        {loading ? "Aggiornamento quotazioni…" : fetchedAt ? `Quotazioni delle ${fmtTime(fetchedAt)} · ritardo ~15 min` : "Quotazioni non ancora disponibili"}
       </p>
     </div>
   );
@@ -440,35 +380,12 @@ function compact(v: number, signed: boolean) {
   return `${v < 0 ? "−" : signed && v > 0 ? "+" : ""}${s} €`;
 }
 
-function QuickAction({ href, onClick, label, icon, badge }: { href?: string; onClick?: () => void; label: string; icon: React.ReactNode; badge?: boolean }) {
-  const inner = (
-    <>
-      <span className="relative flex h-[54px] w-[54px] items-center justify-center rounded-full bg-chip text-ink">
-        {icon}
-        {badge && <span className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-bg bg-warn" />}
-      </span>
-      <span className="text-[12px] font-medium text-ink-2">{label}</span>
-    </>
-  );
-  const cls = "flex flex-col items-center gap-1.5 active:opacity-60";
-  return href ? (
-    <Link href={href} className={cls}>
-      {inner}
-    </Link>
-  ) : (
-    <button onClick={onClick} className={cls}>
-      {inner}
-    </button>
-  );
-}
-
-function SummaryCell({
+function SummaryRow({
   label,
   value,
   note,
   href,
   onClick,
-  border,
   valueClass = "",
 }: {
   label: string;
@@ -476,30 +393,34 @@ function SummaryCell({
   note: string;
   href?: string;
   onClick?: () => void;
-  border?: boolean;
   valueClass?: string;
 }) {
   const body = (
     <>
-      <p className="truncate text-[12px] text-mut">{label}</p>
-      <p className={`num sensitive mt-1.5 truncate text-[18px] font-semibold tracking-[-0.03em] ${valueClass}`}>{value}</p>
-      <p className="num mt-0.5 truncate text-[11px] text-mut">{note}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[17px] font-medium">{label}</p>
+        <p className="num mt-0.5 truncate text-[14px] text-mut">{note}</p>
+      </div>
+      <p className={`num sensitive shrink-0 text-[17px] font-medium ${valueClass}`}>{value}</p>
+      {(href || onClick) && <ChevronRight size={18} className="-mr-1 shrink-0 text-faint" />}
     </>
   );
-  const cls = `block min-w-0 px-4 py-3.5 text-left ${border ? "border-l border-sep" : ""} ${href || onClick ? "active:bg-panel-2" : ""}`;
-  if (href)
-    return (
-      <Link href={href} className={cls}>
-        {body}
-      </Link>
-    );
-  if (onClick)
-    return (
-      <button onClick={onClick} className={cls}>
-        {body}
-      </button>
-    );
-  return <div className={cls}>{body}</div>;
+  const cls = "flex min-h-[64px] w-full items-center gap-3 px-4 py-2.5 text-left active:bg-panel-2";
+  return (
+    <li>
+      {href ? (
+        <Link href={href} className={cls}>
+          {body}
+        </Link>
+      ) : onClick ? (
+        <button onClick={onClick} className={cls}>
+          {body}
+        </button>
+      ) : (
+        <div className={cls}>{body}</div>
+      )}
+    </li>
+  );
 }
 
 /** 4.414,79 € → "+4.415 €"; oltre 100k → "+101,2k €". */

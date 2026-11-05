@@ -244,7 +244,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
       {width > 0 && <svg width={width} height={height} className="block" aria-hidden>
         <defs>
           <linearGradient id={`f-${gid}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={stroke} stopOpacity="0.26" />
+            <stop offset="0%" stopColor={stroke} stopOpacity="0.18" />
             <stop offset="100%" stopColor={stroke} stopOpacity="0" />
           </linearGradient>
           <clipPath id={`c-${gid}`}>
@@ -252,25 +252,21 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
           </clipPath>
         </defs>
 
-        {geo.grid.map((v) => (
-          <line key={v} x1="0" x2={plotW + 4} y1={geo.y(v)} y2={geo.y(v)} stroke="var(--sep)" strokeWidth="1" />
-        ))}
-
-        <line x1="0" x2={plotW} y1={geo.y(geo.base)} y2={geo.y(geo.base)} stroke="var(--faint)" strokeWidth="1.25" strokeDasharray="1 5" strokeLinecap="round" />
+        <line x1="0" x2={plotW} y1={geo.y(geo.base)} y2={geo.y(geo.base)} stroke="var(--mut)" strokeOpacity="0.6" strokeWidth="1.25" strokeDasharray="1 5" strokeLinecap="round" />
         {marker && <line x1="0" x2={plotW} y1={geo.y(marker.value)} y2={geo.y(marker.value)} stroke="var(--accent)" strokeOpacity="0.6" strokeDasharray="4 4" />}
 
-        {/* Area: in un intervallo si colora solo la parte selezionata */}
-        <path d={geo.area} fill={`url(#f-${gid})`} clipPath={`url(#c-${gid})`} />
+        {/* Area solo sull'intervallo selezionato */}
+        {ranged && <path d={geo.area} fill={`url(#f-${gid})`} clipPath={`url(#c-${gid})`} />}
         {geo.compareLine && (
           <path d={geo.compareLine} fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeDasharray="6 4" strokeLinejoin="round" opacity="0.9" />
         )}
         {geo.invested && <path d={geo.invested} fill="none" stroke="var(--mut)" strokeWidth="1.5" strokeDasharray="5 4" strokeLinejoin="round" />}
-        <path d={geo.line} fill="none" stroke={ranged ? "var(--faint)" : stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" opacity={ranged ? 0.5 : 1} />
+        <path d={geo.line} fill="none" stroke={ranged ? "var(--faint)" : stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" opacity={ranged ? 0.5 : 1} />
         {ranged && <path d={geo.line} fill="none" stroke={stroke} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#c-${gid})`} />}
 
         {/* Operazioni sulla linea del tempo */}
         {[...eventIdx.entries()].map(([i, evs]) => (
-          <circle key={i} cx={geo.x(i)} cy={H - 5} r={tipIdx === i ? 4.5 : 3} fill={EVENT_COLOR[evs[0].kind]} />
+          <circle key={i} cx={geo.x(i)} cy={H - 4} r={tipIdx === i ? 4 : 2.5} fill={EVENT_COLOR[evs[0].kind]} />
         ))}
 
         {/* Righe verticali allineate al punto */}
@@ -287,11 +283,9 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
         )}
 
         {/* Asse X: una tacca per mese, trimestre o anno a seconda del periodo */}
-        <line x1="0" x2={plotW} y1={H} y2={H} stroke="var(--sep)" strokeWidth="1" />
         {ticks.map((t) => (
           <g key={t.i}>
-            <line x1={t.x} x2={t.x} y1={H} y2={H + 4} stroke="var(--faint)" strokeWidth="1" />
-            <text x={t.x} y={H + 20} textAnchor="middle" className="num" fontSize="11" fill="var(--faint)">
+            <text x={t.x} y={H + 20} textAnchor="middle" className="num" fontSize="11" fill="var(--mut)">
               {t.label}
             </text>
           </g>
@@ -300,7 +294,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
 
       {/* Etichette della griglia (asse Y, a destra) */}
       {geo.grid.map((v) => (
-          <span key={v} className="num pointer-events-none absolute right-0 -translate-y-1/2 text-right text-[10px] text-faint" style={{ top: geo.y(v), width: GUTTER - 8 }}>
+          <span key={v} className="num pointer-events-none absolute right-0 -translate-y-1/2 text-right text-[11px] text-mut" style={{ top: geo.y(v), width: GUTTER - 8 }}>
             {axisFmt(v)}
           </span>
         ))}

@@ -126,13 +126,11 @@ function NuovoMovimento() {
   return (
     <div className="pb-6">
       <div className="flex items-center justify-between px-4">
-        <Link href="/movimenti" className="py-2 text-[17px] text-accent active:opacity-50">
+        <Link href="/movimenti" className="w-[62px] py-2.5 text-[17px] text-accent active:opacity-50">
           Annulla
         </Link>
         <p className="text-[17px] font-semibold">{editing ? "Modifica" : "Nuovo movimento"}</p>
-        <button onClick={save} disabled={!valid} className="py-2 text-[17px] font-semibold text-accent disabled:text-faint">
-          Salva
-        </button>
+        <span className="w-[62px]" aria-hidden />
       </div>
 
       {data.isDemo && !editing && (
@@ -187,7 +185,7 @@ function NuovoMovimento() {
       )}
 
       <p className="px-5 pb-2 pt-6 text-[13px] font-medium text-mut">Dettagli</p>
-      <div className="mx-4 overflow-hidden rounded-[18px] bg-panel shadow-panel">
+      <div className="mx-4 overflow-hidden rounded-[16px] bg-panel">
         <Field label="Data">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
         </Field>
@@ -222,7 +220,7 @@ function NuovoMovimento() {
       </div>
 
       {valid && kind !== "cash" && (
-        <div className="mx-4 mt-4 flex items-center justify-between rounded-[18px] bg-panel-2 px-4 py-3.5">
+        <div className="mx-4 mt-4 flex items-center justify-between rounded-[16px] bg-panel-2 px-4 py-3.5">
           <p className="text-[15px] text-ink-2">{kind === "buy" ? "Totale addebitato" : kind === "sell" ? "Totale accreditato" : "Accreditato"}</p>
           <p className="num text-[20px] font-semibold tracking-[-0.03em]">{fmtEur(total)}</p>
         </div>
@@ -236,12 +234,12 @@ function NuovoMovimento() {
         <button
           onClick={save}
           disabled={!valid}
-          className="flex h-[56px] w-full items-center justify-center gap-2 rounded-[18px] bg-ink text-[17px] font-semibold text-bg active:opacity-80 disabled:opacity-40"
+          className="flex h-[56px] w-full items-center justify-center gap-2 rounded-[16px] bg-ink text-[17px] font-semibold text-bg active:opacity-80 disabled:opacity-40"
         >
           <Check size={19} strokeWidth={2.6} /> Salva movimento
         </button>
         {editing && (
-          <button onClick={remove} className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-[18px] text-[16px] font-semibold text-dn active:bg-panel">
+          <button onClick={remove} className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] text-[16px] font-semibold text-dn active:bg-panel">
             <Trash2 size={18} /> Elimina movimento
           </button>
         )}
@@ -279,7 +277,7 @@ function InstrumentSearch({ known, onPick }: { known: Instrument[]; onPick: (i: 
   }, [q, known]);
 
   return (
-    <div className="mx-4 overflow-hidden rounded-[18px] bg-panel shadow-panel">
+    <div className="mx-4 overflow-hidden rounded-[16px] bg-panel">
       <label className="flex items-center gap-2.5 border-b border-sep px-4 py-3">
         <Search size={18} className="shrink-0 text-mut" />
         <input
@@ -341,7 +339,7 @@ function InstrumentCard({
   onChange: (i: Instrument) => void;
 }) {
   return (
-    <div className="mx-4 overflow-hidden rounded-[18px] bg-panel shadow-panel">
+    <div className="mx-4 overflow-hidden rounded-[16px] bg-panel">
       <div className="flex items-center gap-3 px-4 py-3">
         <Logo isin={instrument.isin} name={instrument.shortName ?? instrument.name} size={40} />
         <div className="min-w-0 flex-1">

@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Coins, FileUp, Plus, Scissors, Wallet } from "lucide-react";
+import { FileUp, Plus } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
-import { BankDot, Chip, ChipRow, LargeTitle, Logo, Panel } from "@/components/ui";
+import { BankDot, LargeTitle, SelectButton } from "@/components/ui";
 import { fmtDate, fmtEur, fmtNum, fmtPrice } from "@/lib/format";
 import type { Transaction } from "@/lib/engine/types";
 
 const META = {
-  buy: { label: "Acquisto", icon: ArrowDownLeft },
-  sell: { label: "Vendita", icon: ArrowUpRight },
-  dividend: { label: "Cedola/dividendo", icon: Coins },
-  split: { label: "Frazionamento", icon: Scissors },
-  cash: { label: "Saldo liquidità", icon: Wallet },
+  buy: { verb: "Acquistato" },
+  sell: { verb: "Venduto" },
+  dividend: { verb: "Cedola o dividendo" },
+  split: { verb: "Frazionamento" },
+  cash: { verb: "Saldo del conto" },
 } as const;
 
 type Kind = "all" | Transaction["type"];
@@ -42,7 +42,7 @@ export default function Movimenti() {
           <Link
             href="/movimenti/nuovo"
             aria-label="Aggiungi movimento"
-            className="mb-1.5 flex h-10 items-center gap-1.5 rounded-full bg-ink pl-3 pr-4 text-[15px] font-semibold text-bg active:opacity-80"
+            className="mb-1 flex h-11 items-center gap-1 rounded-full bg-chip pl-3 pr-4 text-[15px] font-semibold text-ink active:opacity-70"
           >
             <Plus size={18} strokeWidth={2.6} /> Aggiungi
           </Link>
@@ -51,105 +51,72 @@ export default function Movimenti() {
         Movimenti
       </LargeTitle>
 
-      <Panel className="mb-5">
-        <div className="px-4 pt-4">
-          <p className="text-[17px] font-semibold">Importa dalla banca</p>
-          <p className="mt-1 text-[14px] leading-snug text-mut">
-            Carica l&apos;export dei movimenti titoli: prezzi medi e zainetto si ricalcolano da soli. Nel frattempo puoi aggiungere i movimenti a mano con il pulsante Aggiungi.
-          </p>
-        </div>
-        <div className="grid grid-cols-3 gap-2 p-4">
-          {data.accounts.map((a) => (
-            <button
-              key={a.id}
-              disabled
-              aria-label={`Importa da ${a.name}, in arrivo`}
-              className="flex flex-col items-center gap-1 rounded-[12px] bg-panel-2 py-3 text-[13px] font-semibold text-ink-2 disabled:opacity-60"
-            >
-              <FileUp size={20} style={{ color: a.color }} />
-              {a.name}
-              <span className="text-[11px] font-medium text-mut">in arrivo</span>
-            </button>
-          ))}
-        </div>
-      </Panel>
-
-      <ChipRow>
-        <Chip active={account === "all"} onClick={() => setAccount("all")}>
-          Tutti i conti
-        </Chip>
-        {data.accounts.map((a) => (
-          <Chip key={a.id} active={account === a.id} onClick={() => setAccount(a.id)}>
-            <BankDot color={a.color} />
-            {a.name}
-          </Chip>
-        ))}
-      </ChipRow>
-      <div className="mt-2">
-        <ChipRow>
-          {(["all", "buy", "sell", "dividend", "cash"] as Kind[]).map((k) => (
-            <Chip key={k} active={kind === k} onClick={() => setKind(k)}>
-              {k === "all" ? "Tutte le operazioni" : k === "buy" ? "Acquisti" : k === "sell" ? "Vendite" : k === "dividend" ? "Cedole" : "Liquidità"}
-            </Chip>
-          ))}
-        </ChipRow>
+      <div className="flex items-center gap-5 px-4">
+        <span className="flex items-center gap-1.5">
+          {accounts.get(account) && <BankDot color={accounts.get(account)!.color} />}
+          <SelectButton
+            label="Conto"
+            value={account}
+            onChange={setAccount}
+            options={[{ value: "all", label: "Tutti i conti" }, ...data.accounts.map((a) => ({ value: a.id, label: a.name }))]}
+          />
+        </span>
+        <SelectButton
+          label="Tipo di operazione"
+          value={kind}
+          onChange={setKind}
+          options={[
+            { value: "all", label: "Tutte le operazioni" },
+            { value: "buy", label: "Acquisti" },
+            { value: "sell", label: "Vendite" },
+            { value: "dividend", label: "Cedole" },
+            { value: "cash", label: "Liquidità" },
+          ]}
+        />
+        <Link href="/impostazioni" className="ml-auto flex min-h-[36px] items-center gap-1 text-[15px] font-semibold text-accent">
+          <FileUp size={17} /> Importa
+        </Link>
       </div>
 
       {months.length === 0 && <p className="px-4 py-10 text-center text-[15px] text-mut">Nessuna operazione con questi filtri.</p>}
 
       {months.map(([month, txs]) => (
         <section key={month}>
-          <h2 className="px-4 pb-2 pt-6 text-[20px] font-bold capitalize tracking-[-0.02em]">{fmtDate(`${month}-01`, { month: "long", year: "numeric" })}</h2>
-          <Panel>
+          <h2 className="px-4 pb-1 pt-7 text-[15px] font-medium capitalize text-mut">{fmtDate(`${month}-01`, { month: "long", year: "numeric" })}</h2>
+          <ul>
             {txs.map((t) => {
               const ins = instruments.get(t.isin);
               const m = META[t.type];
-              const Icon = m.icon;
               const total = t.type === "dividend" || t.type === "cash" ? t.amount ?? 0 : ((t.quantity ?? 0) * (t.price ?? 0)) / (t.fxRate ?? 1);
               const name = t.type === "cash" ? "Liquidità" : ins?.shortName ?? ins?.name ?? t.isin;
+              const detail =
+                t.type === "buy" || t.type === "sell"
+                  ? `${m.verb} ${fmtNum(t.quantity ?? 0)} a ${fmtPrice(t.price ?? 0, ins?.currency ?? "EUR")}`
+                  : t.type === "split"
+                    ? `Frazionamento ${t.splitRatio}:1`
+                    : m.verb;
               return (
-                <Link
-                  href={t.id.startsWith("demo-") ? "#" : `/movimenti/nuovo?id=${t.id}`}
-                  key={t.id}
-                  className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0 active:bg-panel-2"
-                >
-                  <div className="relative">
-                    {t.type === "cash" ? (
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-chip text-ink">
-                        <Wallet size={18} />
-                      </span>
-                    ) : (
-                      <Logo isin={t.isin} name={name} size={40} />
-                    )}
-                    <span
-                      className={`absolute -bottom-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-panel ${
-                        t.type === "dividend" ? "bg-up text-white" : t.type === "sell" ? "bg-warn text-white" : "bg-ink text-bg"
-                      }`}
-                    >
-                      <Icon size={10} strokeWidth={3} />
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[16px] font-semibold tracking-[-0.01em]">{name}</p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-mut">
-                      <BankDot color={accounts.get(t.account)?.color ?? "#888"} size={7} />
-                      {m.label} · {fmtDate(t.date, { day: "numeric", month: "short" })}
-                    </p>
-                  </div>
-                  <div className="num shrink-0 text-right">
-                    <p className={`text-[16px] font-semibold ${t.type === "dividend" ? "text-up" : ""}`}>
-                      {t.type === "split" ? `× ${t.splitRatio}` : `${t.type === "buy" ? "−" : "+"}${fmtEur(total)}`}
-                    </p>
-                    {(t.type === "buy" || t.type === "sell") && (
-                      <p className="text-[12px] text-mut">
-                        {fmtNum(t.quantity ?? 0)} × {fmtPrice(t.price ?? 0, ins?.currency ?? "EUR")}
+                <li key={t.id}>
+                  <Link
+                    href={t.id.startsWith("demo-") ? "#" : `/movimenti/nuovo?id=${t.id}`}
+                    className="flex min-h-[64px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2"
+                  >
+                    <span className="num w-[42px] shrink-0 text-[15px] text-mut">{fmtDate(t.date, { day: "2-digit", month: "2-digit" }).replace("/", ".")}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">{name}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
+                        <BankDot color={accounts.get(t.account)?.color ?? "#888"} size={7} />
+                        <span className="num truncate">{detail}</span>
                       </p>
-                    )}
-                  </div>
-                </Link>
+                    </div>
+                    <p className={`num sensitive shrink-0 text-[17px] font-medium ${t.type === "dividend" || t.type === "sell" ? "text-up" : ""}`}>
+                      {t.type === "split" ? "" : t.type === "cash" ? fmtEur(total) : `${t.type === "buy" ? "−" : "+"}${fmtEur(total)}`}
+                    </p>
+                  </Link>
+                </li>
               );
             })}
-          </Panel>
+          </ul>
         </section>
       ))}
     </div>

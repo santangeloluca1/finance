@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Gauge } from "@/components/Gauge";
-import { BankDot, Chip, ChipRow, Logo, Panel, SectionHeader } from "@/components/ui";
+import { BankDot, Chip, ChipRow, InfoRow, Logo, Panel, SectionHeader } from "@/components/ui";
 import { lookThrough, topCompanies, useCompositions } from "@/lib/xray-client";
 import { isFundLike } from "@/lib/engine/tax";
 import { ASSET_CLASS_COLOR, ASSET_CLASS_LABEL, groupBy, type PositionView, type Slice, type Totals } from "@/lib/analytics";
@@ -181,20 +181,13 @@ export function Analisi({
       </Panel>
 
       <SectionHeader>Costi annui</SectionHeader>
-      <div className="mx-4 grid grid-cols-3 gap-2.5">
-        <CostTile label="TER medio" value={`${((ter / (totals.value || 1)) * 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`} />
-        <CostTile label="Fondi" value={fmtEur0(ter)} sensitive />
-        <CostTile label="Bollo" value={fmtEur0(totals.value * 0.002)} sensitive />
-      </div>
+      <Panel>
+        <InfoRow label="TER medio ponderato" value={`${((ter / (totals.value || 1)) * 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`} />
+        <InfoRow label="Costi di gestione degli ETF" value={<span className="sensitive">{fmtEur0(ter)}</span>} />
+        <InfoRow label="Imposta di bollo" hint="0,2% del valore" value={<span className="sensitive">{fmtEur0(totals.value * 0.002)}</span>} />
+      </Panel>
     </div>
   );
 }
 
-function CostTile({ label, value, sensitive }: { label: string; value: string; sensitive?: boolean }) {
-  return (
-    <div className="rounded-[18px] bg-panel p-3.5 shadow-panel">
-      <p className="text-[12px] text-mut">{label}</p>
-      <p className={`num mt-2.5 text-[19px] font-semibold ${sensitive ? "sensitive" : ""}`}>{value}</p>
-    </div>
-  );
-}
+
