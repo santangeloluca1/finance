@@ -5,15 +5,17 @@ import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { AreaChart, type ChartPoint } from "@/components/AreaChart";
-import { BackLink, BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
+import { ChevronLeft } from "lucide-react";
+import { BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { ASSET_CLASS_LABEL, cutoffDate, type FxRates, type PositionView } from "@/lib/analytics";
 import { simulateSale } from "@/lib/engine/portfolio";
 import { effectiveRate } from "@/lib/engine/tax";
 import type { Account, Instrument, PortfolioState } from "@/lib/engine/types";
-import { fmtDate, fmtEur, fmtNum, fmtPct, fmtPrice, fmtSignedEur } from "@/lib/format";
+import { fmtDate, fmtEur, fmtNum, fmtPct, fmtPrice, fmtSignedEur, fmtSignedPct } from "@/lib/format";
 
-type Range = "1M" | "6M" | "1A" | "MAX";
-const RANGE_DAYS: Record<Range, number> = { "1M": 31, "6M": 183, "1A": 366, MAX: 99999 };
+type Range = "1S" | "1M" | "6M" | "1A" | "MAX";
+const RANGE_DAYS: Record<Range, number> = { "1S": 7, "1M": 31, "6M": 183, "1A": 366, MAX: 99999 };
+const RANGE_LABEL: Record<Range, string> = { "1S": "1 settimana", "1M": "1 mese", "6M": "6 mesi", "1A": "1 anno", MAX: "dall'inizio" };
 const TX_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola/dividendo", split: "Frazionamento" } as const;
 
 export default function PositionDetail() {
@@ -57,46 +59,58 @@ export default function PositionDetail() {
   const tax = rows.reduce((a, r) => a + r.taxIfSold, 0);
   const income = state?.positions.filter((p) => p.isin === isin && (bank === "all" || p.account === bank)).reduce((a, p) => a + p.income, 0) ?? 0;
   const name = instrument.shortName ?? instrument.name;
+  const pmcMarker = instrument.currency === "EUR" && qty > 0 ? { value: cost / qty, label: `Il tuo prezzo medio ${fmtEur(cost / qty)}` } : undefined;
 
   return (
     <div>
-      <BackLink href="/posizioni" label="Titoli" />
-
-      <div className="flex items-center gap-3 px-4 pt-2">
-        <Logo isin={instrument.isin} name={name} size={48} />
-        <div className="min-w-0">
-          <h1 className="truncate text-[22px] font-bold tracking-[-0.02em]">{name}</h1>
-          <p className="truncate text-[13px] text-mut">
-            {instrument.ticker} · {ASSET_CLASS_LABEL[instrument.assetClass]}
-          </p>
-        </div>
+      <div className="flex items-center justify-between px-3">
+        <Link href="/posizioni" aria-label="Torna ai titoli" className="flex h-10 w-10 items-center justify-center rounded-full bg-chip active:opacity-60">
+          <ChevronLeft size={20} strokeWidth={2.4} />
+        </Link>
       </div>
 
       <div className="px-4 pt-4">
-        <p className="num hero-number">{price !== undefined ? fmtPrice(price, instrument.currency) : "—"}</p>
-        <p className="mt-1.5 flex items-baseline gap-1.5 text-[15px]">
-          {scrub ? (
+        <Logo isin={instrument.isin} name={name} size={52} />
+        <h1 className="mt-3.5 truncate text-[15px] font-medium text-mut">
+          {name} · {instrument.ticker.split(".")[0]}
+        </h1>
+        <PriceBig value={price} currency={instrument.currency} />
+        <p className="mt-3 flex flex-wrap items-baseline gap-x-1.5 text-[14px] text-mut">
+          <span className={`num font-semibold ${rangeChange >= 0 ? "text-up" : "text-dn"}`}>
+            {rangeChange >= 0 ? "▲" : "▼"} {fmtPct(Math.abs(rangeChange))}
+          </span>
+          {scrub ? `al ${fmtDate(scrub.date)}` : RANGE_LABEL[range]}
+          {!scrub && q && (
             <>
-              <Change pct={rangeChange} />
-              <span className="text-mut">al {fmtDate(scrub.date)}</span>
+              <span>·</span>
+              <Change pct={(q.price - q.previousClose) / q.previousClose} size="sm" />
+              <span>oggi</span>
             </>
-          ) : q ? (
-            <>
-              <Change pct={(q.price - q.previousClose) / q.previousClose} />
-              <span className="text-mut">oggi</span>
-              <span className="text-faint">·</span>
-              <Change pct={rangeChange} />
-              <span className="text-mut">in {range}</span>
-            </>
-          ) : null}
+          )}
         </p>
       </div>
 
-      <div className="mt-4">
-        <AreaChart points={points} height={190} onScrub={setScrub} loading={!historyReady} />
+      <div className="mt-7">
+        <AreaChart
+          points={points}
+          height={170}
+          onScrub={setScrub}
+          loading={!historyReady}
+          tooltip={(p) => `${fmtPrice(p.value, instrument.currency)} · ${fmtDate(p.date, { day: "numeric", month: "short" })}`}
+          marker={pmcMarker}
+        />
       </div>
-      <div className="mt-2 px-4">
-        <Segmented value={range} onChange={setRange} options={(Object.keys(RANGE_DAYS) as Range[]).map((r) => ({ value: r, label: r }))} />
+      <div className="mt-3 flex px-3">
+        {(Object.keys(RANGE_DAYS) as Range[]).map((r) => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            aria-pressed={range === r}
+            className={`num rounded-full px-3 py-1.5 text-[13px] font-semibold ${range === r ? "bg-ink text-bg" : "text-mut"}`}
+          >
+            {r}
+          </button>
+        ))}
       </div>
 
       {allRows.length > 0 && (
@@ -112,22 +126,25 @@ export default function PositionDetail() {
             </div>
           )}
           <Panel>
-            <div className="flex items-end justify-between border-b border-sep px-4 py-4">
+            <div className="flex items-end justify-between gap-3 px-4 py-4">
               <div>
-                <p className="text-[13px] text-mut">Valore</p>
-                <p className="num sensitive text-[26px] font-semibold tracking-[-0.03em]">{fmtEur(value)}</p>
+                <p className="text-[13px] text-mut">Valore{bank !== "all" || allRows.length === 1 ? ` · ${accounts.get(rows[0]?.position.account ?? "")?.name ?? ""}` : ""}</p>
+                <p className="num sensitive mt-1 text-[28px] font-semibold tracking-[-0.04em]">{fmtEur(value)}</p>
               </div>
-              <div className="text-right">
-                <p className="text-[13px] text-mut">Plus/minus</p>
-                <Change abs={value - cost} pct={cost ? (value - cost) / cost : 0} />
-              </div>
+              <span className={`num sensitive rounded-full px-2.5 py-1 text-[14px] font-semibold ${value - cost >= 0 ? "bg-up/12 text-up" : "bg-dn/12 text-dn"}`}>
+                {fmtSignedEur(value - cost)} · {fmtSignedPct(cost ? (value - cost) / cost : 0)}
+              </span>
             </div>
-            <InfoRow label="Quote" value={fmtNum(qty)} />
-            <InfoRow label="Prezzo medio di carico" value={fmtEur(qty ? cost / qty : 0)} hint="commissioni incluse" />
-            <InfoRow label="Investito" value={fmtEur(cost)} />
-            {income > 0 && <InfoRow label="Cedole e dividendi incassati" value={`+${fmtEur(income)}`} valueClass="text-up" />}
-            <InfoRow label="Tasse se vendi oggi" value={fmtEur(tax)} />
-            <InfoRow label="Netto se vendi oggi" value={fmtEur(value - tax)} />
+            <div className="grid grid-cols-3 border-t border-sep">
+              <Cell label="Quote" value={fmtNum(qty)} />
+              <Cell label="Prezzo medio" value={fmtEur(qty ? cost / qty : 0)} border />
+              <Cell label="Investito" value={fmtEur(cost)} border sensitive />
+            </div>
+            <div className="border-t border-sep">
+              {income > 0 && <InfoRow label="Cedole e dividendi incassati" value={`+${fmtEur(income)}`} valueClass="text-up" />}
+              <InfoRow label="Tasse se vendi oggi" value={fmtEur(tax)} />
+              <InfoRow label="Netto se vendi oggi" value={<span className="sensitive">{fmtEur(value - tax)}</span>} />
+            </div>
           </Panel>
           {bank === "all" && allRows.length > 1 && (
             <p className="px-8 pt-2 text-[12px] leading-snug text-mut">Il prezzo medio è calcolato separatamente per ogni banca, come fanno gli intermediari.</p>
@@ -254,6 +271,17 @@ function Simulator({
             onChange={(e) => setQty(Number(e.target.value))}
             className="mt-3 w-full"
           />
+          <div className="mt-3 flex gap-2 text-[13px] font-semibold">
+            {[0.25, 0.5, 1].map((f) => (
+              <button
+                key={f}
+                onClick={() => setQty(f === 1 ? row.position.quantity : Math.round(row.position.quantity * f))}
+                className="rounded-full bg-chip px-3 py-1.5 active:opacity-60"
+              >
+                {f === 1 ? "Tutte" : `${f * 100}%`}
+              </button>
+            ))}
+          </div>
         </div>
         {sim && qty > 0 ? (
           <div className="border-t border-sep">
@@ -268,8 +296,8 @@ function Simulator({
             {sim.lossCreated > 0 && <InfoRow label="Minus che entra nello zainetto" value={fmtEur(sim.lossCreated)} valueClass="text-warn" />}
             <InfoRow label="Imposta stimata" value={fmtEur(sim.tax)} />
             <div className="flex items-center justify-between bg-panel-2 px-4 py-3.5">
-              <p className="text-[15px] font-semibold">Incasso netto</p>
-              <p className="num text-[20px] font-bold tracking-[-0.02em]">{fmtEur(sim.net)}</p>
+              <p className="text-[16px] font-semibold">Incasso netto</p>
+              <p className="num text-[24px] font-semibold tracking-[-0.03em]">{fmtEur(sim.net)}</p>
             </div>
           </div>
         ) : (
@@ -278,5 +306,27 @@ function Simulator({
       </Panel>
       <p className="px-8 pt-2 text-[12px] text-mut">Stima al prezzo attuale, senza commissioni di vendita.</p>
     </>
+  );
+}
+
+function Cell({ label, value, border, sensitive }: { label: string; value: string; border?: boolean; sensitive?: boolean }) {
+  return (
+    <div className={`px-4 py-3 ${border ? "border-l border-sep" : ""}`}>
+      <p className="text-[12px] text-mut">{label}</p>
+      <p className={`num mt-1 truncate text-[16px] font-semibold ${sensitive ? "sensitive" : ""}`}>{value}</p>
+    </div>
+  );
+}
+
+/** Prezzo grande con decimali in apice. */
+function PriceBig({ value, currency }: { value: number | undefined; currency: string }) {
+  if (value === undefined) return <p className="hero-number mt-1.5">—</p>;
+  const s = fmtPrice(value, currency);
+  const i = s.lastIndexOf(",");
+  return (
+    <p className="hero-number mt-1.5" aria-label={s}>
+      {i > 0 ? s.slice(0, i) : s}
+      {i > 0 && <span className="dec">{s.slice(i)}</span>}
+    </p>
   );
 }

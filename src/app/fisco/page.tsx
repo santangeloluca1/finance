@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Lightbulb } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { BankDot, ChipRow, Chip, InfoRow, LargeTitle, Panel, SectionHeader } from "@/components/ui";
+import { BigAmount } from "@/components/BigAmount";
 import { isFundLike, TAX_RATE } from "@/lib/engine/tax";
 import { usableLosses } from "@/lib/engine/portfolio";
 import { fmtDate, fmtEur, fmtSignedEur } from "@/lib/format";
@@ -51,19 +52,25 @@ export default function Fisco() {
       </ChipRow>
 
       <div className="px-4 pt-6">
-        <p className="text-[15px] font-semibold text-mut">Imposte stimate {year}</p>
-        <p className="num hero-number mt-0.5">{fmtEur(taxes)}</p>
-        <p className="mt-1.5 text-[15px] text-mut">
+        <p className="text-[15px] font-medium text-mut">Imposte trattenute nel {year}</p>
+        <BigAmount value={taxes} className="mt-1.5" />
+        <p className="mt-3 text-[15px] text-mut">
           Risultato netto dell&apos;anno <span className={`num font-semibold ${net >= 0 ? "text-up" : "text-dn"}`}>{fmtSignedEur(net)}</span>
         </p>
       </div>
 
-      <SectionHeader>Realizzato</SectionHeader>
-      <Panel>
-        <InfoRow label="Plusvalenze · redditi diversi" hint="azioni, obbligazioni, ETC: compensano lo zainetto" value={fmtSignedEur(plusDiversi)} valueClass={plusDiversi > 0 ? "text-up" : ""} />
-        <InfoRow label="Plusvalenze · redditi di capitale" hint="ETF: non compensabili" value={fmtSignedEur(plusCapitale)} valueClass={plusCapitale > 0 ? "text-up" : ""} />
-        <InfoRow label="Minusvalenze" hint="finiscono nello zainetto" value={fmtSignedEur(minus)} valueClass={minus < 0 ? "text-dn" : ""} />
-        <InfoRow label="Cedole e dividendi netti" value={fmtSignedEur(income)} valueClass={income > 0 ? "text-up" : ""} />
+      <Panel className="mt-6">
+        {plusDiversi + plusCapitale + income > 0 && (
+          <div className="mx-4 mb-1 mt-4 flex h-2.5 gap-[3px] overflow-hidden rounded-full">
+            <span className="bg-accent" style={{ width: `${(plusDiversi / (plusDiversi + plusCapitale + income)) * 100}%` }} />
+            <span style={{ width: `${(plusCapitale / (plusDiversi + plusCapitale + income)) * 100}%`, background: "#22b8cf" }} />
+            <span className="bg-up" style={{ width: `${(income / (plusDiversi + plusCapitale + income)) * 100}%` }} />
+          </div>
+        )}
+        <InfoRow label={<Dot color="var(--accent)">Plus · redditi diversi</Dot>} hint="azioni, obbligazioni, ETC: compensano lo zainetto" value={fmtSignedEur(plusDiversi)} valueClass={plusDiversi > 0 ? "text-up" : ""} />
+        <InfoRow label={<Dot color="#22b8cf">Plus · redditi di capitale</Dot>} hint="ETF: non compensabili" value={fmtSignedEur(plusCapitale)} valueClass={plusCapitale > 0 ? "text-up" : ""} />
+        <InfoRow label={<Dot color="var(--up)">Cedole e dividendi</Dot>} hint="netti, già tassati" value={fmtSignedEur(income)} valueClass={income > 0 ? "text-up" : ""} />
+        <InfoRow label={<Dot color="var(--faint)">Minusvalenze</Dot>} hint="finiscono nello zainetto" value={fmtSignedEur(minus)} valueClass={minus < 0 ? "text-dn" : "text-mut"} />
       </Panel>
 
       <SectionHeader right={<span className="num text-[17px] font-bold text-warn">{fmtEur(backpackTotal)}</span>}>Zainetto fiscale</SectionHeader>
@@ -98,14 +105,19 @@ export default function Fisco() {
                           </span>
                           <span className={expiring ? "font-semibold text-dn" : "text-mut"}>scade {fmtDate(l.expires, { month: "short", year: "numeric" })}</span>
                         </div>
-                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-chip">
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-chip">
                           <div className={`h-full rounded-full ${expiring ? "bg-dn" : "bg-warn"}`} style={{ width: `${Math.max(3, (left / total) * 100)}%` }} />
+                        </div>
+                        <div className="num mt-1.5 flex justify-between text-[11px] text-faint">
+                          {Array.from({ length: Number(l.expires.slice(0, 4)) - Number(l.date.slice(0, 4)) + 1 }, (_, k) => (
+                            <span key={k}>{Number(l.date.slice(0, 4)) + k}</span>
+                          ))}
                         </div>
                       </li>
                     );
                   })}
                 </ul>
-                <div className="flex gap-3 border-t border-sep bg-panel-2 px-4 py-3.5">
+                <div className={`flex gap-3 px-4 py-3.5 ${soon ? "bg-warn/10" : "bg-panel-2"}`}>
                   <span className={`mt-0.5 shrink-0 ${soon ? "text-warn" : "text-accent"}`}>{soon ? <AlertTriangle size={18} /> : <Lightbulb size={18} />}</span>
                   <div className="text-[14px] leading-snug">
                     {candidates.length ? (
@@ -165,4 +177,13 @@ function sum(xs: number[]) {
 
 function daysBetween(a: string, b: string) {
   return Math.max(1, (Date.parse(b) - Date.parse(a)) / 86400_000);
+}
+
+function Dot({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span className="flex items-center gap-2.5">
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+      {children}
+    </span>
+  );
 }

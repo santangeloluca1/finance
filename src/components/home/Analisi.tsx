@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { Gauge } from "@/components/Gauge";
-import { BankDot, InfoRow, Panel, SectionHeader, Segmented } from "@/components/ui";
+import { BankDot, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { ASSET_CLASS_COLOR, ASSET_CLASS_LABEL, groupBy, type PositionView, type Slice, type Totals } from "@/lib/analytics";
 import type { Account } from "@/lib/engine/types";
-import { fmtEur, fmtPct, fmtSignedPct } from "@/lib/format";
+import { fmtEur, fmtEur0, fmtPct, fmtSignedPct } from "@/lib/format";
 
 type By = "asset" | "banca" | "valuta" | "titolo";
 const PALETTE = ["#5468ff", "#22b8cf", "#9b6bff", "#2dd4a7", "#f5a524", "#f472b6", "#ff7a45", "#94a3b8"];
@@ -50,10 +50,10 @@ export function Analisi({ views, totals, accounts }: { views: PositionView[]; to
         />
       </div>
 
-      <div className="pt-7">
-        <Gauge slices={slices}>
+      <div className="pt-9">
+        <Gauge slices={slices} size={300}>
           <p className="text-[13px] text-mut">Valore del portafoglio</p>
-          <p className="num sensitive text-[28px] font-semibold tracking-[-0.03em]">{fmtEur(totals.value)}</p>
+          <p className="num sensitive text-[30px] font-semibold tracking-[-0.04em]">{fmtEur(totals.value)}</p>
         </Gauge>
       </div>
 
@@ -68,7 +68,7 @@ export function Analisi({ views, totals, accounts }: { views: PositionView[]; to
                 <p className="num text-[15px] font-semibold">{fmtPct(share)}</p>
               </div>
               <div className="mt-2 flex items-center gap-3 pl-[22px]">
-                <div className="h-1 flex-1 overflow-hidden rounded-full bg-chip">
+                <div className="h-[5px] flex-1 overflow-hidden rounded-full bg-chip">
                   <div className="h-full rounded-full" style={{ width: `${share * 100}%`, background: s.color }} />
                 </div>
                 <p className="num sensitive w-24 text-right text-[13px] text-mut">{fmtEur(s.value)}</p>
@@ -81,27 +81,37 @@ export function Analisi({ views, totals, accounts }: { views: PositionView[]; to
       <SectionHeader>Rendimento per banca</SectionHeader>
       <Panel>
         {banks.map(({ a, value, pct }) => (
-          <InfoRow
-            key={a.id}
-            label={
-              <span className="flex items-center gap-2">
-                <BankDot color={a.color} size={9} />
-                {a.name}
-              </span>
-            }
-            hint={<span className="sensitive">{fmtEur(value)}</span>}
-            value={fmtSignedPct(pct)}
-            valueClass={pct >= 0 ? "text-up" : "text-dn"}
-          />
+          <div key={a.id} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0">
+            <span
+              className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] text-[15px] font-bold"
+              style={{ background: `color-mix(in srgb, ${a.color} 16%, transparent)`, color: a.color }}
+            >
+              {a.name[0]}
+            </span>
+            <div className="flex-1">
+              <p className="text-[15px] font-semibold">{a.name}</p>
+              <p className="num sensitive text-[13px] text-mut">{fmtEur(value)}</p>
+            </div>
+            <p className={`num text-[16px] font-semibold ${pct >= 0 ? "text-up" : "text-dn"}`}>{fmtSignedPct(pct)}</p>
+          </div>
         ))}
       </Panel>
 
-      <SectionHeader>Costi</SectionHeader>
-      <Panel>
-        <InfoRow label="TER medio ponderato" value={`${((ter / (totals.value || 1)) * 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`} />
-        <InfoRow label="Costo annuo dei fondi" value={<span className="sensitive">{fmtEur(ter)}</span>} />
-        <InfoRow label="Imposta di bollo annua" hint="0,2% del valore" value={<span className="sensitive">{fmtEur(totals.value * 0.002)}</span>} />
-      </Panel>
+      <SectionHeader>Costi annui</SectionHeader>
+      <div className="mx-4 grid grid-cols-3 gap-2.5">
+        <CostTile label="TER medio" value={`${((ter / (totals.value || 1)) * 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`} />
+        <CostTile label="Fondi" value={fmtEur0(ter)} sensitive />
+        <CostTile label="Bollo" value={fmtEur0(totals.value * 0.002)} sensitive />
+      </div>
+    </div>
+  );
+}
+
+function CostTile({ label, value, sensitive }: { label: string; value: string; sensitive?: boolean }) {
+  return (
+    <div className="rounded-[18px] bg-panel p-3.5 shadow-panel">
+      <p className="text-[12px] text-mut">{label}</p>
+      <p className={`num mt-2.5 text-[19px] font-semibold ${sensitive ? "sensitive" : ""}`}>{value}</p>
     </div>
   );
 }

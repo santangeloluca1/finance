@@ -16,6 +16,10 @@ interface Props {
   loading?: boolean;
   /** Etichette di massimo e minimo sul bordo destro (stile Scalable). */
   extremes?: (v: number) => string;
+  /** Testo della bolla durante lo scrubbing (es. "57.920 € · 12 set"). */
+  tooltip?: (p: ChartPoint) => string;
+  /** Linea orizzontale etichettata (es. il prezzo medio di carico). */
+  marker?: { value: number; label: string };
 }
 
 const W = 1000;
@@ -24,7 +28,7 @@ const W = 1000;
  * Grafico ad area a tutta larghezza: si scorre col dito per leggere il valore
  * a una certa data. Verde se il periodo è in guadagno, rosso se in perdita.
  */
-export function AreaChart({ points, height = 200, onScrub, reference, loading, extremes }: Props) {
+export function AreaChart({ points, height = 200, onScrub, reference, loading, extremes, tooltip, marker }: Props) {
   const id = useId().replace(/:/g, "");
   const ref = useRef<SVGSVGElement>(null);
   const [active, setActive] = useState<number | null>(null);
@@ -33,6 +37,7 @@ export function AreaChart({ points, height = 200, onScrub, reference, loading, e
     if (points.length < 2) return null;
     const vals = points.map((p) => p.value);
     if (reference !== undefined) vals.push(reference);
+    if (marker) vals.push(marker.value);
     let min = Math.min(...vals);
     let max = Math.max(...vals);
     const pad = (max - min || Math.abs(max) || 1) * 0.08;
@@ -46,7 +51,7 @@ export function AreaChart({ points, height = 200, onScrub, reference, loading, e
     const rawMax = Math.max(...points.map((p) => p.value));
     const rawMin = Math.min(...points.map((p) => p.value));
     return { x, y, line, area: `${line}L${W},${height}L0,${height}Z`, rawMax, rawMin };
-  }, [points, height, reference]);
+  }, [points, height, reference, marker]);
 
   if (!geo) {
     return (
@@ -93,11 +98,14 @@ export function AreaChart({ points, height = 200, onScrub, reference, loading, e
     >
       <defs>
         <linearGradient id={`fill-${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={stroke} stopOpacity="0.16" />
+          <stop offset="0%" stopColor={stroke} stopOpacity="0.28" />
           <stop offset="100%" stopColor={stroke} stopOpacity="0" />
         </linearGradient>
       </defs>
       <line x1="0" x2={W} y1={geo.y(base)} y2={geo.y(base)} stroke="var(--faint)" strokeWidth="1.25" strokeDasharray="1 5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      {marker && (
+        <line x1="0" x2={W} y1={geo.y(marker.value)} y2={geo.y(marker.value)} stroke="var(--accent)" strokeOpacity="0.6" strokeWidth="1" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+      )}
       <path d={geo.area} fill={`url(#fill-${id})`} />
       <path d={geo.line} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       {active !== null && (
@@ -116,10 +124,26 @@ export function AreaChart({ points, height = 200, onScrub, reference, loading, e
           </span>
         </>
       )}
+      {marker && active === null && (
+        <span
+          className="pointer-events-none absolute left-4 rounded-lg bg-chip px-2 py-0.5 text-[11px] font-semibold text-ink-2"
+          style={{ top: Math.min(height - 22, Math.max(0, geo.y(marker.value) + 6)) }}
+        >
+          {marker.label}
+        </span>
+      )}
+      {active !== null && tooltip && (
+        <span
+          className="num pointer-events-none absolute -top-4 whitespace-nowrap rounded-[10px] bg-ink px-2.5 py-1 text-[12px] font-semibold text-bg"
+          style={{ left: `clamp(8px, calc(${(geo.x(active) / W) * 100}% - 64px), calc(100% - 150px))` }}
+        >
+          {tooltip(points[active])}
+        </span>
+      )}
       {active !== null && (
         <span
           aria-hidden
-          className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-bg"
+          className="pointer-events-none absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-bg"
           style={{ left: `${(geo.x(active) / W) * 100}%`, top: geo.y(points[active].value), background: stroke }}
         />
       )}

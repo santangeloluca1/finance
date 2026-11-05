@@ -64,7 +64,7 @@ export function PositionList({ rows, accounts, showBanks = true }: { rows: Posit
       {rows.map((r) => (
         <li key={r.key} className="border-b border-sep last:border-0">
           <Link href={`/posizioni/${r.instrument.isin}`} className="flex items-center gap-3 px-4 py-3 active:bg-panel-2">
-            <Logo isin={r.instrument.isin} name={r.instrument.shortName ?? r.instrument.name} />
+            <Logo isin={r.instrument.isin} name={r.instrument.shortName ?? r.instrument.name} size={42} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[16px] font-semibold tracking-[-0.01em]">{r.instrument.shortName ?? r.instrument.name}</p>
               <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-mut">

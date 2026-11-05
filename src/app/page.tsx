@@ -80,7 +80,7 @@ export default function Home() {
         ) : tab === "analisi" ? (
           <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} />
         ) : (
-          <Dividendi data={view.data} state={view.state} />
+          <Dividendi data={view.data} state={view.state} totals={view.totals} />
         )
       ) : null}
     </div>
@@ -173,13 +173,14 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
       </div>
 
       {/* Grafico pulito con riferimento tratteggiato (Trade Republic) e minimo/massimo (Scalable) */}
-      <div className="mt-5">
+      <div className="mt-7">
         <AreaChart
           points={points}
-          height={200}
+          height={180}
           onScrub={setScrub}
           reference={mode === "rendimento" ? 0 : undefined}
           loading={!historyReady}
+          tooltip={(p) => `${mode === "valore" ? fmtEur0(p.value) : fmtSignedEur(p.value).replace(/,\d+/, "")} · ${fmtDate(p.date, { day: "numeric", month: "short" })}`}
           extremes={(v) => (mode === "valore" ? fmtEur0(v) : fmtSignedEur(v).replace(/,\d+/, ""))}
         />
       </div>
@@ -208,7 +209,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
       </div>
 
       {/* Azioni rapide (Revolut) */}
-      <div className="mt-7 grid grid-cols-4 px-2">
+      <div className="mt-8 grid grid-cols-4 px-2">
         <QuickAction href="/movimenti" label="Importa" icon={<FileUp size={20} />} />
         <QuickAction href="/posizioni" label="Simula vendita" icon={<Calculator size={20} />} />
         <QuickAction href="/fisco" label="Zainetto" icon={<Landmark size={20} />} badge={backpack > 0} />
@@ -258,7 +259,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
 function QuickAction({ href, onClick, label, icon, badge }: { href?: string; onClick?: () => void; label: string; icon: React.ReactNode; badge?: boolean }) {
   const inner = (
     <>
-      <span className="relative flex h-[52px] w-[52px] items-center justify-center rounded-full bg-chip text-ink">
+      <span className="relative flex h-[54px] w-[54px] items-center justify-center rounded-full bg-chip text-ink">
         {icon}
         {badge && <span className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-bg bg-warn" />}
       </span>
@@ -281,11 +282,11 @@ function Widget({ label, value, note, href, valueClass = "" }: { label: string; 
   const body = (
     <>
       <p className="text-[13px] font-medium text-mut">{label}</p>
-      <p className={`num sensitive mt-3 text-[21px] font-semibold tracking-[-0.03em] ${valueClass}`}>{value}</p>
+      <p className={`num sensitive mt-3.5 text-[23px] font-semibold tracking-[-0.03em] ${valueClass}`}>{value}</p>
       <p className="mt-0.5 text-[12px] text-mut">{note}</p>
     </>
   );
-  const cls = "rounded-[18px] bg-panel p-4 shadow-panel";
+  const cls = "rounded-[22px] bg-panel p-4 shadow-panel";
   return href ? (
     <Link href={href} className={`${cls} active:opacity-70`}>
       {body}

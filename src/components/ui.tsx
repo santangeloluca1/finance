@@ -9,7 +9,7 @@ import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
 export function LargeTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
     <div className="flex items-end justify-between px-4 pb-3 pt-2">
-      <h1 className="text-[34px] font-bold leading-tight tracking-[-0.025em]">{children}</h1>
+      <h1 className="text-[34px] font-semibold leading-tight tracking-[-0.04em]">{children}</h1>
       {right}
     </div>
   );
@@ -27,8 +27,8 @@ export function BackLink({ href, label }: { href: string; label: string }) {
 /** Intestazione di sezione: più spazio sopra che sotto. */
 export function SectionHeader({ children, right, id }: { children: ReactNode; right?: ReactNode; id?: string }) {
   return (
-    <div className="flex items-center justify-between px-4 pb-2 pt-7">
-      <h2 id={id} className="text-[22px] font-bold tracking-[-0.02em]">
+    <div className="flex items-center justify-between px-4 pb-2.5 pt-8">
+      <h2 id={id} className="text-[23px] font-semibold tracking-[-0.03em]">
         {children}
       </h2>
       {right}
@@ -38,7 +38,7 @@ export function SectionHeader({ children, right, id }: { children: ReactNode; ri
 
 /** Pannello raggruppato (inset grouped). */
 export function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`mx-4 overflow-hidden rounded-[18px] bg-panel shadow-panel ${className}`}>{children}</div>;
+  return <div className={`mx-4 overflow-hidden rounded-[22px] bg-panel shadow-panel ${className}`}>{children}</div>;
 }
 
 /** Riga etichetta/valore dentro un pannello. */

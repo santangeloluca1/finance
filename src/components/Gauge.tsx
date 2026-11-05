@@ -6,7 +6,7 @@ import type { Slice } from "@/lib/analytics";
  */
 export function Gauge({ slices, children, size = 280 }: { slices: Slice[]; children?: React.ReactNode; size?: number }) {
   const total = slices.reduce((a, s) => a + s.value, 0) || 1;
-  const stroke = 22;
+  const stroke = 24;
   const r = (size - stroke) / 2;
   const cx = size / 2;
   const cy = size / 2;

@@ -4,18 +4,18 @@
 :root {
   --bg: #f2f3f7;
   --panel: #ffffff;
-  --panel-2: #f2f3f7;
+  --panel-2: #f6f7fa;
   --chip: #e5e7ed;
   --ink: #0b0d12;
   --ink-2: #2f3440;
-  --mut: #6b7180;
-  --faint: #9aa0ad;
+  --mut: #646a78;
+  --faint: #a0a6b2;
   --sep: rgb(11 13 18 / 0.08);
   --accent: #4255ff;
   --accent-ink: #ffffff;
-  --up: #0c9a55;
-  --dn: #e0393e;
-  --warn: #c77700;
+  --up: #0a9150;
+  --dn: #d9333a;
+  --warn: #b86e00;
   --shadow: 0 1px 2px rgb(11 13 18 / 0.04), 0 8px 24px -12px rgb(11 13 18 / 0.12);
   color-scheme: light;
 }
@@ -23,38 +23,38 @@
 /* ---------- Tema scuro: segue l'iPhone salvo scelta manuale ---------- */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #000000;
-    --panel: #131417;
-    --panel-2: #1c1d21;
-    --chip: #1f2024;
+    --bg: #050608;
+    --panel: #14161a;
+    --panel-2: #1b1d22;
+    --chip: #1e2025;
     --ink: #f5f6f8;
     --ink-2: #d5d8de;
     --mut: #8d929c;
-    --faint: #5d626c;
+    --faint: #5e636d;
     --sep: rgb(255 255 255 / 0.08);
     --accent: #7486ff;
     --accent-ink: #0b0d12;
-    --up: #34d07f;
-    --dn: #ff6161;
+    --up: #3bd98a;
+    --dn: #ff6262;
     --warn: #ffb547;
     --shadow: none;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #000000;
-  --panel: #131417;
-  --panel-2: #1c1d21;
-  --chip: #1f2024;
+  --bg: #050608;
+  --panel: #14161a;
+  --panel-2: #1b1d22;
+  --chip: #1e2025;
   --ink: #f5f6f8;
   --ink-2: #d5d8de;
   --mut: #8d929c;
-  --faint: #5d626c;
+  --faint: #5e636d;
   --sep: rgb(255 255 255 / 0.08);
   --accent: #7486ff;
   --accent-ink: #0b0d12;
-  --up: #34d07f;
-  --dn: #ff6161;
+  --up: #3bd98a;
+  --dn: #ff6262;
   --warn: #ffb547;
   --shadow: none;
   color-scheme: dark;
@@ -92,6 +92,7 @@ body {
 
 body {
   min-height: 100dvh;
+  font-family: var(--font-display);
 }
 
 ::selection {
@@ -139,16 +140,16 @@ input[type="range"] {
 }
 
 .hero-number {
-  font-size: 46px;
+  font-size: 54px;
   line-height: 1;
   font-weight: 600;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.05em;
   font-variant-numeric: tabular-nums;
 }
 .hero-number .dec {
-  font-size: 0.5em;
+  font-size: 0.48em;
   letter-spacing: -0.02em;
-  vertical-align: 0.78em;
+  vertical-align: 0.84em;
   margin-left: 1px;
 }
 
@@ -165,4 +166,8 @@ input[type="range"] {
 .hatch {
   background-image: repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 6px);
   opacity: 0.55;
+}
+
+.hatch-box {
+  background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 35%, transparent) 0 2px, transparent 2px 6px);
 }
