@@ -100,7 +100,7 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
   for (const g of data.goals ?? []) {
     const current = g.scope === "tutto" ? totalValue : null;
     if (current !== null && current >= g.target) {
-      out.push({ id: `goal-${g.id}`, level: "positivo", title: `Obiettivo "${g.name}" raggiunto`, detail: `Hai superato ${eur(g.target)}.`, href: "/obiettivi" });
+      out.push({ id: `goal-${g.id}`, level: "positivo", title: `Obiettivo "${g.name}" raggiunto`, detail: `Hai superato ${eur(g.target)}.`, href: "/#obiettivi" });
     }
   }
 
