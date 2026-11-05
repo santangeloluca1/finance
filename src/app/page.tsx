@@ -9,6 +9,7 @@ import { BigAmount } from "@/components/BigAmount";
 import { buildRows, PERIOD_OPTIONS, PositionList } from "@/components/PositionList";
 import { Analisi } from "@/components/home/Analisi";
 import { Prestazioni } from "@/components/home/Prestazioni";
+import { Salute } from "@/components/home/Salute";
 import { Dividendi } from "@/components/home/Dividendi";
 import { BankDot, Chip, ChipRow, Panel, SectionHeader, Segmented, SelectButton } from "@/components/ui";
 import { ASSET_CLASS_LABEL, cutoffDate, type Period } from "@/lib/analytics";
@@ -96,7 +97,7 @@ export default function Home() {
 type View = ReturnType<typeof usePortfolioView>;
 
 function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
-  const [sub, setSub] = useState<"prestazioni" | "allocazione">("prestazioni");
+  const [sub, setSub] = useState<"prestazioni" | "allocazione" | "salute">("prestazioni");
   const txs = useMemo(() => {
     const assetOf = new Map(view.data.instruments.map((i) => [i.isin, i.assetClass]));
     return view.data.transactions.filter(
@@ -109,14 +110,14 @@ function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
   return (
     <div>
       <div className="flex gap-2 px-4 pt-4">
-        {(["prestazioni", "allocazione"] as const).map((k) => (
+        {(["prestazioni", "allocazione", "salute"] as const).map((k) => (
           <button
             key={k}
             onClick={() => setSub(k)}
             aria-pressed={sub === k}
             className={`rounded-full px-4 py-2 text-[14px] font-semibold ${sub === k ? "bg-accent text-accent-ink" : "bg-chip text-ink-2"}`}
           >
-            {k === "prestazioni" ? "Prestazioni" : "Allocazione"}
+            {k === "prestazioni" ? "Prestazioni" : k === "allocazione" ? "Allocazione" : "Salute"}
           </button>
         ))}
       </div>
@@ -131,8 +132,10 @@ function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
           fx={view.fx}
           accounts={view.data.accounts}
         />
-      ) : (
+      ) : sub === "allocazione" ? (
         <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} cash={view.state.cash} />
+      ) : (
+        <Salute views={view.views} totals={view.totals} state={view.state} accounts={view.data.accounts} />
       )}
     </div>
   );
