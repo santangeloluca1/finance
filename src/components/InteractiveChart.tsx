@@ -41,6 +41,8 @@ interface Props {
   describeRange?: (a: number, b: number) => string;
   /** Andamento tra due indici (positivo = verde). Di default la differenza di valore. */
   trend?: (a: number, b: number) => number;
+  /** Seconda serie da confrontare (es. un indice), stessa lunghezza dei punti. */
+  compare?: (number | null)[];
 }
 
 /** Altezza dell'asse delle date e larghezza della colonna dei valori a destra. */
@@ -55,7 +57,7 @@ const EVENT_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola" } as 
  * - due dita (o trascinando col mouse) selezionano un intervallo e mostrano la variazione tra le due date;
  * - frecce ← → da tastiera quando il grafico ha il focus.
  */
-export function InteractiveChart({ points, height = 220, format, formatAxis, reference, showInvested, events = [], marker, onSelect, loading, describePoint, describeRange, trend }: Props) {
+export function InteractiveChart({ points, height = 220, format, formatAxis, reference, showInvested, events = [], marker, onSelect, loading, describePoint, describeRange, trend, compare }: Props) {
   const gid = useId().replace(/:/g, "");
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
@@ -83,6 +85,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
     const base = reference ?? points[0].value;
     vals.push(base);
     if (marker) vals.push(marker.value);
+    compare?.forEach((v) => v !== null && Number.isFinite(v) && vals.push(v));
     let min = Math.min(...vals);
     let max = Math.max(...vals);
     const pad = (max - min || Math.abs(max) || 1) * 0.1;
@@ -99,6 +102,13 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
         .map(([i, v], k) => `${k ? "L" : "M"}${x(i).toFixed(1)},${y(v!).toFixed(1)}`)
         .join("");
     const line = path((p) => p.value);
+    const compareLine = compare
+      ? compare
+          .map((v, i) => [i, v] as const)
+          .filter(([, v]) => v !== null && Number.isFinite(v))
+          .map(([i, v], k) => `${k ? "L" : "M"}${x(i).toFixed(1)},${y(v!).toFixed(1)}`)
+          .join("")
+      : null;
     // Griglia: 3 livelli "tondi"
     const step = niceStep((max - min) / 3);
     const grid: number[] = [];
@@ -110,9 +120,10 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
       line,
       area: `${line}L${plotW},${H}L0,${H}Z`,
       invested: showInvested ? path((p) => p.invested) : null,
+      compareLine,
       grid,
     };
-  }, [points, plotW, H, reference, showInvested, marker]);
+  }, [points, plotW, H, reference, showInvested, marker, compare]);
 
   const eventIdx = useMemo(() => {
     const map = new Map<number, ChartEvent[]>();
@@ -250,6 +261,9 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
 
         {/* Area: in un intervallo si colora solo la parte selezionata */}
         <path d={geo.area} fill={`url(#f-${gid})`} clipPath={`url(#c-${gid})`} />
+        {geo.compareLine && (
+          <path d={geo.compareLine} fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeDasharray="6 4" strokeLinejoin="round" opacity="0.9" />
+        )}
         {geo.invested && <path d={geo.invested} fill="none" stroke="var(--mut)" strokeWidth="1.5" strokeDasharray="5 4" strokeLinejoin="round" />}
         <path d={geo.line} fill="none" stroke={ranged ? "var(--faint)" : stroke} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" opacity={ranged ? 0.5 : 1} />
         {ranged && <path d={geo.line} fill="none" stroke={stroke} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#c-${gid})`} />}

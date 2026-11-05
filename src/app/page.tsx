@@ -8,6 +8,7 @@ import { InteractiveChart, type ChartEvent, type Selection, type SeriesPoint } f
 import { BigAmount } from "@/components/BigAmount";
 import { buildRows, PERIOD_OPTIONS, PositionList } from "@/components/PositionList";
 import { Analisi } from "@/components/home/Analisi";
+import { Prestazioni } from "@/components/home/Prestazioni";
 import { Dividendi } from "@/components/home/Dividendi";
 import { BankDot, Chip, ChipRow, Panel, SectionHeader, Segmented, SelectButton } from "@/components/ui";
 import { ASSET_CLASS_LABEL, cutoffDate, type Period } from "@/lib/analytics";
@@ -83,7 +84,7 @@ export default function Home() {
         tab === "panoramica" ? (
           <Panoramica view={view} filter={filter} goto={go} />
         ) : tab === "analisi" ? (
-          <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} cash={view.state.cash} />
+          <AnalisiTab view={view} filter={filter} />
         ) : (
           <Dividendi data={view.data} state={view.state} totals={view.totals} />
         )
@@ -93,6 +94,49 @@ export default function Home() {
 }
 
 type View = ReturnType<typeof usePortfolioView>;
+
+function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
+  const [sub, setSub] = useState<"prestazioni" | "allocazione">("prestazioni");
+  const txs = useMemo(() => {
+    const assetOf = new Map(view.data.instruments.map((i) => [i.isin, i.assetClass]));
+    return view.data.transactions.filter(
+      (t) =>
+        (filter.account === "all" || t.account === filter.account) &&
+        (filter.asset === "all" || (filter.asset === "liquidita" ? t.type === "cash" : assetOf.get(t.isin) === filter.asset)),
+    );
+  }, [view.data, filter]);
+  if (!view.totals || !view.state) return null;
+  return (
+    <div>
+      <div className="flex gap-2 px-4 pt-4">
+        {(["prestazioni", "allocazione"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setSub(k)}
+            aria-pressed={sub === k}
+            className={`rounded-full px-4 py-2 text-[14px] font-semibold ${sub === k ? "bg-accent text-accent-ink" : "bg-chip text-ink-2"}`}
+          >
+            {k === "prestazioni" ? "Prestazioni" : "Allocazione"}
+          </button>
+        ))}
+      </div>
+      {sub === "prestazioni" ? (
+        <Prestazioni
+          history={view.history}
+          state={view.state}
+          totals={view.totals}
+          transactions={txs}
+          views={view.views}
+          priceSeries={view.priceSeries}
+          fx={view.fx}
+          accounts={view.data.accounts}
+        />
+      ) : (
+        <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} cash={view.state.cash} />
+      )}
+    </div>
+  );
+}
 
 function Filters({ filter, setFilter, view }: { filter: Filter; setFilter: (f: Filter) => void; view: View }) {
   const presentAssets = useMemo(() => {
