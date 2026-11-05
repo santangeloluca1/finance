@@ -18,6 +18,7 @@ import { usableLosses } from "@/lib/engine/portfolio";
 import { fmtDate, fmtEur, fmtEur0, fmtNum, fmtSignedEur, fmtSignedPct, fmtTime } from "@/lib/format";
 import { usePrivacy } from "@/lib/privacy";
 import { computeAlerts } from "@/lib/alerts";
+import { twrSeries } from "@/lib/performance";
 
 type Tab = "panoramica" | "analisi" | "dividendi";
 const TABS: { id: Tab; label: string }[] = [
@@ -29,7 +30,7 @@ const TABS: { id: Tab; label: string }[] = [
 type Range = "1S" | "1M" | "3M" | "YTD" | "1A" | "MAX";
 const RANGE_DAYS: Record<Exclude<Range, "YTD" | "MAX">, number> = { "1S": 7, "1M": 31, "3M": 92, "1A": 366 };
 const RANGE_LABEL: Record<Range, string> = { "1S": "nell'ultima settimana", "1M": "nell'ultimo mese", "3M": "negli ultimi 3 mesi", YTD: "da inizio anno", "1A": "nell'ultimo anno", MAX: "dall'inizio" };
-type Mode = "valore" | "rendimento";
+type Mode = "percentuale" | "valore";
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("panoramica");
@@ -197,7 +198,7 @@ function Filters({ filter, setFilter, view }: { filter: Filter; setFilter: (f: F
 function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: (t: Tab) => void }) {
   const { data, state, views, totals, history, priceSeries, fx, fetchedAt, loading, historyReady } = view;
   const [range, setRange] = useState<Range>("1A");
-  const [mode, setMode] = useState<Mode>("valore");
+  const [mode, setMode] = useState<Mode>("percentuale");
   const [showInvested, setShowInvested] = useState(false);
   const [sel, setSel] = useState<Selection | null>(null);
   const [period, setPeriod] = useState<Period>("oggi");
@@ -212,9 +213,11 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
     return [...slice, { date: today, value: totals.value, invested: totals.cost + totals.cash, gain: totals.unrealized + realized + totals.income }];
   }, [history, totals, range, state]);
 
+  // Rendimento ponderato nel tempo dall'inizio del periodo: i versamenti non lo gonfiano.
+  const twr = useMemo(() => twrSeries(series).map((p) => p.value), [series]);
   const points = useMemo<SeriesPoint[]>(
-    () => series.map((h) => (mode === "valore" ? { date: h.date, value: h.value, invested: h.invested } : { date: h.date, value: h.gain - series[0].gain })),
-    [series, mode],
+    () => series.map((h, i) => (mode === "valore" ? { date: h.date, value: h.value, invested: h.invested } : { date: h.date, value: twr[i] })),
+    [series, mode, twr],
   );
 
   // Operazioni da mostrare sulla linea del tempo.
@@ -236,11 +239,8 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
 
   // Guadagno tra due indici della serie: esclude acquisti e vendite.
   const gainBetween = (i: number, j: number) => series[j].gain - series[i].gain;
-  // Base del rendimento: valore iniziale più il nuovo capitale versato nel periodo.
-  const pctBetween = (i: number, j: number) => {
-    const capital = series[i].value + Math.max(0, series[j].invested - series[i].invested);
-    return capital > 0 ? gainBetween(i, j) / capital : 0;
-  };
+  // Rendimento tra due date, ponderato nel tempo.
+  const pctBetween = (i: number, j: number) => (1 + twr[j]) / (1 + twr[i]) - 1;
 
   const last = series.length - 1;
   const from = sel?.b != null ? sel.a : 0;
@@ -302,17 +302,17 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         <InteractiveChart
           points={points}
           height={264}
-          reference={mode === "rendimento" ? 0 : undefined}
+          reference={mode === "percentuale" ? 0 : undefined}
           showInvested={mode === "valore" && showInvested}
           events={events}
           onSelect={setSel}
           loading={!historyReady}
-          format={mode === "valore" ? fmtEur : (v) => fmtSignedEur(v)}
-          formatAxis={(v) => compact(v, mode === "rendimento")}
+          format={mode === "valore" ? fmtEur : (v) => fmtSignedPct(v)}
+          formatAxis={(v) => (mode === "valore" ? compact(v, false) : axisPct(v))}
           describePoint={(i) =>
             mode === "valore"
               ? `${fmtEur(points[i].value)} · ${fmtSignedEur(gainBetween(0, i))}`
-              : `${fmtSignedEur(points[i].value)} · ${fmtSignedPct(pctBetween(0, i))}`
+              : `${fmtSignedPct(pctBetween(0, i))} · ${fmtSignedEur(gainBetween(0, i))}`
           }
           describeRange={(i, j) => `${fmtSignedEur(gainBetween(i, j))} · ${fmtSignedPct(pctBetween(i, j))}`}
           trend={gainBetween}
@@ -338,8 +338,8 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
             value={mode}
             onChange={setMode}
             options={[
-              { value: "valore", label: "Valore" },
-              { value: "rendimento", label: "Rendimento" },
+              { value: "percentuale", label: "Rendimento %" },
+              { value: "valore", label: "Valore €" },
             ]}
           />
         </div>
@@ -424,6 +424,13 @@ function rangeStart(r: Range) {
   if (r === "YTD") return `${new Date().getFullYear()}-01-01`;
   if (r === "MAX") return "0000-01-01";
   return cutoffDate(RANGE_DAYS[r]);
+}
+
+/** Etichette dell'asse in percentuale: +4%, −1,5%. */
+function axisPct(v: number) {
+  const n = v * 100;
+  const s = Math.abs(n).toLocaleString("it-IT", { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 });
+  return `${n < -0.0001 ? "−" : n > 0.0001 ? "+" : ""}${s}%`;
 }
 
 /** Etichette compatte per l'asse: 58,1k €. */
