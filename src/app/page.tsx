@@ -160,7 +160,11 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
 
   // Guadagno tra due indici della serie: esclude acquisti e vendite.
   const gainBetween = (i: number, j: number) => series[j].gain - series[i].gain;
-  const pctBetween = (i: number, j: number) => (series[i].value ? gainBetween(i, j) / series[i].value : 0);
+  // Base del rendimento: valore iniziale più il nuovo capitale versato nel periodo.
+  const pctBetween = (i: number, j: number) => {
+    const capital = series[i].value + Math.max(0, series[j].invested - series[i].invested);
+    return capital > 0 ? gainBetween(i, j) / capital : 0;
+  };
 
   const last = series.length - 1;
   const from = sel?.b != null ? sel.a : 0;
@@ -215,7 +219,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
       <div className="mt-8 px-4">
         <InteractiveChart
           points={points}
-          height={250}
+          height={264}
           reference={mode === "rendimento" ? 0 : undefined}
           showInvested={mode === "valore" && showInvested}
           events={events}
@@ -233,7 +237,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         />
       </div>
 
-      <div className="mt-2 grid grid-cols-6 px-3">
+      <div className="mt-6 grid grid-cols-6 px-3">
         {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
           <button
             key={r}

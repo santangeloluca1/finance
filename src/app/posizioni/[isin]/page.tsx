@@ -94,7 +94,7 @@ export default function PositionDetail() {
       <div className="mt-7 px-4">
         <InteractiveChart
           points={points}
-          height={220}
+          height={234}
           onSelect={(sel) => setScrub(sel ? points[sel.b ?? sel.a] : null)}
           loading={!historyReady}
           format={(v) => fmtPrice(v, instrument.currency)}
@@ -109,7 +109,7 @@ export default function PositionDetail() {
             }))}
         />
       </div>
-      <div className="mt-3 flex px-3">
+      <div className="mt-6 flex px-3">
         {(Object.keys(RANGE_DAYS) as Range[]).map((r) => (
           <button
             key={r}

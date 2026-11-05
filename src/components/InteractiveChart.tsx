@@ -43,7 +43,9 @@ interface Props {
   trend?: (a: number, b: number) => number;
 }
 
-const AXIS_H = 24;
+/** Altezza dell'asse delle date e larghezza della colonna dei valori a destra. */
+const AXIS_H = 34;
+const GUTTER = 50;
 const EVENT_COLOR = { buy: "var(--accent)", sell: "var(--warn)", dividend: "var(--up)" } as const;
 const EVENT_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola" } as const;
 
@@ -72,6 +74,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
   }, [box]);
 
   const H = height - AXIS_H;
+  const plotW = Math.max(0, width - GUTTER);
 
   const geo = useMemo(() => {
     if (points.length < 2) return null;
@@ -87,7 +90,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
     max += pad;
     const top = 14;
     const h = H - top - 6;
-    const x = (i: number) => (i / (points.length - 1)) * width;
+    const x = (i: number) => (i / (points.length - 1)) * plotW;
     const y = (v: number) => top + h - ((v - min) / (max - min)) * h;
     const path = (get: (p: SeriesPoint) => number | undefined) =>
       points
@@ -105,11 +108,11 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
       y,
       base,
       line,
-      area: `${line}L${width},${H}L0,${H}Z`,
+      area: `${line}L${plotW},${H}L0,${H}Z`,
       invested: showInvested ? path((p) => p.invested) : null,
       grid,
     };
-  }, [points, width, H, reference, showInvested, marker]);
+  }, [points, plotW, H, reference, showInvested, marker]);
 
   const eventIdx = useMemo(() => {
     const map = new Map<number, ChartEvent[]>();
@@ -141,7 +144,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
 
   const idxAt = (clientX: number) => {
     const rect = boxRef.current!.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / (plotW || rect.width)));
     return Math.round(ratio * (points.length - 1));
   };
 
@@ -200,7 +203,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
   const tipIdx = sel ? (sel.b ?? sel.a) : null;
   const tipEvents = tipIdx !== null ? eventIdx.get(tipIdx) ?? [] : [];
   const axisFmt = formatAxis ?? format;
-  const xLabels = [0, Math.floor((points.length - 1) / 2), points.length - 1];
+  const ticks = timeTicks(points, geo.x);
 
   return (
     <div
@@ -228,16 +231,16 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
             <stop offset="100%" stopColor={stroke} stopOpacity="0" />
           </linearGradient>
           <clipPath id={`c-${gid}`}>
-            <rect x={ranged ? geo.x(start) : 0} y="0" width={ranged ? geo.x(end) - geo.x(start) : width} height={H} />
+            <rect x={ranged ? geo.x(start) : 0} y="0" width={ranged ? geo.x(end) - geo.x(start) : plotW} height={H} />
           </clipPath>
         </defs>
 
         {geo.grid.map((v) => (
-          <line key={v} x1="0" x2={width} y1={geo.y(v)} y2={geo.y(v)} stroke="var(--sep)" strokeWidth="1" />
+          <line key={v} x1="0" x2={plotW + 4} y1={geo.y(v)} y2={geo.y(v)} stroke="var(--sep)" strokeWidth="1" />
         ))}
 
-        <line x1="0" x2={width} y1={geo.y(geo.base)} y2={geo.y(geo.base)} stroke="var(--faint)" strokeWidth="1.25" strokeDasharray="1 5" strokeLinecap="round" />
-        {marker && <line x1="0" x2={width} y1={geo.y(marker.value)} y2={geo.y(marker.value)} stroke="var(--accent)" strokeOpacity="0.6" strokeDasharray="4 4" />}
+        <line x1="0" x2={plotW} y1={geo.y(geo.base)} y2={geo.y(geo.base)} stroke="var(--faint)" strokeWidth="1.25" strokeDasharray="1 5" strokeLinecap="round" />
+        {marker && <line x1="0" x2={plotW} y1={geo.y(marker.value)} y2={geo.y(marker.value)} stroke="var(--accent)" strokeOpacity="0.6" strokeDasharray="4 4" />}
 
         {/* Area: in un intervallo si colora solo la parte selezionata */}
         <path d={geo.area} fill={`url(#f-${gid})`} clipPath={`url(#c-${gid})`} />
@@ -263,26 +266,21 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
           </>
         )}
 
-        {/* Asse X */}
-        {xLabels.map((i, k) => (
-          <text
-            key={k}
-            x={k === 0 ? 4 : k === 2 ? width - 4 : width / 2}
-            y={height - 6}
-            textAnchor={k === 0 ? "start" : k === 2 ? "end" : "middle"}
-            className="num"
-            fontSize="11"
-            fill="var(--faint)"
-          >
-            {axisDate(points[i].date, points)}
-          </text>
+        {/* Asse X: una tacca per mese, trimestre o anno a seconda del periodo */}
+        <line x1="0" x2={plotW} y1={H} y2={H} stroke="var(--sep)" strokeWidth="1" />
+        {ticks.map((t) => (
+          <g key={t.i}>
+            <line x1={t.x} x2={t.x} y1={H} y2={H + 4} stroke="var(--faint)" strokeWidth="1" />
+            <text x={t.x} y={H + 20} textAnchor="middle" className="num" fontSize="11" fill="var(--faint)">
+              {t.label}
+            </text>
+          </g>
         ))}
       </svg>}
 
       {/* Etichette della griglia (asse Y, a destra) */}
-      {!sel &&
-        geo.grid.map((v) => (
-          <span key={v} className="num pointer-events-none absolute right-2 -translate-y-full rounded bg-bg/60 px-1 pb-0.5 text-[10px] text-faint" style={{ top: geo.y(v) }}>
+      {geo.grid.map((v) => (
+          <span key={v} className="num pointer-events-none absolute right-0 -translate-y-1/2 text-right text-[10px] text-faint" style={{ top: geo.y(v), width: GUTTER - 8 }}>
             {axisFmt(v)}
           </span>
         ))}
@@ -297,7 +295,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
       {sel && tipIdx !== null && (
         <div
           className="pointer-events-none absolute -top-2 z-10 -translate-y-full whitespace-nowrap rounded-xl bg-ink px-3 py-1.5 text-bg shadow-lg"
-          style={{ left: clamp(geo.x(ranged ? (start + end) / 2 : end) - 80, 6, width - 166), minWidth: 160 }}
+          style={{ left: clamp(geo.x(ranged ? (start + end) / 2 : end) - 80, 0, width - 166), minWidth: 160 }}
         >
           {ranged ? (
             <>
@@ -346,10 +344,48 @@ function shortDate(d: string) {
   return new Date(`${d}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "2-digit" });
 }
 
-function axisDate(d: string, points: SeriesPoint[]) {
-  const span = (Date.parse(points[points.length - 1].date) - Date.parse(points[0].date)) / 86400_000;
-  const opts: Intl.DateTimeFormatOptions = span <= 40 ? { day: "numeric", month: "short" } : { month: "short", year: "2-digit" };
-  return new Date(`${d}T12:00:00`).toLocaleDateString("it-IT", opts);
+const MONTHS = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
+
+/**
+ * Tacche dell'asse del tempo: giorni per una settimana, settimane per un mese,
+ * mesi fino a 4 mesi, trimestri fino a ~16 mesi, semestri e poi anni.
+ * Le etichette troppo vicine tra loro vengono saltate.
+ */
+function timeTicks(points: SeriesPoint[], x: (i: number) => number) {
+  if (points.length < 2) return [];
+  const first = new Date(`${points[0].date}T12:00:00`);
+  const last = new Date(`${points[points.length - 1].date}T12:00:00`);
+  const span = (last.getTime() - first.getTime()) / 86400_000;
+  const dates: { date: string; label: string }[] = [];
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+  if (span <= 45) {
+    const step = span <= 10 ? 2 : 7;
+    for (let d = new Date(first); d <= last; d.setDate(d.getDate() + step)) {
+      dates.push({ date: iso(d), label: `${d.getDate()} ${MONTHS[d.getMonth()]}` });
+    }
+  } else {
+    const step = span <= 130 ? 1 : span <= 500 ? 3 : span <= 1000 ? 6 : 12;
+    const d = new Date(first.getFullYear(), first.getMonth() + 1, 1, 12);
+    while (d.getMonth() % step !== 0) d.setMonth(d.getMonth() + 1);
+    for (; d <= last; d.setMonth(d.getMonth() + step)) {
+      const m = d.getMonth();
+      const label = m === 0 ? String(d.getFullYear()) : `${MONTHS[m]}${step >= 3 ? ` ${String(d.getFullYear()).slice(2)}` : ""}`;
+      dates.push({ date: iso(d), label });
+    }
+  }
+
+  const out: { i: number; x: number; label: string }[] = [];
+  for (const t of dates) {
+    const i = points.findIndex((p) => p.date >= t.date);
+    if (i < 0) continue;
+    const px = x(i);
+    if (px < 18 || (out.length && px - out[out.length - 1].x < 44)) continue;
+    out.push({ i, x: px, label: t.label });
+  }
+  const end = x(points.length - 1);
+  if (out.length && end - out[out.length - 1].x < 18) out.pop();
+  return out;
 }
 
 function signed(v: number, f: (v: number) => string) {
