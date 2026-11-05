@@ -1,0 +1,107 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Gauge } from "@/components/Gauge";
+import { BankDot, InfoRow, Panel, SectionHeader, Segmented } from "@/components/ui";
+import { ASSET_CLASS_COLOR, ASSET_CLASS_LABEL, groupBy, type PositionView, type Slice, type Totals } from "@/lib/analytics";
+import type { Account } from "@/lib/engine/types";
+import { fmtEur, fmtPct, fmtSignedPct } from "@/lib/format";
+
+type By = "asset" | "banca" | "valuta" | "titolo";
+const PALETTE = ["#5468ff", "#22b8cf", "#9b6bff", "#2dd4a7", "#f5a524", "#f472b6", "#ff7a45", "#94a3b8"];
+
+export function Analisi({ views, totals, accounts }: { views: PositionView[]; totals: Totals; accounts: Account[] }) {
+  const [by, setBy] = useState<By>("asset");
+  const byAcc = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
+
+  const slices: Slice[] = useMemo(() => {
+    if (by === "asset") return groupBy(views, (v) => ({ key: v.instrument.assetClass, label: ASSET_CLASS_LABEL[v.instrument.assetClass], color: ASSET_CLASS_COLOR[v.instrument.assetClass] }));
+    if (by === "banca")
+      return groupBy(views, (v) => {
+        const a = byAcc.get(v.position.account);
+        return { key: v.position.account, label: a?.name ?? v.position.account, color: a?.color ?? "#888" };
+      });
+    if (by === "valuta") return groupBy(views, (v) => ({ key: v.instrument.currency, label: v.instrument.currency === "EUR" ? "Euro" : v.instrument.currency === "USD" ? "Dollaro USA" : v.instrument.currency, color: "" })).map((s, i) => ({ ...s, color: PALETTE[i % PALETTE.length] }));
+    return groupBy(views, (v) => ({ key: v.instrument.isin, label: v.instrument.shortName ?? v.instrument.name, color: "" })).map((s, i) => ({ ...s, color: PALETTE[i % PALETTE.length] }));
+  }, [views, by, byAcc]);
+
+  const ter = views.reduce((a, v) => a + (v.value * (v.instrument.ter ?? 0)) / 100, 0);
+  const banks = accounts
+    .map((a) => {
+      const vs = views.filter((v) => v.position.account === a.id);
+      const value = vs.reduce((s, v) => s + v.value, 0);
+      const cost = vs.reduce((s, v) => s + v.position.totalCost, 0);
+      return { a, value, pct: cost ? (value - cost) / cost : 0 };
+    })
+    .filter((b) => b.value > 0);
+
+  return (
+    <div>
+      <div className="px-4 pt-2">
+        <Segmented
+          value={by}
+          onChange={setBy}
+          options={[
+            { value: "asset", label: "Asset" },
+            { value: "banca", label: "Banca" },
+            { value: "valuta", label: "Valuta" },
+            { value: "titolo", label: "Titolo" },
+          ]}
+        />
+      </div>
+
+      <div className="pt-7">
+        <Gauge slices={slices}>
+          <p className="text-[13px] text-mut">Valore del portafoglio</p>
+          <p className="num sensitive text-[28px] font-semibold tracking-[-0.03em]">{fmtEur(totals.value)}</p>
+        </Gauge>
+      </div>
+
+      <Panel className="mt-6">
+        {slices.map((s) => {
+          const share = s.value / (totals.value || 1);
+          return (
+            <div key={s.key} className="border-b border-sep px-4 py-3 last:border-0">
+              <div className="flex items-center gap-2.5">
+                <BankDot color={s.color} size={10} />
+                <p className="min-w-0 flex-1 truncate text-[15px] font-medium">{s.label}</p>
+                <p className="num text-[15px] font-semibold">{fmtPct(share)}</p>
+              </div>
+              <div className="mt-2 flex items-center gap-3 pl-[22px]">
+                <div className="h-1 flex-1 overflow-hidden rounded-full bg-chip">
+                  <div className="h-full rounded-full" style={{ width: `${share * 100}%`, background: s.color }} />
+                </div>
+                <p className="num sensitive w-24 text-right text-[13px] text-mut">{fmtEur(s.value)}</p>
+              </div>
+            </div>
+          );
+        })}
+      </Panel>
+
+      <SectionHeader>Rendimento per banca</SectionHeader>
+      <Panel>
+        {banks.map(({ a, value, pct }) => (
+          <InfoRow
+            key={a.id}
+            label={
+              <span className="flex items-center gap-2">
+                <BankDot color={a.color} size={9} />
+                {a.name}
+              </span>
+            }
+            hint={<span className="sensitive">{fmtEur(value)}</span>}
+            value={fmtSignedPct(pct)}
+            valueClass={pct >= 0 ? "text-up" : "text-dn"}
+          />
+        ))}
+      </Panel>
+
+      <SectionHeader>Costi</SectionHeader>
+      <Panel>
+        <InfoRow label="TER medio ponderato" value={`${((ter / (totals.value || 1)) * 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`} />
+        <InfoRow label="Costo annuo dei fondi" value={<span className="sensitive">{fmtEur(ter)}</span>} />
+        <InfoRow label="Imposta di bollo annua" hint="0,2% del valore" value={<span className="sensitive">{fmtEur(totals.value * 0.002)}</span>} />
+      </Panel>
+    </div>
+  );
+}

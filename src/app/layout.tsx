@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { Geist } from "next/font/google";
 import "./globals.css";
 import { PortfolioProvider } from "@/components/PortfolioProvider";
 import { TabBar } from "@/components/TabBar";
-import { THEME_SCRIPT } from "@/lib/theme";
+import { BOOT_SCRIPT } from "@/lib/boot";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Portafoglio",
@@ -24,9 +27,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="it" suppressHydrationWarning>
+    <html lang="it" className={geist.variable} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: BOOT_SCRIPT }} />
       </head>
       <body>
         <PortfolioProvider>

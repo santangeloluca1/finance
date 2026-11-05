@@ -116,13 +116,13 @@ export const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
 };
 
 export const ASSET_CLASS_COLOR: Record<AssetClass, string> = {
-  etf_azionario: "#5B8CFF",
-  etf_obbligazionario: "#2DD4BF",
-  azione: "#F59E0B",
-  obbligazione: "#A3E635",
-  certificato: "#F472B6",
-  etc: "#FBBF24",
-  crypto: "#C084FC",
+  etf_azionario: "#5468ff",
+  etf_obbligazionario: "#22b8cf",
+  azione: "#9b6bff",
+  obbligazione: "#2dd4a7",
+  certificato: "#f472b6",
+  etc: "#f5a524",
+  crypto: "#ff7a45",
 };
 
 export interface Slice {

@@ -14,6 +14,8 @@ interface Props {
   /** Valore di riferimento (es. inizio periodo) disegnato come linea tratteggiata. */
   reference?: number;
   loading?: boolean;
+  /** Etichette di massimo e minimo sul bordo destro (stile Scalable). */
+  extremes?: (v: number) => string;
 }
 
 const W = 1000;
@@ -22,7 +24,7 @@ const W = 1000;
  * Grafico ad area a tutta larghezza: si scorre col dito per leggere il valore
  * a una certa data. Verde se il periodo è in guadagno, rosso se in perdita.
  */
-export function AreaChart({ points, height = 200, onScrub, reference, loading }: Props) {
+export function AreaChart({ points, height = 200, onScrub, reference, loading, extremes }: Props) {
   const id = useId().replace(/:/g, "");
   const ref = useRef<SVGSVGElement>(null);
   const [active, setActive] = useState<number | null>(null);
@@ -41,7 +43,9 @@ export function AreaChart({ points, height = 200, onScrub, reference, loading }:
     const x = (i: number) => (i / (points.length - 1)) * W;
     const y = (v: number) => top + h - ((v - min) / (max - min)) * h;
     const line = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join("");
-    return { x, y, line, area: `${line}L${W},${height}L0,${height}Z` };
+    const rawMax = Math.max(...points.map((p) => p.value));
+    const rawMin = Math.min(...points.map((p) => p.value));
+    return { x, y, line, area: `${line}L${W},${height}L0,${height}Z`, rawMax, rawMin };
   }, [points, height, reference]);
 
   if (!geo) {
@@ -52,7 +56,8 @@ export function AreaChart({ points, height = 200, onScrub, reference, loading }:
     );
   }
 
-  const up = points[points.length - 1].value >= (reference ?? points[0].value);
+  const base = reference ?? points[0].value;
+  const up = points[points.length - 1].value >= base;
   const stroke = up ? "var(--up)" : "var(--dn)";
 
   const handle = (clientX: number) => {
@@ -88,13 +93,11 @@ export function AreaChart({ points, height = 200, onScrub, reference, loading }:
     >
       <defs>
         <linearGradient id={`fill-${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
+          <stop offset="0%" stopColor={stroke} stopOpacity="0.16" />
           <stop offset="100%" stopColor={stroke} stopOpacity="0" />
         </linearGradient>
       </defs>
-      {reference !== undefined && (
-        <line x1="0" x2={W} y1={geo.y(reference)} y2={geo.y(reference)} stroke="var(--faint)" strokeWidth="1" strokeDasharray="2 4" vectorEffect="non-scaling-stroke" />
-      )}
+      <line x1="0" x2={W} y1={geo.y(base)} y2={geo.y(base)} stroke="var(--faint)" strokeWidth="1.25" strokeDasharray="1 5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       <path d={geo.area} fill={`url(#fill-${id})`} />
       <path d={geo.line} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       {active !== null && (
@@ -103,6 +106,16 @@ export function AreaChart({ points, height = 200, onScrub, reference, loading }:
         </>
       )}
     </svg>
+      {extremes && active === null && (
+        <>
+          <span className="num pointer-events-none absolute right-3 rounded bg-bg/70 px-1 text-[11px] text-faint" style={{ top: Math.max(0, geo.y(geo.rawMax) - 18) }}>
+            {extremes(geo.rawMax)}
+          </span>
+          <span className="num pointer-events-none absolute right-3 rounded bg-bg/70 px-1 text-[11px] text-faint" style={{ top: Math.min(height - 16, geo.y(geo.rawMin) + 4) }}>
+            {extremes(geo.rawMin)}
+          </span>
+        </>
+      )}
       {active !== null && (
         <span
           aria-hidden

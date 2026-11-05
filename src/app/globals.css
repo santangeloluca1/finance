@@ -75,6 +75,7 @@
   --color-up: var(--up);
   --color-dn: var(--dn);
   --color-warn: var(--warn);
+  --font-display: var(--font-geist), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
   --shadow-panel: var(--shadow);
 }
@@ -130,10 +131,38 @@ input[type="range"] {
   scrollbar-width: none;
 }
 
-/* Il numero principale cambia senza scatti durante lo scrubbing */
+/* Cifre e titoli in Geist: numeri tabellari, carattere più deciso del font di sistema */
+.font-display,
+.hero-number,
+.num {
+  font-family: var(--font-display);
+}
+
 .hero-number {
-  font-size: 44px;
-  line-height: 1.02;
-  font-weight: 700;
-  letter-spacing: -0.035em;
+  font-size: 46px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+.hero-number .dec {
+  font-size: 0.5em;
+  letter-spacing: -0.02em;
+  vertical-align: 0.78em;
+  margin-left: 1px;
+}
+
+/* Modalità privacy: importi sfocati, come in getquin e Revolut */
+:root[data-privacy="on"] .sensitive {
+  filter: blur(9px);
+  user-select: none;
+}
+.sensitive {
+  transition: filter 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Barre previste (dividendi futuri): tratteggio */
+.hatch {
+  background-image: repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 6px);
+  opacity: 0.55;
 }

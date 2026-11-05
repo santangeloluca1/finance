@@ -115,7 +115,7 @@ export default function PositionDetail() {
             <div className="flex items-end justify-between border-b border-sep px-4 py-4">
               <div>
                 <p className="text-[13px] text-mut">Valore</p>
-                <p className="num text-[26px] font-bold tracking-[-0.02em]">{fmtEur(value)}</p>
+                <p className="num sensitive text-[26px] font-semibold tracking-[-0.03em]">{fmtEur(value)}</p>
               </div>
               <div className="text-right">
                 <p className="text-[13px] text-mut">Plus/minus</p>

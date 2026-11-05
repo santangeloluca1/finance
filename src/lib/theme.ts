@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 
 export type ThemePref = "auto" | "light" | "dark";
-const KEY = "portafoglio:theme";
-
-/** Script eseguito prima dell'idratazione per evitare il lampo di tema sbagliato. */
-export const THEME_SCRIPT = `try{var t=localStorage.getItem("${KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
+import { THEME_KEY as KEY } from "./boot";
 
 export function useTheme(): [ThemePref, (t: ThemePref) => void] {
   const [pref, setPref] = useState<ThemePref>("auto");

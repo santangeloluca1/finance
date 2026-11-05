@@ -81,7 +81,7 @@ export function PositionList({ rows, accounts, showBanks = true }: { rows: Posit
               </p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="num text-[16px] font-semibold tracking-[-0.01em]">{fmtEur(r.value)}</p>
+              <p className="num sensitive text-[16px] font-semibold tracking-[-0.01em]">{fmtEur(r.value)}</p>
               <Change pct={r.change.pct} size="sm" />
             </div>
           </Link>
