@@ -52,9 +52,14 @@ export function buildPortfolio(
   const realized: RealizedEvent[] = [];
   const losses: LossLot[] = [];
   const incomeByYear: Record<string, number> = {};
+  const cash: PortfolioState["cash"] = {};
 
   for (const tx of sortTransactions(transactions)) {
     if (options.asOf && tx.date > options.asOf) break;
+    if (tx.type === "cash") {
+      cash[tx.account] = { date: tx.date, amount: tx.amount ?? 0 };
+      continue;
+    }
     const instrument = byIsin.get(tx.isin);
     if (!instrument) throw new PortfolioError(`Strumento sconosciuto: ${tx.isin}`);
     const k = key(tx.account, tx.isin);
@@ -147,6 +152,7 @@ export function buildPortfolio(
     realized,
     losses,
     incomeByYear,
+    cash,
   };
 }
 

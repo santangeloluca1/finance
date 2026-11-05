@@ -10,11 +10,45 @@ import { fmtEur, fmtEur0, fmtPct, fmtSignedPct } from "@/lib/format";
 type By = "asset" | "banca" | "valuta" | "titolo";
 const PALETTE = ["#5468ff", "#22b8cf", "#9b6bff", "#2dd4a7", "#f5a524", "#f472b6", "#ff7a45", "#94a3b8"];
 
-export function Analisi({ views, totals, accounts }: { views: PositionView[]; totals: Totals; accounts: Account[] }) {
+export function Analisi({
+  views,
+  totals,
+  accounts,
+  cash = {},
+}: {
+  views: PositionView[];
+  totals: Totals;
+  accounts: Account[];
+  cash?: Record<string, { date: string; amount: number }>;
+}) {
   const [by, setBy] = useState<By>("asset");
   const byAcc = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
 
-  const slices: Slice[] = useMemo(() => {
+  const slices: Slice[] = useMemo(() => withCash(computeSlices(), by), [views, by, byAcc, cash]);
+
+  function withCash(list: Slice[], mode: By): Slice[] {
+    const entries = Object.entries(cash).filter(([, c]) => c.amount > 0);
+    if (!entries.length) return list;
+    const out = list.map((s) => ({ ...s }));
+    if (mode === "banca") {
+      for (const [id, c] of entries) {
+        const s = out.find((x) => x.key === id);
+        const a = byAcc.get(id);
+        if (s) s.value += c.amount;
+        else out.push({ key: id, label: a?.name ?? id, color: a?.color ?? "#888", value: c.amount });
+      }
+    } else if (mode === "valuta") {
+      const eur = out.find((x) => x.key === "EUR");
+      const total = entries.reduce((a, [, c]) => a + c.amount, 0);
+      if (eur) eur.value += total;
+      else out.push({ key: "EUR", label: "Euro", color: "#5468ff", value: total });
+    } else {
+      out.push({ key: "liquidita", label: "Liquidità", color: "#94a3b8", value: entries.reduce((a, [, c]) => a + c.amount, 0) });
+    }
+    return out.sort((a, b) => b.value - a.value);
+  }
+
+  function computeSlices(): Slice[] {
     if (by === "asset") return groupBy(views, (v) => ({ key: v.instrument.assetClass, label: ASSET_CLASS_LABEL[v.instrument.assetClass], color: ASSET_CLASS_COLOR[v.instrument.assetClass] }));
     if (by === "banca")
       return groupBy(views, (v) => {
@@ -23,7 +57,7 @@ export function Analisi({ views, totals, accounts }: { views: PositionView[]; to
       });
     if (by === "valuta") return groupBy(views, (v) => ({ key: v.instrument.currency, label: v.instrument.currency === "EUR" ? "Euro" : v.instrument.currency === "USD" ? "Dollaro USA" : v.instrument.currency, color: "" })).map((s, i) => ({ ...s, color: PALETTE[i % PALETTE.length] }));
     return groupBy(views, (v) => ({ key: v.instrument.isin, label: v.instrument.shortName ?? v.instrument.name, color: "" })).map((s, i) => ({ ...s, color: PALETTE[i % PALETTE.length] }));
-  }, [views, by, byAcc]);
+  }
 
   const ter = views.reduce((a, v) => a + (v.value * (v.instrument.ter ?? 0)) / 100, 0);
   const banks = accounts

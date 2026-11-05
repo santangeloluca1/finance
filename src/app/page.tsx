@@ -35,8 +35,13 @@ export default function Home() {
   const [privacy, togglePrivacy] = usePrivacy();
 
   useEffect(() => {
-    const h = window.location.hash.slice(1) as Tab;
-    if (TABS.some((t) => t.id === h)) setTab(h);
+    const sync = () => {
+      const h = window.location.hash.slice(1) as Tab;
+      setTab(TABS.some((t) => t.id === h) ? h : "panoramica");
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
   }, []);
   const go = (t: Tab) => {
     setTab(t);
@@ -78,7 +83,7 @@ export default function Home() {
         tab === "panoramica" ? (
           <Panoramica view={view} filter={filter} goto={go} />
         ) : tab === "analisi" ? (
-          <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} />
+          <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} cash={view.state.cash} />
         ) : (
           <Dividendi data={view.data} state={view.state} totals={view.totals} />
         )
@@ -94,6 +99,7 @@ function Filters({ filter, setFilter, view }: { filter: Filter; setFilter: (f: F
     const set = new Set(view.data.instruments.map((i) => i.assetClass));
     return (Object.keys(ASSET_CLASS_LABEL) as AssetClass[]).filter((a) => set.has(a));
   }, [view.data.instruments]);
+  const hasCash = view.data.transactions.some((t) => t.type === "cash");
   return (
     <div className="mt-3">
       <ChipRow>
@@ -111,7 +117,11 @@ function Filters({ filter, setFilter, view }: { filter: Filter; setFilter: (f: F
           label="Asset class"
           value={filter.asset}
           onChange={(asset) => setFilter({ ...filter, asset })}
-          options={[{ value: "all" as const, label: "Tutti gli asset" }, ...presentAssets.map((a) => ({ value: a, label: ASSET_CLASS_LABEL[a] }))]}
+          options={[
+            { value: "all" as const, label: "Tutti gli asset" },
+            ...presentAssets.map((a) => ({ value: a as Filter["asset"], label: ASSET_CLASS_LABEL[a] })),
+            ...(hasCash ? [{ value: "liquidita" as const, label: "Liquidità" }] : []),
+          ]}
         />
       </ChipRow>
     </div>
@@ -133,7 +143,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
     const today = new Date().toISOString().slice(0, 10);
     const slice = history.filter((h) => h.date >= cutoff && h.date < today);
     const realized = state.realized.reduce((a, r) => a + r.gain, 0);
-    return [...slice, { date: today, value: totals.value, invested: totals.cost, gain: totals.unrealized + realized + totals.income }];
+    return [...slice, { date: today, value: totals.value, invested: totals.cost + totals.cash, gain: totals.unrealized + realized + totals.income }];
   }, [history, totals, range, state]);
 
   const points = useMemo<SeriesPoint[]>(
@@ -210,6 +220,12 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
               </span>
               <span className="mx-1.5 text-faint">·</span>
               Investito <span className="num sensitive font-semibold text-ink-2">{fmtEur0(totals.cost)}</span>
+              {totals.cash > 0 && (
+                <>
+                  <span className="mx-1.5 text-faint">·</span>
+                  Liquidità <span className="num sensitive font-semibold text-ink-2">{fmtEur0(totals.cash)}</span>
+                </>
+              )}
             </>
           )}
         </p>
@@ -284,9 +300,9 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
 
       <SectionHeader right={<SelectButton label="Periodo della variazione" value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />}>Titoli</SectionHeader>
       <Panel>
-        {rows.length ? (
+        {rows.length || totals.cash > 0 ? (
           <>
-            <PositionList rows={rows.slice(0, 6)} accounts={data.accounts} showBanks={filter.account === "all"} />
+            <PositionList rows={rows.slice(0, 6)} accounts={data.accounts} showBanks={filter.account === "all"} cash={state.cash} />
             {rows.length > 6 && (
               <Link href="/posizioni" className="flex items-center justify-between border-t border-sep px-4 py-3 text-[15px] font-semibold text-accent">
                 Tutti i {rows.length} titoli <ChevronRight size={18} />

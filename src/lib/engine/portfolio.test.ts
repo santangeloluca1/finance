@@ -211,3 +211,20 @@ describe("simulatore di vendita", () => {
     expect(s.losses[0].remaining).toBe(100);
   });
 });
+
+describe("liquidità", () => {
+  it("tiene l'ultimo saldo per conto senza toccare posizioni e fisco", () => {
+    const s = buildPortfolio(
+      [
+        tx({ date: "2025-01-01", account: "isybank", type: "cash", isin: "", amount: 8000 }),
+        tx({ date: "2025-03-01", account: "isybank", type: "cash", isin: "", amount: 12500 }),
+        tx({ date: "2025-02-01", account: "fineco", type: "cash", isin: "", amount: 300 }),
+        tx({ date: "2025-02-10", account: "fineco", type: "buy", isin: STOCK.isin, quantity: 1, price: 100 }),
+      ],
+      ALL,
+    );
+    expect(s.cash).toEqual({ isybank: { date: "2025-03-01", amount: 12500 }, fineco: { date: "2025-02-01", amount: 300 } });
+    expect(s.positions).toHaveLength(1);
+    expect(s.realized).toHaveLength(0);
+  });
+});

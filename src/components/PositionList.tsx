@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { Wallet } from "lucide-react";
 import { BankDot, Change, Logo } from "@/components/ui";
 import { positionChange, type FxRates, type Period, type PositionView } from "@/lib/analytics";
 import type { Account, Instrument } from "@/lib/engine/types";
-import { fmtEur, fmtNum } from "@/lib/format";
+import { fmtDate, fmtEur, fmtNum } from "@/lib/format";
 
 export interface PositionRow {
   key: string;
@@ -57,8 +58,20 @@ export function buildRows(
   );
 }
 
-export function PositionList({ rows, accounts, showBanks = true }: { rows: PositionRow[]; accounts: Account[]; showBanks?: boolean }) {
+export function PositionList({
+  rows,
+  accounts,
+  showBanks = true,
+  cash,
+}: {
+  rows: PositionRow[];
+  accounts: Account[];
+  showBanks?: boolean;
+  /** Saldi di liquidità da mostrare in fondo all'elenco. */
+  cash?: Record<string, { date: string; amount: number }>;
+}) {
   const byId = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
+  const cashRows = Object.entries(cash ?? {}).filter(([, c]) => c.amount !== 0);
   return (
     <ul>
       {rows.map((r) => (
@@ -84,6 +97,25 @@ export function PositionList({ rows, accounts, showBanks = true }: { rows: Posit
               <p className="num sensitive text-[16px] font-semibold tracking-[-0.01em]">{fmtEur(r.value)}</p>
               <Change pct={r.change.pct} size="sm" />
             </div>
+          </Link>
+        </li>
+      ))}
+      {cashRows.map(([account, c]) => (
+        <li key={`cash-${account}`} className="border-b border-sep last:border-0">
+          <Link href={`/movimenti/nuovo?tipo=cash&conto=${account}`} className="flex items-center gap-3 px-4 py-3 active:bg-panel-2">
+            <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-chip text-ink">
+              <Wallet size={19} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[16px] font-semibold tracking-[-0.01em]">Liquidità</p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-mut">
+                <BankDot color={byId.get(account)?.color ?? "#888"} size={7} />
+                <span className="truncate">
+                  {byId.get(account)?.name} · al {fmtDate(c.date, { day: "numeric", month: "short" })}
+                </span>
+              </p>
+            </div>
+            <p className="num sensitive shrink-0 text-[16px] font-semibold tracking-[-0.01em]">{fmtEur(c.amount)}</p>
           </Link>
         </li>
       ))}

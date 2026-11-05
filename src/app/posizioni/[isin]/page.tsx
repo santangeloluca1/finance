@@ -17,7 +17,7 @@ import { fmtDate, fmtEur, fmtNum, fmtPct, fmtPrice, fmtSignedEur, fmtSignedPct }
 type Range = "1S" | "1M" | "6M" | "1A" | "MAX";
 const RANGE_DAYS: Record<Range, number> = { "1S": 7, "1M": 31, "6M": 183, "1A": 366, MAX: 99999 };
 const RANGE_LABEL: Record<Range, string> = { "1S": "1 settimana", "1M": "1 mese", "6M": "6 mesi", "1A": "1 anno", MAX: "dall'inizio" };
-const TX_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola/dividendo", split: "Frazionamento" } as const;
+const TX_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola/dividendo", split: "Frazionamento", cash: "Liquidità" } as const;
 
 export default function PositionDetail() {
   const { isin } = useParams<{ isin: string }>();

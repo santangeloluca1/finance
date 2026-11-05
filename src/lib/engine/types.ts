@@ -49,7 +49,8 @@ export type TransactionType =
   | "buy"
   | "sell"
   | "dividend" // dividendi e cedole, importo NETTO accreditato
-  | "split";
+  | "split"
+  | "cash"; // saldo di liquidità del conto a una data (amount = saldo in EUR)
 
 export interface Transaction {
   id: string;
@@ -57,6 +58,7 @@ export interface Transaction {
   date: string;
   account: AccountId;
   type: TransactionType;
+  /** ISIN dello strumento; stringa vuota per i saldi di liquidità. */
   isin: string;
   /** Quantità (sempre positiva) per buy/sell. */
   quantity?: number;
@@ -138,4 +140,6 @@ export interface PortfolioState {
   losses: LossLot[];
   /** Dividendi/cedole netti per anno. */
   incomeByYear: Record<string, number>;
+  /** Ultimo saldo di liquidità noto per conto. */
+  cash: Record<AccountId, { date: string; amount: number }>;
 }

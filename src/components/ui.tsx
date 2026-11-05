@@ -193,7 +193,11 @@ export function Logo({ isin, name, size = 40 }: { isin: string; name: string; si
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`https://assets.parqet.com/logos/isin/${isin}?format=png`}
+      src={
+        isin.startsWith("TICKER:")
+          ? `https://assets.parqet.com/logos/symbol/${encodeURIComponent(isin.slice(7))}?format=png`
+          : `https://assets.parqet.com/logos/isin/${isin}?format=png`
+      }
       alt=""
       width={size}
       height={size}

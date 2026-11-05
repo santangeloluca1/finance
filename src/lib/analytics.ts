@@ -27,7 +27,11 @@ export interface PositionView {
 }
 
 export interface Totals {
+  /** Patrimonio: investimenti + liquidità. */
   value: number;
+  /** Solo investimenti. */
+  invested: number;
+  cash: number;
   cost: number;
   unrealized: number;
   unrealizedPct: number;
@@ -83,7 +87,9 @@ export function valuePositions(
 }
 
 export function totals(views: PositionView[], state: PortfolioState): Totals {
-  const value = sum(views.map((v) => v.value));
+  const investedValue = sum(views.map((v) => v.value));
+  const cash = sum(Object.values(state.cash).map((c) => c.amount));
+  const value = investedValue + cash;
   const cost = sum(views.map((v) => v.position.totalCost));
   const dayChange = sum(views.map((v) => v.dayChange));
   const realizedGross = sum(state.realized.map((r) => r.gain));
@@ -92,11 +98,13 @@ export function totals(views: PositionView[], state: PortfolioState): Totals {
   const taxIfSold = sum(views.map((v) => v.taxIfSold));
   return {
     value,
+    invested: investedValue,
+    cash,
     cost,
-    unrealized: value - cost,
-    unrealizedPct: cost ? (value - cost) / cost : 0,
+    unrealized: investedValue - cost,
+    unrealizedPct: cost ? (investedValue - cost) / cost : 0,
     dayChange,
-    dayChangePct: value - dayChange ? dayChange / (value - dayChange) : 0,
+    dayChangePct: investedValue - dayChange ? dayChange / (investedValue - dayChange) : 0,
     realizedNet: realizedGross - realizedTax,
     realizedTax,
     income,
@@ -164,7 +172,15 @@ export function buildHistory(
   const txs = sortTransactions(transactions);
   if (txs.length === 0) return [];
   const start = txs[0].date;
-  const dates = [...new Set(Object.values(series).flatMap((s) => s.map(([d]) => d)))]
+  // Giorni di borsa dei titoli più i giorni feriali: così il grafico esiste anche
+  // per un portafoglio di sola liquidità o con titoli senza storico.
+  const today = new Date().toISOString().slice(0, 10);
+  const weekdays: string[] = [];
+  for (let d = new Date(`${start}T12:00:00Z`); d.toISOString().slice(0, 10) < today; d.setUTCDate(d.getUTCDate() + 1)) {
+    const wd = d.getUTCDay();
+    if (wd !== 0 && wd !== 6) weekdays.push(d.toISOString().slice(0, 10));
+  }
+  const dates = [...new Set([...Object.values(series).flatMap((s) => s.map(([d]) => d)), ...weekdays])]
     .filter((d) => d >= start)
     .sort();
   if (dates.length === 0) return [];
@@ -196,6 +212,10 @@ export function buildHistory(
     let invested = 0;
     const realized = state.realized.reduce((a, r) => a + r.gain, 0);
     const income = Object.values(state.incomeByYear).reduce((a, b) => a + b, 0);
+    // La liquidità entra nel valore e nel capitale: non cambia il guadagno.
+    const cashNow = Object.values(state.cash).reduce((a, c) => a + c.amount, 0);
+    value += cashNow;
+    invested += cashNow;
     for (const p of state.positions) {
       if (p.quantity <= 0) continue;
       const ins = byIsin.get(p.isin)!;

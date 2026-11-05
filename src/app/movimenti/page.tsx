@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Coins, FileUp, Scissors } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Coins, FileUp, Plus, Scissors, Wallet } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BankDot, Chip, ChipRow, LargeTitle, Logo, Panel } from "@/components/ui";
 import { fmtDate, fmtEur, fmtNum, fmtPrice } from "@/lib/format";
@@ -12,6 +13,7 @@ const META = {
   sell: { label: "Vendita", icon: ArrowUpRight },
   dividend: { label: "Cedola/dividendo", icon: Coins },
   split: { label: "Frazionamento", icon: Scissors },
+  cash: { label: "Saldo liquidità", icon: Wallet },
 } as const;
 
 type Kind = "all" | Transaction["type"];
@@ -35,13 +37,25 @@ export default function Movimenti() {
 
   return (
     <div>
-      <LargeTitle>Movimenti</LargeTitle>
+      <LargeTitle
+        right={
+          <Link
+            href="/movimenti/nuovo"
+            aria-label="Aggiungi movimento"
+            className="mb-1.5 flex h-10 items-center gap-1.5 rounded-full bg-ink pl-3 pr-4 text-[15px] font-semibold text-bg active:opacity-80"
+          >
+            <Plus size={18} strokeWidth={2.6} /> Aggiungi
+          </Link>
+        }
+      >
+        Movimenti
+      </LargeTitle>
 
       <Panel className="mb-5">
         <div className="px-4 pt-4">
           <p className="text-[17px] font-semibold">Importa dalla banca</p>
           <p className="mt-1 text-[14px] leading-snug text-mut">
-            Carica l&apos;export dei movimenti titoli: prezzi medi e zainetto si ricalcolano da soli.
+            Carica l&apos;export dei movimenti titoli: prezzi medi e zainetto si ricalcolano da soli. Nel frattempo puoi aggiungere i movimenti a mano con il pulsante Aggiungi.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2 p-4">
@@ -73,9 +87,9 @@ export default function Movimenti() {
       </ChipRow>
       <div className="mt-2">
         <ChipRow>
-          {(["all", "buy", "sell", "dividend"] as Kind[]).map((k) => (
+          {(["all", "buy", "sell", "dividend", "cash"] as Kind[]).map((k) => (
             <Chip key={k} active={kind === k} onClick={() => setKind(k)}>
-              {k === "all" ? "Tutte le operazioni" : k === "buy" ? "Acquisti" : k === "sell" ? "Vendite" : "Cedole"}
+              {k === "all" ? "Tutte le operazioni" : k === "buy" ? "Acquisti" : k === "sell" ? "Vendite" : k === "dividend" ? "Cedole" : "Liquidità"}
             </Chip>
           ))}
         </ChipRow>
@@ -91,12 +105,22 @@ export default function Movimenti() {
               const ins = instruments.get(t.isin);
               const m = META[t.type];
               const Icon = m.icon;
-              const total = t.type === "dividend" ? t.amount ?? 0 : ((t.quantity ?? 0) * (t.price ?? 0)) / (t.fxRate ?? 1);
-              const name = ins?.shortName ?? ins?.name ?? t.isin;
+              const total = t.type === "dividend" || t.type === "cash" ? t.amount ?? 0 : ((t.quantity ?? 0) * (t.price ?? 0)) / (t.fxRate ?? 1);
+              const name = t.type === "cash" ? "Liquidità" : ins?.shortName ?? ins?.name ?? t.isin;
               return (
-                <div key={t.id} className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0">
+                <Link
+                  href={t.id.startsWith("demo-") ? "#" : `/movimenti/nuovo?id=${t.id}`}
+                  key={t.id}
+                  className="flex items-center gap-3 border-b border-sep px-4 py-3 last:border-0 active:bg-panel-2"
+                >
                   <div className="relative">
-                    <Logo isin={t.isin} name={name} size={40} />
+                    {t.type === "cash" ? (
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-chip text-ink">
+                        <Wallet size={18} />
+                      </span>
+                    ) : (
+                      <Logo isin={t.isin} name={name} size={40} />
+                    )}
                     <span
                       className={`absolute -bottom-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-panel ${
                         t.type === "dividend" ? "bg-up text-white" : t.type === "sell" ? "bg-warn text-white" : "bg-ink text-bg"
@@ -122,7 +146,7 @@ export default function Movimenti() {
                       </p>
                     )}
                   </div>
-                </div>
+                </Link>
               );
             })}
           </Panel>

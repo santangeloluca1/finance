@@ -50,8 +50,14 @@ const rows: Row[] = [
   { date: "2026-06-11", account: "fineco", type: "dividend", ticker: "SEGA.MI", amount: 121.1 },
 ];
 
-export const DEMO_TRANSACTIONS: Transaction[] = rows.map(({ ticker, ...r }, i) => ({
-  id: `demo-${i + 1}`,
-  isin: T(ticker),
-  ...r,
-}));
+const cashRows: Omit<Transaction, "id">[] = [
+  { date: "2025-01-02", account: "isybank", type: "cash", isin: "", amount: 9000 },
+  { date: "2025-07-01", account: "isybank", type: "cash", isin: "", amount: 11200 },
+  { date: "2026-01-02", account: "isybank", type: "cash", isin: "", amount: 12500 },
+  { date: "2025-01-02", account: "fineco", type: "cash", isin: "", amount: 1500 },
+];
+
+export const DEMO_TRANSACTIONS: Transaction[] = [
+  ...rows.map(({ ticker, ...r }, i) => ({ id: `demo-${i + 1}`, isin: T(ticker), ...r })),
+  ...cashRows.map((r, i) => ({ id: `demo-cash-${i + 1}`, ...r })),
+];

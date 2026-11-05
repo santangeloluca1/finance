@@ -75,7 +75,8 @@ export function usePortfolioCtx() {
 
 export interface Filter {
   account: string | "all";
-  asset: AssetClass | "all";
+  /** Asset class, "liquidita" per i soli saldi di cassa, "all" per tutto. */
+  asset: AssetClass | "liquidita" | "all";
 }
 
 export const ALL: Filter = { account: "all", asset: "all" };
@@ -91,7 +92,9 @@ export function usePortfolioView(filter: Filter = ALL) {
   const txs = useMemo(() => {
     const assetOf = new Map(data.instruments.map((i) => [i.isin, i.assetClass]));
     return data.transactions.filter(
-      (t) => (filter.account === "all" || t.account === filter.account) && (filter.asset === "all" || assetOf.get(t.isin) === filter.asset),
+      (t) =>
+        (filter.account === "all" || t.account === filter.account) &&
+        (filter.asset === "all" || (filter.asset === "liquidita" ? t.type === "cash" : assetOf.get(t.isin) === filter.asset)),
     );
   }, [data, filter.account, filter.asset]);
 

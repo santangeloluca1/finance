@@ -142,3 +142,51 @@ export function useQuotes(tickers: string[]) {
 
   return { quotes: snap?.quotes ?? {}, fx: snap?.fx ?? {}, fetchedAt: snap?.fetchedAt ?? null, loading, error, refresh };
 }
+
+// ---- modifiche manuali ----
+
+export class SaveError extends Error {}
+
+/**
+ * Salva (aggiunge o sostituisce) un movimento. Se l'app mostra ancora il
+ * portafoglio di esempio, lo sostituisce con un portafoglio vuoto.
+ * Verifica che lo storico resti coerente (es. vendite non superiori al posseduto).
+ */
+export function saveTransaction(tx: Transaction, instrument?: Instrument) {
+  const current = getData();
+  const base: PortfolioData = current.isDemo
+    ? { accounts: current.accounts, instruments: [], transactions: [], isDemo: false }
+    : current;
+  const instruments =
+    instrument && !base.instruments.some((i) => i.isin === instrument.isin) ? [...base.instruments, instrument] : base.instruments;
+  const exists = base.transactions.some((t) => t.id === tx.id);
+  const transactions = exists ? base.transactions.map((t) => (t.id === tx.id ? tx : t)) : [...base.transactions, tx];
+  try {
+    buildPortfolio(transactions, instruments);
+  } catch (e) {
+    throw new SaveError(humanize((e as Error).message));
+  }
+  setData({ ...base, instruments, transactions });
+}
+
+export function deleteTransaction(id: string) {
+  const current = getData();
+  const transactions = current.transactions.filter((t) => t.id !== id);
+  try {
+    buildPortfolio(transactions, current.instruments);
+  } catch (e) {
+    throw new SaveError(humanize((e as Error).message));
+  }
+  // Rimuove gli strumenti non più usati da nessun movimento.
+  const used = new Set(transactions.map((t) => t.isin));
+  setData({ ...current, transactions, instruments: current.instruments.filter((i) => used.has(i.isin)) });
+}
+
+export function newId() {
+  return `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function humanize(msg: string) {
+  if (msg.includes("quantità disponibile")) return "Stai vendendo più quote di quelle possedute su questo conto a quella data.";
+  return msg;
+}

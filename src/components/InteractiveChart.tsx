@@ -137,7 +137,13 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
   if (!geo) {
     return (
       <div style={{ height }} className="flex items-center justify-center">
-        {loading ? <div className="h-[2px] w-1/2 animate-pulse rounded-full bg-chip" /> : <p className="text-[13px] text-mut">Nessun dato nel periodo</p>}
+        {loading ? (
+          <div className="h-[2px] w-1/2 animate-pulse rounded-full bg-chip" />
+        ) : (
+          <p className="max-w-[260px] text-center text-[13px] leading-snug text-mut">
+            {points.length === 1 ? "Il grafico si disegna dal prossimo giorno di borsa: per ora c'è solo il valore di oggi." : "Nessun dato nel periodo."}
+          </p>
+        )}
       </div>
     );
   }
