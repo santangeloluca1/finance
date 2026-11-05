@@ -11,6 +11,24 @@ import { fmtTime } from "@/lib/format";
 import { useTheme, type ThemePref } from "@/lib/theme";
 import { BasisMark } from "@/components/BasisMark";
 
+/**
+ * Legge un backup anche se arriva "sporco": testo codificato come URL (%7B…),
+ * con spazi o caratteri attorno, o incollato da una chat. Un PDF viene segnalato.
+ */
+function parseBackup(raw: string): PortfolioData {
+  let text = raw.replace(/^\uFEFF/, "").trim();
+  if (text.startsWith("%PDF")) throw new Error("hai scelto un PDF, non il file .json");
+  if (/^%7B/i.test(text) || /^data:/i.test(text)) {
+    try {
+      text = decodeURIComponent(text.replace(/^data:[^,]*,/i, ""));
+    } catch {}
+  }
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end < start) throw new Error("nel testo non c'è un backup");
+  return JSON.parse(text.slice(start, end + 1)) as PortfolioData;
+}
+
 export default function Impostazioni() {
   const { data } = usePortfolioCtx();
   const [theme, setTheme] = useTheme();
@@ -30,7 +48,7 @@ export default function Impostazioni() {
 
   const importText = (text: string) => {
     try {
-      const parsed = JSON.parse(text.trim()) as PortfolioData;
+      const parsed = parseBackup(text);
       if (!Array.isArray(parsed.transactions) || !Array.isArray(parsed.instruments) || !Array.isArray(parsed.accounts)) throw new Error("il file non è un backup di Basis");
       // Con dati reali già presenti il file si aggiunge (a parità di id vince il file),
       // così importare una sola banca non cancella le altre.
