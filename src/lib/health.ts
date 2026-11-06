@@ -1,3 +1,4 @@
+import { fmtN } from "./format";
 import type { PositionView, Totals } from "./analytics";
 import { usableLosses } from "./engine/portfolio";
 import { isFundLike } from "./engine/tax";
@@ -28,8 +29,8 @@ export interface Health {
   areas: Area[];
 }
 
-const pct = (n: number) => `${(n * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`;
-const eur = (n: number) => `${Math.round(n).toLocaleString("it-IT")} €`;
+const pct = (n: number) => `${fmtN((n * 100), { maximumFractionDigits: 1 })}%`;
+const eur = (n: number) => `${fmtN(Math.round(n))} €`;
 
 export function portfolioHealth(views: PositionView[], totals: Totals, state: PortfolioState, accounts: Account[], today = new Date().toISOString().slice(0, 10)): Health {
   const invested = totals.invested || 1;

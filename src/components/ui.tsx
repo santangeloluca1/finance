@@ -1,25 +1,99 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
 
-/** Titolo grande stile iOS. */
+/** Misura unica dei titoli di pagina (anche le schede della Home). */
+export const PAGE_TITLE = "text-[26px] font-bold leading-tight tracking-[-0.03em]";
+
+/** Titolo di pagina, con eventuali pulsanti tondi a destra. */
 export function LargeTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
-    <div className="flex items-end justify-between px-4 pb-4 pt-2">
-      <h1 className="text-[30px] font-bold leading-tight tracking-[-0.03em]">{children}</h1>
-      {right}
+    <div className="flex min-h-[44px] items-center justify-between gap-3 px-4 pb-3 pt-1">
+      <h1 className={PAGE_TITLE}>{children}</h1>
+      {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
     </div>
   );
 }
 
-export function BackLink({ href, label }: { href: string; label: string }) {
+/**
+ * Pulsante tondo con icona (stile getquin): "+" per aggiungere, ingranaggio, ecc.
+ * Stessa misura ovunque, nel titolo di pagina e nelle intestazioni di sezione.
+ */
+export function IconButton({ href, onClick, label, children }: { href?: string; onClick?: () => void; label: string; children: ReactNode }) {
+  const cls = "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chip text-ink active:opacity-60";
+  return href ? (
+    <Link href={href} aria-label={label} title={label} className={cls}>
+      {children}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} aria-label={label} title={label} className={cls}>
+      {children}
+    </button>
+  );
+}
+
+export function AddButton(props: { href?: string; onClick?: () => void; label: string }) {
   return (
-    <Link href={href} className="-ml-1 inline-flex items-center px-3 py-2 text-[17px] text-accent active:opacity-50">
+    <IconButton {...props}>
+      <Plus size={19} strokeWidth={2.4} />
+    </IconButton>
+  );
+}
+
+// ---- pagina precedente, per il pulsante "indietro" ----
+// Pila delle pagine visitate: tornando alla penultima si toglie l'ultima.
+const stack: string[] = [];
+
+/** Da chiamare a ogni cambio di pagina (lo fa Shell). */
+export function trackPath(path: string) {
+  if (stack[stack.length - 1] === path) return;
+  if (stack[stack.length - 2] === path) stack.pop();
+  else stack.push(path);
+  if (stack.length > 30) stack.shift();
+}
+
+const PAGE_NAMES: [RegExp, string][] = [
+  [/^\/$/, "Home"],
+  [/^\/analisi/, "Analisi"],
+  [/^\/posizioni\/./, "Titolo"],
+  [/^\/posizioni/, "Titoli"],
+  [/^\/fisco/, "Fisco"],
+  [/^\/movimenti/, "Movimenti"],
+  [/^\/ricorrenti/, "Ricorrenti"],
+  [/^\/avvisi\/./, "Notifiche"],
+  [/^\/avvisi/, "Avvisi"],
+  [/^\/impostazioni/, "Impostazioni"],
+  [/^\/obiettivi/, "Obiettivi"],
+];
+
+/**
+ * "‹ Pagina precedente": torna da dove sei arrivato (es. Analisi), altrimenti
+ * alla pagina indicata. Stile unico per tutte le pagine; i moduli usano "Annulla".
+ */
+export function BackLink({ href, label }: { href: string; label: string }) {
+  const router = useRouter();
+  const [prev, setPrev] = useState<{ path: string; name: string } | null>(null);
+  useEffect(() => {
+    const p = stack[stack.length - 2];
+    const name = p ? PAGE_NAMES.find(([re]) => re.test(p))?.[1] : undefined;
+    if (p && name) setPrev({ path: p, name });
+  }, []);
+  return (
+    <Link
+      href={prev?.path ?? href}
+      onClick={(e) => {
+        if (!prev) return;
+        e.preventDefault();
+        router.back();
+      }}
+      className="-ml-1 inline-flex min-h-[44px] items-center px-3 text-[17px] text-accent active:opacity-50"
+    >
       <ChevronLeft size={24} strokeWidth={2.2} className="-mr-0.5" />
-      {label}
+      {prev?.name ?? label}
     </Link>
   );
 }
@@ -225,3 +299,40 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
     </button>
   );
 }
+
+/**
+ * Selettore del periodo sotto i grafici (stile getquin): etichette brevi in fila,
+ * quella scelta su una pillola. Uguale in Home, Analisi e scheda titolo.
+ */
+export function RangePicker<T extends string>({ value, onChange, options, label = "Periodo del grafico" }: { value: T; onChange: (v: T) => void; options: readonly T[]; label?: string }) {
+  return (
+    <div role="group" aria-label={label} className="mt-4 flex justify-between px-3">
+      {options.map((r) => (
+        <button
+          key={r}
+          type="button"
+          onClick={() => onChange(r)}
+          aria-pressed={value === r}
+          className={`num h-8 min-w-[44px] rounded-full px-2 text-[13px] font-semibold tracking-[0.01em] transition-colors ${value === r ? "bg-chip text-ink" : "text-mut active:text-ink"}`}
+        >
+          {r}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Colonna della data nelle liste: "11 giu", con l'anno piccolo sotto se serve. */
+export function DayCell({ date, year = false, className = "text-mut" }: { date: string; year?: boolean; className?: string }) {
+  const d = new Date(`${date}T12:00:00`);
+  return (
+    <span className={`num w-[52px] shrink-0 whitespace-nowrap leading-tight ${className}`}>
+      <span className="block text-[15px]">
+        {d.getDate()} {MONTHS_SHORT[d.getMonth()]}
+      </span>
+      {year && <span className="block text-[12px] opacity-80">{date.slice(0, 4)}</span>}
+    </span>
+  );
+}
+
+const MONTHS_SHORT = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];

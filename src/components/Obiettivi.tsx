@@ -5,8 +5,8 @@ import { Check, Plus, Trash2 } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { Ribilanciamento } from "@/components/Ribilanciamento";
-import { Chip, InfoRow, LargeTitle, Panel, SectionHeader, Segmented, SelectButton } from "@/components/ui";
-import { fmtDate, fmtEur0 } from "@/lib/format";
+import { Chip, InfoRow, LargeTitle, Panel, SectionHeader, Segmented, SelectButton, AddButton } from "@/components/ui";
+import { fmtDate, fmtEur0, fmtN } from "@/lib/format";
 import { futureValue, monthsUntil, requiredMonthly } from "@/lib/planning";
 import { deleteGoal, newId, saveGoal, savePlan, type Goal, type Plan } from "@/lib/store";
 
@@ -42,24 +42,14 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
         !editing && (
           <div className="flex items-center justify-between px-4 pb-1 pt-6">
             <h2 className="text-[22px] font-bold tracking-[-0.025em]">I tuoi obiettivi</h2>
-            <button
-              onClick={() => setEditing({ id: newId(), name: "", target: 0, date: `${new Date().getFullYear() + 3}-12-31`, scope: "tutto" })}
-              className="flex min-h-[44px] items-center gap-1 text-[15px] font-semibold text-accent active:opacity-60"
-            >
-              <Plus size={17} strokeWidth={2.4} /> Nuovo
-            </button>
+            <AddButton label="Nuovo obiettivo" onClick={() => setEditing({ id: newId(), name: "", target: 0, date: `${new Date().getFullYear() + 3}-12-31`, scope: "tutto" })} />
           </div>
         )
       ) : (
       <LargeTitle
         right={
           !editing && (
-            <button
-              onClick={() => setEditing({ id: newId(), name: "", target: 0, date: `${new Date().getFullYear() + 3}-12-31`, scope: "tutto" })}
-              className="mb-1 flex h-11 items-center gap-1 rounded-full bg-chip pl-3 pr-4 text-[15px] font-semibold text-ink active:opacity-70"
-            >
-              <Plus size={18} strokeWidth={2.6} /> Nuovo
-            </button>
+            <AddButton label="Nuovo obiettivo" onClick={() => setEditing({ id: newId(), name: "", target: 0, date: `${new Date().getFullYear() + 3}-12-31`, scope: "tutto" })} />
           )
         }
       >
@@ -253,7 +243,7 @@ function Pianificazione({ start, plan }: { start: number; plan: Plan }) {
           height={220}
           compare={contributed}
           format={fmtEur0}
-          formatAxis={(v) => (v >= 1_000_000 ? `${(v / 1_000_000).toLocaleString("it-IT", { maximumFractionDigits: 1 })}M €` : `${Math.round(v / 1000)}k €`)}
+          formatAxis={(v) => (v >= 1_000_000 ? `${fmtN((v / 1_000_000), { maximumFractionDigits: 1 })}M €` : `${Math.round(v / 1000)}k €`)}
           describePoint={(i) => `${fmtEur0(points[i].value)} · versati ${fmtEur0(contributed[i])}`}
           describeRange={(a, b) => `+${fmtEur0(points[b].value - points[a].value)}`}
         />
@@ -287,8 +277,8 @@ function Pianificazione({ start, plan }: { start: number; plan: Plan }) {
       </Panel>
 
       <Panel className="mt-3">
-        <InfoRow label={`Se rende il ${(Math.max(0, rate - 0.02) * 100).toLocaleString("it-IT")}%`} hint="Scenario prudente" value={fmtEur0(low)} />
-        <InfoRow label={`Se rende il ${((rate + 0.02) * 100).toLocaleString("it-IT")}%`} hint="Scenario ottimista" value={fmtEur0(high)} />
+        <InfoRow label={`Se rende il ${fmtN((Math.max(0, rate - 0.02) * 100))}%`} hint="Scenario prudente" value={fmtEur0(low)} />
+        <InfoRow label={`Se rende il ${fmtN(((rate + 0.02) * 100))}%`} hint="Scenario ottimista" value={fmtEur0(high)} />
       </Panel>
       <p className="px-6 pb-2 pt-4 text-center text-[12px] leading-relaxed text-mut">
         Proiezione al lordo di tasse e inflazione, a rendimento costante.

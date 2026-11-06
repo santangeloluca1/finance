@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BellOff, BellRing, CalendarPlus, Check, ChevronRight, Info, Plus, Settings2, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { AlertTriangle, BellOff, BellRing, CalendarPlus, Check, ChevronRight, Info, Settings2, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { RuleForm } from "@/components/RuleForm";
-import { BackLink, InfoRow, LargeTitle, Panel, SectionHeader, SelectButton, Switch } from "@/components/ui";
+import { BackLink, InfoRow, LargeTitle, Panel, SectionHeader, SelectButton, Switch, AddButton, IconButton } from "@/components/ui";
 import { computeAlerts, type Alert } from "@/lib/alerts";
 import { fmtDate } from "@/lib/format";
 import { describeRule, readRule, type AlertRule } from "@/lib/notify";
@@ -74,9 +74,9 @@ export default function Avvisi() {
       <LargeTitle
         right={
           !busy && (
-            <Link href="/avvisi/notifiche" aria-label="Impostazioni delle notifiche" className="mb-1 flex h-11 w-11 items-center justify-center rounded-full bg-chip text-ink active:opacity-70">
-              <Settings2 size={20} />
-            </Link>
+            <IconButton href="/avvisi/notifiche" label="Impostazioni delle notifiche">
+              <Settings2 size={18} />
+            </IconButton>
           )
         }
       >
@@ -165,9 +165,7 @@ export default function Avvisi() {
 
           <SectionHeader
             right={
-              <button onClick={() => setRule(newRule())} className="flex min-h-[44px] items-center gap-1 text-[15px] font-semibold text-accent active:opacity-60">
-                <Plus size={17} strokeWidth={2.6} /> Aggiungi
-              </button>
+              <AddButton label="Nuova regola" onClick={() => setRule(newRule())} />
             }
           >
             Le tue regole
@@ -207,12 +205,7 @@ export default function Avvisi() {
 
           <SectionHeader
             right={
-              <button
-                onClick={() => setEditing({ id: newId(), title: "", date: new Date().toISOString().slice(0, 10), repeat: "monthly" })}
-                className="flex min-h-[44px] items-center gap-1 text-[15px] font-semibold text-accent active:opacity-60"
-              >
-                <Plus size={17} strokeWidth={2.6} /> Aggiungi
-              </button>
+              <AddButton label="Nuovo promemoria" onClick={() => setEditing({ id: newId(), title: "", date: new Date().toISOString().slice(0, 10), repeat: "monthly" })} />
             }
           >
             Promemoria

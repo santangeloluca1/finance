@@ -1,3 +1,4 @@
+import { fmtN } from "./format";
 import type { PositionView, Quotes, Totals } from "./analytics";
 import type { Instrument } from "./engine/types";
 
@@ -92,11 +93,11 @@ export interface RuleReading {
   label: string;
 }
 
-const eur = (n: number, digits = 0) => `${n.toLocaleString("it-IT", { minimumFractionDigits: digits, maximumFractionDigits: digits })} €`;
-const pct = (n: number, signed = false) => `${signed && n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n * 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`;
+const eur = (n: number, digits = 0) => `${fmtN(n, { minimumFractionDigits: digits, maximumFractionDigits: digits })} €`;
+const pct = (n: number, signed = false) => `${signed && n > 0 ? "+" : n < 0 ? "−" : ""}${fmtN(Math.abs(n * 100), { maximumFractionDigits: 2 })}%`;
 
 export function fmtPrice(n: number, currency: string) {
-  const s = n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: n < 10 ? 4 : 2 });
+  const s = fmtN(n, { minimumFractionDigits: 2, maximumFractionDigits: n < 10 ? 4 : 2 });
   return currency === "EUR" ? `${s} €` : `${s} ${currency}`;
 }
 

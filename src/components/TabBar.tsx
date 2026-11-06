@@ -14,7 +14,8 @@ const TABS = [
 
 export function TabBar() {
   const path = usePathname();
-  if (path.startsWith("/accedi")) return null;
+  // Niente barra sulla schermata di accesso e mentre si compila un movimento (si esce con "Annulla").
+  if (path.startsWith("/accedi") || path.startsWith("/movimenti/nuovo")) return null;
   return (
     <nav
       aria-label="Sezioni"

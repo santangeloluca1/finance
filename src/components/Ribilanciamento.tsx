@@ -67,7 +67,7 @@ export function Ribilanciamento({ views, targets, monthly }: { views: PositionVi
                 <p className="truncate text-[16px] font-medium">{ASSET_CLASS_LABEL[k as AssetClass] ?? k}</p>
                 <p className="num text-[13px] text-mut">ora {Math.round(cur * 100)}%</p>
               </div>
-              <label className="flex min-h-[44px] items-center gap-0.5">
+              <label className="flex min-h-[44px] items-center">
                 <span className="sr-only">Peso obiettivo {ASSET_CLASS_LABEL[k as AssetClass]}</span>
                 <input
                   inputMode="numeric"
@@ -75,7 +75,7 @@ export function Ribilanciamento({ views, targets, monthly }: { views: PositionVi
                   onChange={(e) => setPcts({ ...pcts, [k]: e.target.value.replace(/[^\d]/g, "").slice(0, 3) })}
                   className="num w-10 bg-transparent text-right text-[17px] font-semibold text-accent outline-none"
                 />
-                <span className="text-[17px] font-semibold text-accent">%</span>
+                <span className="-ml-px text-[17px] font-semibold text-accent">%</span>
               </label>
             </div>
           );

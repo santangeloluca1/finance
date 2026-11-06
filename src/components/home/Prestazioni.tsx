@@ -4,17 +4,16 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { buildRows, PERIOD_OPTIONS } from "@/components/PositionList";
-import { InfoRow, Logo, Panel, SectionHeader, Segmented, SelectButton } from "@/components/ui";
+import { InfoRow, Logo, Panel, RangePicker, SectionHeader, Segmented, SelectButton } from "@/components/ui";
+import { RANGES, rangeStart, type Range } from "@/lib/range";
 import { BigAmount } from "@/components/BigAmount";
 import { cutoffDate, type FxRates, type HistoryPoint, type Period, type PositionView, type Totals } from "@/lib/analytics";
 import type { Account, PortfolioState, Transaction } from "@/lib/engine/types";
-import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
+import { fmtSignedEur, fmtSignedPct, fmtN } from "@/lib/format";
 import { annualize, cashFlows, monthlyReturns, twrSeries, xirr } from "@/lib/performance";
 import { alignIntraday } from "@/lib/intraday";
 import { useIntradaySeries, usePortfolioIntraday } from "@/lib/intraday-client";
 
-type Range = "1G" | "1A" | "YTD" | "3A" | "MAX";
-const RANGE_LABEL: Record<Range, string> = { "1G": "Oggi", "1A": "1 anno", YTD: "Da gennaio", "3A": "3 anni", MAX: "Dall'inizio" };
 
 const BENCHMARKS = [
   { value: "SWDA.MI", label: "MSCI World" },
@@ -67,7 +66,7 @@ export function Prestazioni({
     // Solo investimenti: la liquidità resta nel patrimonio della Home.
     const live = { date: today, value: totals.value - totals.cash, invested: totals.cost, gain: totals.unrealized + realized + totals.income };
     const all = [...history.filter((h) => h.date < today).map((h) => ({ ...h, value: h.value - (h.cash ?? 0), invested: h.invested - (h.cash ?? 0) })), live];
-    const from = range === "MAX" ? "0000" : range === "YTD" ? `${new Date().getFullYear()}-01-01` : cutoffDate(range === "1A" ? 366 : 1096);
+    const from = rangeStart(range);
     return all.filter((h) => h.date >= from);
   }, [history, state, totals, range, day, intraday]);
 
@@ -153,21 +152,9 @@ export function Prestazioni({
       <p className="num mt-2 px-4 text-[14px] text-mut">
         {day ? (intraday && !intraday.today && twr.length ? "Ultima seduta, sulla chiusura precedente" : "Variazione sulla chiusura di ieri") : "Rendimento ponderato nel tempo"}{annual !== null ? ` · ${fmtSignedPct(annual)} all'anno` : ""}
       </p>
-      <div role="group" aria-label="Periodo" className="mt-4 grid grid-cols-5 gap-1 px-3">
-        {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            aria-pressed={range === r}
-            className={`num h-9 rounded-full text-[14px] font-semibold ${range === r ? "bg-chip text-ink" : "text-mut active:text-ink"}`}
-          >
-            {r === "YTD" ? "Da gen" : r}
-          </button>
-        ))}
-      </div>
 
       {/* Grafico rendimento vs indice */}
-      <div className="mt-8 flex items-center justify-between px-4">
+      <div className="mt-6 flex items-center justify-between px-4">
         <p className="flex items-center gap-3 text-[12px] text-mut">
           <span className="flex items-center gap-1.5">
             <span className="h-0.5 w-4 rounded bg-up" /> Basis
@@ -190,18 +177,19 @@ export function Prestazioni({
           format={(v) => fmtSignedPct(v)}
           formatAxis={(v) => {
             const n = v * 100;
-            return `${n > 0.0001 ? "+" : n < -0.0001 ? "−" : ""}${Math.abs(n).toLocaleString("it-IT", { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 })}%`;
+            return `${n > 0.0001 ? "+" : n < -0.0001 ? "−" : ""}${fmtN(Math.abs(n), { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 })}%`;
           }}
           describePoint={(i) => `${fmtSignedPct(twr[i].value)}${compare?.[i] != null ? ` · indice ${fmtSignedPct(compare[i]!)}` : ""}`}
           describeRange={(a, b) => `${fmtSignedPct((1 + twr[b].value) / (1 + twr[a].value) - 1)}${day ? ` · ${fmtSignedEur(series[b].value - series[a].value)}` : ""}`}
           trend={(a, b) => twr[b].value - twr[a].value}
         />
       </div>
+      <RangePicker value={range} onChange={setRange} options={RANGES} />
 
       <Panel className="mt-6">
         <InfoRow
           label={BENCHMARKS.find((b) => b.value === bench)?.label ?? "Indice"}
-          hint={benchTotal !== null ? `${total - benchTotal >= 0 ? "Fai meglio" : "Fai peggio"} di ${Math.abs((total - benchTotal) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })} punti` : "Nessun confronto"}
+          hint={benchTotal !== null ? `${total - benchTotal >= 0 ? "Fai meglio" : "Fai peggio"} di ${fmtN(Math.abs((total - benchTotal) * 100), { maximumFractionDigits: 1 })} punti` : "Nessun confronto"}
           value={benchTotal !== null ? fmtSignedPct(benchTotal) : "—"}
           valueClass={tone(benchTotal ?? 0)}
         />
@@ -287,7 +275,9 @@ function tone(n: number) {
 /** Valore nella cella: il colore dice il segno, il numero la misura. */
 function cell(v: number) {
   const n = Math.abs(v * 100);
-  return n.toLocaleString("it-IT", { maximumFractionDigits: n >= 10 ? 0 : 1, minimumFractionDigits: n >= 10 ? 0 : 1 });
+  // Il segno meno sui mesi negativi: il colore da solo non basta a distinguerli.
+  const s = fmtN(n, { maximumFractionDigits: n >= 10 ? 0 : 1, minimumFractionDigits: n >= 10 ? 0 : 1 });
+  return v < 0 && s !== "0,0" ? `−${s}` : s;
 }
 
 const MONTH_NAMES = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
@@ -305,7 +295,7 @@ function YearRow({ year, months, open, setOpen }: { year: string; months: Record
             key={key}
             onClick={() => setOpen(open === key ? null : key)}
             aria-label={v === undefined ? `${key}: nessun dato` : `${key}: ${fmtSignedPct(v)}`}
-            className={`num flex h-8 items-center justify-center rounded-[6px] text-[11px] font-semibold tracking-[-0.03em] ${open === key ? "ring-2 ring-ink" : ""}`}
+            className={`num flex h-8 items-center justify-center overflow-hidden rounded-[6px] font-semibold ${v !== undefined && cell(v).length > 3 ? "text-[9.5px] tracking-[-0.06em]" : "text-[11px] tracking-[-0.03em]"} ${open === key ? "ring-2 ring-ink" : ""}`}
             style={{
               background:
                 v === undefined ? "var(--chip)" : `color-mix(in srgb, ${v >= 0 ? "var(--up)" : "var(--dn)"} ${15 + strength * 65}%, transparent)`,

@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+
 import { useMemo, useState } from "react";
 import { Gauge } from "@/components/Gauge";
 import { BankDot, InfoRow, Panel, SectionHeader, SelectButton } from "@/components/ui";
@@ -7,7 +10,7 @@ import { lookThrough, topCompanies, useCompositions } from "@/lib/xray-client";
 import { isFundLike } from "@/lib/engine/tax";
 import { ASSET_CLASS_COLOR, ASSET_CLASS_LABEL, groupBy, type PositionView, type Slice, type Totals } from "@/lib/analytics";
 import type { Account } from "@/lib/engine/types";
-import { fmtEur, fmtEur0, fmtPct, fmtSignedPct } from "@/lib/format";
+import { fmtEur, fmtEur0, fmtN, fmtPct, fmtSignedPct } from "@/lib/format";
 
 type By = "asset" | "banca" | "paese" | "settore" | "valuta" | "titolo";
 const PALETTE = ["#5468ff", "#22b8cf", "#9b6bff", "#2dd4a7", "#f5a524", "#f472b6", "#ff7a45", "#94a3b8"];
@@ -148,11 +151,15 @@ export function Analisi({
         ))}
       </ul>
 
-      <SectionHeader>Costi annui</SectionHeader>
-      <Panel>
-        <InfoRow label="TER medio ponderato" value={`${((ter / (invested || 1)) * 100).toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`} />
-        <InfoRow label="Costi di gestione degli ETF" value={<span className="sensitive">{fmtEur0(ter)}</span>} />
-        <InfoRow label="Imposta di bollo" hint="0,2% del valore" value={<span className="sensitive">{fmtEur0(invested * 0.002)}</span>} />
+      {/* I costi stanno in Fisco: qui solo il TER medio e il collegamento. */}
+      <Panel className="mt-10">
+        <Link href="/fisco#costi" className="flex min-h-[60px] items-center gap-3 px-4 py-2.5 active:bg-panel-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[16px] font-medium">Costi annui</p>
+            <p className="num text-[13px] text-mut">TER medio ponderato {fmtN((ter / (invested || 1)) * 100, { maximumFractionDigits: 2 })}% · bollo e dettagli in Fisco</p>
+          </div>
+          <ChevronRight size={18} className="shrink-0 text-faint" />
+        </Link>
       </Panel>
     </div>
   );

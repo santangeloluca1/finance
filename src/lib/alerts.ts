@@ -1,3 +1,4 @@
+import { fmtN } from "./format";
 import type { PositionView, Quotes, Totals } from "./analytics";
 import { dividendsForYear } from "./dividends";
 import { usableLosses } from "./engine/portfolio";
@@ -20,7 +21,7 @@ export interface Alert {
   ruleId?: string;
 }
 
-const eur = (n: number) => `${Math.round(n).toLocaleString("it-IT")} €`;
+const eur = (n: number) => `${fmtN(Math.round(n))} €`;
 
 /** Avvisi calcolati sul momento dai dati del portafoglio. */
 export function computeAlerts(
@@ -58,8 +59,8 @@ export function computeAlerts(
         id: `calo-${v.position.account}-${v.instrument.isin}-${today}`,
         kind: "calo",
         level: "attenzione",
-        title: `${v.instrument.shortName ?? v.instrument.name} ${(v.dayChangePct * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% oggi`,
-        detail: `Calo giornaliero sopra il ${(settings.dropThreshold * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%: ${eur(Math.abs(v.dayChange))} sul tuo portafoglio.`,
+        title: `${v.instrument.shortName ?? v.instrument.name} ${fmtN((v.dayChangePct * 100), { maximumFractionDigits: 1 })}% oggi`,
+        detail: `Calo giornaliero sopra il ${fmtN((settings.dropThreshold * 100), { maximumFractionDigits: 1 })}%: ${eur(Math.abs(v.dayChange))} sul tuo portafoglio.`,
         href: `/posizioni/${v.instrument.isin}`,
       });
     }
@@ -83,7 +84,7 @@ export function computeAlerts(
       id: `portafoglio-${up ? "su" : "giu"}-${today}`,
       kind: "portafoglio",
       level: up ? "positivo" : "attenzione",
-      title: `Portafoglio ${up ? "+" : "−"}${Math.abs(move * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% oggi`,
+      title: `Portafoglio ${up ? "+" : "−"}${fmtN(Math.abs(move * 100), { maximumFractionDigits: 1 })}% oggi`,
       detail: `${up ? "Guadagno" : "Perdita"} di ${eur(Math.abs(totals.dayChange))} rispetto alla chiusura di ieri.`,
       href: "/",
     });

@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BankDot, Chip, ChipRow, Logo, SectionHeader } from "@/components/ui";
+import { BankDot, Chip, ChipRow, Logo, SectionHeader, DayCell } from "@/components/ui";
 import { BigAmount } from "@/components/BigAmount";
 import { dividendsForYear, trailingDividends } from "@/lib/dividends";
 import type { PositionView } from "@/lib/analytics";
 import type { PortfolioData } from "@/lib/store";
 import type { PortfolioState } from "@/lib/engine/types";
 import type { Totals } from "@/lib/analytics";
-import { fmtDate, fmtEur } from "@/lib/format";
+import { fmtDate, fmtEur, fmtN } from "@/lib/format";
 
 const MONTHS = ["G", "F", "M", "A", "M", "G", "L", "A", "S", "O", "N", "D"];
 
@@ -118,10 +118,13 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
                     <p className="truncate text-[17px] font-semibold">{name}</p>
                     <p className="num mt-0.5 truncate text-[14px] text-mut">
                       {d.payments} {d.payments === 1 ? "pagamento" : "pagamenti"}
-                      {d.value > 0 && ` · ${pct(d.yieldNow)} sul valore`}
                     </p>
                   </div>
-                  <p className="num sensitive shrink-0 text-[17px] font-medium text-up">+{fmtEur(d.trailing)}</p>
+                  {/* Importo e rendimento a destra, come le altre liste: niente testo tagliato. */}
+                  <div className="shrink-0 text-right">
+                    <p className="num sensitive text-[17px] font-medium text-up">+{fmtEur(d.trailing)}</p>
+                    {d.value > 0 && <p className="num mt-0.5 text-[14px] text-mut">{pct(d.yieldNow)} annuo</p>}
+                  </div>
                 </li>
               );
             })}
@@ -137,9 +140,7 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
           const name = ins?.shortName ?? ins?.name ?? e.isin;
           return (
             <li key={i} className="flex min-h-[64px] items-center gap-3.5 px-4 py-2.5">
-              <span className={`num w-[42px] shrink-0 text-[15px] ${e.forecast ? "text-accent" : "text-mut"}`}>
-                {e.date.slice(8, 10)}.{e.date.slice(5, 7)}
-              </span>
+              <DayCell date={e.date} className={e.forecast ? "text-accent" : "text-mut"} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">{name}</p>
                 <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
@@ -163,5 +164,5 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
 
 
 function pct(n: number) {
-  return n.toLocaleString("it-IT", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return fmtN(n, { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

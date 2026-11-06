@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Check, Plus, Repeat, Trash2 } from "lucide-react";
+import { ArrowRight, Check, Repeat, Trash2 } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
-import { BackLink, BankDot, InfoRow, LargeTitle, Logo, Panel, SectionHeader, Segmented, SelectButton } from "@/components/ui";
+import { BackLink, BankDot, InfoRow, LargeTitle, Logo, Panel, SectionHeader, Segmented, SelectButton, AddButton } from "@/components/ui";
 import type { Instrument, Transaction } from "@/lib/engine/types";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { detectPac } from "@/lib/pac";
@@ -55,9 +55,7 @@ function Ricorrenti() {
       <LargeTitle
         right={
           !editing && (
-            <button onClick={() => setEditing(blank("deposit"))} className="mb-1 flex h-11 items-center gap-1 rounded-full bg-chip pl-3 pr-4 text-[15px] font-semibold text-ink active:opacity-70">
-              <Plus size={18} strokeWidth={2.6} /> Nuovo
-            </button>
+            <AddButton label="Nuovo piano ricorrente" onClick={() => setEditing(blank("deposit"))} />
           )
         }
       >
@@ -81,12 +79,23 @@ function Ricorrenti() {
             </>
           )}
 
-          <SectionHeader>Piani</SectionHeader>
           {plans.length === 0 ? (
-            <p className="px-4 text-[15px] leading-snug text-mut">
-              Nessun piano. Aggiungi lo stipendio, un bonifico ricorrente o un PAC: a ogni scadenza l&apos;app prepara la rata e tu la confermi.
-            </p>
+            // Pagina vuota: solo il messaggio e un'azione, senza intestazioni.
+            <div className="flex flex-col items-center px-8 pt-16 text-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-chip text-ink-2">
+                <Repeat size={24} />
+              </span>
+              <p className="mt-4 text-[17px] font-semibold">Nessuna operazione ricorrente</p>
+              <p className="mt-1 text-[15px] leading-snug text-mut">
+                Aggiungi lo stipendio, un bonifico ricorrente o un PAC: a ogni scadenza l&apos;app prepara la rata e tu la confermi.
+              </p>
+              <button onClick={() => setEditing(blank("deposit"))} className="mt-5 h-11 rounded-full bg-ink px-5 text-[15px] font-semibold text-bg active:opacity-80">
+                Crea il primo piano
+              </button>
+            </div>
           ) : (
+            <>
+            <SectionHeader>Piani</SectionHeader>
             <ul>
               {plans.map((p) => {
                 const ins = p.isin ? instruments.get(p.isin) : undefined;
@@ -116,6 +125,7 @@ function Ricorrenti() {
                 );
               })}
             </ul>
+            </>
           )}
 
           {suggestions.length > 0 && (

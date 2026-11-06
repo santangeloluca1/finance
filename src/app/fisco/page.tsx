@@ -144,7 +144,7 @@ export default function Fisco() {
         </div>
       )}
 
-      <SectionHeader right={<span className="num text-[17px] font-bold">{fmtEur(terCost + bolloTotal)}</span>}>Costi annui stimati</SectionHeader>
+      <SectionHeader id="costi" right={<span className="num text-[17px] font-bold">{fmtEur(terCost + bolloTotal)}</span>}>Costi annui stimati</SectionHeader>
       <Panel>
         {bollo.map(({ acc, value }) => (
           <InfoRow

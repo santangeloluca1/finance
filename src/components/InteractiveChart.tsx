@@ -221,6 +221,9 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
   const tipEvents = tipIdx !== null ? eventIdx.get(tipIdx) ?? [] : [];
   const axisFmt = formatAxis ?? format;
   const ticks = timeTicks(points, geo.x);
+  // Tipi di operazione visibili nel periodo, per la legenda a comparsa.
+  const kinds = (["buy", "sell", "dividend"] as const).filter((k) => [...eventIdx.values()].some((evs) => evs.some((e) => e.kind === k)));
+  const showLegend = sel !== null && kinds.length > 0;
 
   return (
     <div
@@ -264,10 +267,6 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
         <path d={geo.line} fill="none" stroke={ranged ? "var(--faint)" : stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" opacity={ranged ? 0.5 : 1} />
         {ranged && <path d={geo.line} fill="none" stroke={stroke} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#c-${gid})`} />}
 
-        {/* Operazioni sulla linea del tempo */}
-        {[...eventIdx.entries()].map(([i, evs]) => (
-          <circle key={i} cx={geo.x(i)} cy={H - 4} r={tipIdx === i ? 4 : 2.5} fill={EVENT_COLOR[evs[0].kind]} />
-        ))}
 
         {/* Righe verticali allineate al punto */}
         {sel && (
@@ -282,8 +281,23 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
           </>
         )}
 
-        {/* Asse X: una tacca per mese, trimestre o anno a seconda del periodo */}
-        {ticks.map((t) => (
+        {/* Operazioni: anellini sulla linea, del colore del tipo (acquisto, vendita, cedola) */}
+        {[...eventIdx.entries()].map(([i, evs]) => (
+          <circle
+            key={i}
+            cx={geo.x(i)}
+            cy={geo.y(points[i].value)}
+            r={tipIdx === i ? 5 : 3.5}
+            fill="var(--bg)"
+            stroke={EVENT_COLOR[evs[0].kind]}
+            strokeWidth={tipIdx === i ? 2.5 : 2}
+            opacity={ranged && (i < start || i > end) ? 0.4 : 1}
+          />
+        ))}
+
+        {/* Asse X: una tacca per mese, trimestre o anno a seconda del periodo.
+            Mentre il dito è sul grafico la data è nella bolla: al posto delle tacche compare la legenda. */}
+        {!showLegend && ticks.map((t) => (
           <g key={t.i}>
             <text x={t.x} y={H + 20} textAnchor="middle" className="num" fontSize="11" fill="var(--mut)">
               {t.label}
@@ -291,6 +305,17 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
           </g>
         ))}
       </svg>}
+
+      {showLegend && (
+        <div className="pointer-events-none absolute left-0 flex items-center gap-3.5 text-[11px] text-mut" style={{ top: H + 9, right: GUTTER }}>
+          {kinds.map((k) => (
+            <span key={k} className="flex items-center gap-1">
+              <span className="h-[9px] w-[9px] rounded-full border-2 bg-bg" style={{ borderColor: EVENT_COLOR[k] }} />
+              {EVENT_LABEL[k]}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Etichette della griglia (asse Y, a destra) */}
       {geo.grid.map((v) => (
@@ -328,7 +353,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
               <p className="num text-[13px] font-semibold">{describePoint ? describePoint(end) : format(points[end].value)}</p>
               {tipEvents.map((ev, k) => (
                 <p key={k} className="text-[11px]">
-                  <span style={{ color: EVENT_COLOR[ev.kind] }}>●</span> {EVENT_LABEL[ev.kind]} · {ev.label}
+                  <span style={{ color: EVENT_COLOR[ev.kind] }}>○</span> {EVENT_LABEL[ev.kind]} · {ev.label}
                 </p>
               ))}
             </>

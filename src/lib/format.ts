@@ -3,14 +3,38 @@ const eur0 = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR"
 const pct = new Intl.NumberFormat("it-IT", { style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const num = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 4 });
 
-export const fmtEur = (n: number) => eur.format(n);
-export const fmtEur0 = (n: number) => eur0.format(n);
-export const fmtNum = (n: number) => num.format(n);
-export const fmtPct = (n: number) => pct.format(n);
-export const fmtSignedEur = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "") + eur.format(Math.abs(n));
-export const fmtSignedPct = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "") + pct.format(Math.abs(n));
+/**
+ * Ritocchi tipografici su un numero già formattato:
+ * - il punto delle migliaia anche a 4 cifre ("9.055,20 €", non "9055,20 €"),
+ *   che l'italiano standard di Intl omette;
+ * - il segno meno tipografico "−" al posto del trattino.
+ */
+export function tidy(s: string) {
+  return s.replace(/(^|[^\d.,])(\d)(\d{3})(?![\d.])/g, "$1$2.$3").replace(/-(?=[\d\s€])/g, "−");
+}
+
+/** Numero all'italiana con le regole di `tidy`. */
+export function fmtN(n: number, opts: Intl.NumberFormatOptions = {}) {
+  return tidy(new Intl.NumberFormat("it-IT", opts).format(n));
+}
+
+export const fmtEur = (n: number) => tidy(eur.format(n));
+export const fmtEur0 = (n: number) => tidy(eur0.format(n));
+export const fmtNum = (n: number) => tidy(num.format(n));
+export const fmtPct = (n: number) => tidy(pct.format(n));
+export const fmtSignedEur = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "") + fmtEur(Math.abs(n));
+export const fmtSignedPct = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "") + fmtPct(Math.abs(n));
 export const fmtPrice = (n: number, currency: string) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency, maximumFractionDigits: 4, minimumFractionDigits: 2 }).format(n);
+  tidy(new Intl.NumberFormat("it-IT", { style: "currency", currency, maximumFractionDigits: 4, minimumFractionDigits: 2 }).format(n));
+
+/** Data breve per le liste: "11 giu"; con l'anno se non è quello in corso ("11 giu 25"). */
+export function fmtDay(iso: string, withYear = iso.slice(0, 4) !== String(new Date().getFullYear())) {
+  const d = new Date(`${iso}T12:00:00`);
+  const base = `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+  return withYear ? `${base} ${iso.slice(2, 4)}` : base;
+}
+
+const MONTHS_SHORT = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 
 export function fmtDate(iso: string, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }) {
   return new Date(`${iso}T12:00:00`).toLocaleDateString("it-IT", opts);

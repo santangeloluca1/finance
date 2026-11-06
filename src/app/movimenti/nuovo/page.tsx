@@ -190,6 +190,7 @@ function NuovoMovimento() {
           ) : (
             <InstrumentSearch
               known={data.instruments}
+              usage={data.transactions.map((t) => t.isin)}
               onPick={(ins, fresh, lastPrice) => {
                 setInstrument(ins);
                 setIsNew(fresh);
@@ -296,16 +297,21 @@ function NuovoMovimento() {
   );
 }
 
-function InstrumentSearch({ known, onPick }: { known: Instrument[]; onPick: (i: Instrument, isNew: boolean, lastPrice?: number | null) => void }) {
+function InstrumentSearch({ known, usage, onPick }: { known: Instrument[]; usage: (string | undefined)[]; onPick: (i: Instrument, isNew: boolean, lastPrice?: number | null) => void }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [busy, setBusy] = useState(false);
 
+  // Senza ricerca: solo i 3 titoli usati più spesso; il resto si trova cercando.
   const local = useMemo(() => {
     const s = q.trim().toLowerCase();
-    if (!s) return known;
+    if (!s) {
+      const count = new Map<string, number>();
+      usage.forEach((isin) => isin && count.set(isin, (count.get(isin) ?? 0) + 1));
+      return [...known].sort((a, b) => (count.get(b.isin) ?? 0) - (count.get(a.isin) ?? 0)).slice(0, 3);
+    }
     return known.filter((i) => [i.name, i.shortName, i.ticker, i.isin].some((v) => v?.toLowerCase().includes(s)));
-  }, [q, known]);
+  }, [q, known, usage]);
 
   useEffect(() => {
     const s = q.trim();
@@ -338,7 +344,8 @@ function InstrumentSearch({ known, onPick }: { known: Instrument[]; onPick: (i: 
         />
         {busy && <LoaderCircle size={17} className="shrink-0 animate-spin text-mut" />}
       </label>
-      <ul className="max-h-[340px] overflow-y-auto">
+      <ul>
+        {!q.trim() && local.length > 0 && <li className="px-4 pb-1 pt-2.5 text-[12px] font-medium text-mut">Più usati</li>}
         {local.map((i) => (
           <ResultRow key={i.isin} title={i.shortName ?? i.name} subtitle={`${i.ticker} · già in portafoglio`} isin={i.isin} onClick={() => onPick(i, false)} />
         ))}

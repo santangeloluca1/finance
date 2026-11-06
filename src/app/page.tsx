@@ -11,10 +11,11 @@ import { buildRows, PERIOD_OPTIONS, PositionList } from "@/components/PositionLi
 import { Toolbar } from "@/components/home/Toolbar";
 import { Obiettivi } from "@/components/Obiettivi";
 import { Dividendi } from "@/components/home/Dividendi";
-import { SectionHeader, SelectButton } from "@/components/ui";
+import { PAGE_TITLE, RangePicker, SectionHeader, SelectButton } from "@/components/ui";
+import { RANGES, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
 import { cutoffDate, type Period } from "@/lib/analytics";
 import { usableLosses } from "@/lib/engine/portfolio";
-import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime } from "@/lib/format";
+import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime, fmtN } from "@/lib/format";
 import { twrSeries } from "@/lib/performance";
 import { usePortfolioIntraday } from "@/lib/intraday-client";
 import { pendingOccurrences } from "@/lib/recurring";
@@ -26,9 +27,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "dividendi", label: "Cedole" },
 ];
 
-type Range = "1G" | "1S" | "1M" | "3M" | "YTD" | "1A" | "MAX";
-const RANGE_DAYS: Record<Exclude<Range, "1G" | "YTD" | "MAX">, number> = { "1S": 7, "1M": 31, "3M": 92, "1A": 366 };
-const RANGE_LABEL: Record<Range, string> = { "1G": "oggi", "1S": "nell'ultima settimana", "1M": "nell'ultimo mese", "3M": "negli ultimi 3 mesi", YTD: "da inizio anno", "1A": "nell'ultimo anno", MAX: "dall'inizio" };
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("panoramica");
@@ -63,7 +61,7 @@ export default function Home() {
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => go(t.id)}
-            className={`shrink-0 py-1 text-[26px] font-bold tracking-[-0.03em] transition-colors ${tab === t.id ? "text-ink" : "text-faint"}`}
+            className={`shrink-0 py-1 ${PAGE_TITLE} transition-colors ${tab === t.id ? "text-ink" : "text-faint"}`}
           >
             {t.label}
           </button>
@@ -103,7 +101,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
       return intraday.dates.map((date, i) => ({ date, value: intraday.values[i] + totals.cash, invested: 0, gain: intraday.values[i] - intraday.base, cash: totals.cash }));
     }
     if (!history?.length) return [];
-    const cutoff = rangeStart(range as Exclude<Range, "1G">);
+    const cutoff = rangeStart(range);
     const today = new Date().toISOString().slice(0, 10);
     const slice = history.filter((h) => h.date >= cutoff && h.date < today);
     const realized = state.realized.reduce((a, r) => a + r.gain, 0);
@@ -209,7 +207,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           lastSession ? "Ultima seduta" : "Oggi"
         ) : (
           <>
-            {RANGE_LABEL[range].replace(/^./, (c) => c.toUpperCase())}
+            {RANGE_PHRASE[range].replace(/^./, (c) => c.toUpperCase())}
             <span className="mx-1.5 text-faint">·</span>
             Oggi <span className={`num sensitive font-medium ${tint(totals.dayChange)}`}>{fmtSignedPct(totals.dayChangePct)}</span>
           </>
@@ -233,18 +231,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         />
       </div>
 
-      <div role="group" aria-label="Periodo del grafico" className="mt-4 grid grid-cols-7 gap-0.5 px-3">
-        {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            aria-pressed={range === r}
-            className={`num h-9 rounded-full text-[14px] font-semibold transition-colors ${range === r ? "bg-chip text-ink" : "text-mut active:text-ink"}`}
-          >
-            {r === "YTD" ? "Da gen" : r}
-          </button>
-        ))}
-      </div>
+      <RangePicker value={range} onChange={setRange} options={RANGES} />
 
       {pending.length > 0 && (
         <Link href="/ricorrenti" className="mx-4 mt-6 flex min-h-[56px] items-center gap-3 rounded-[16px] bg-accent/12 px-4 py-2.5 active:opacity-80">
@@ -313,24 +300,18 @@ function clock(iso: string) {
   return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 }
 
-/** Primo giorno del periodo selezionato. */
-function rangeStart(r: Exclude<Range, "1G">) {
-  if (r === "YTD") return `${new Date().getFullYear()}-01-01`;
-  if (r === "MAX") return "0000-01-01";
-  return cutoffDate(RANGE_DAYS[r]);
-}
 
 /** Etichette dell'asse in percentuale: +4%, −1,5%. */
 function axisPct(v: number) {
   const n = v * 100;
-  const s = Math.abs(n).toLocaleString("it-IT", { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 });
+  const s = fmtN(Math.abs(n), { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 });
   return `${n < -0.0001 ? "−" : n > 0.0001 ? "+" : ""}${s}%`;
 }
 
 /** Etichette compatte per l'asse: 58,1k €. */
 function compact(v: number, signed: boolean) {
   const abs = Math.abs(v);
-  const s = abs >= 1000 ? `${(abs / 1000).toLocaleString("it-IT", { maximumFractionDigits: 1 })}k` : abs.toLocaleString("it-IT", { maximumFractionDigits: 0 });
+  const s = abs >= 1000 ? `${fmtN((abs / 1000), { maximumFractionDigits: 1 })}k` : fmtN(abs, { maximumFractionDigits: 0 });
   return `${v < 0 ? "−" : signed && v > 0 ? "+" : ""}${s} €`;
 }
 
@@ -384,7 +365,7 @@ function compactSigned(v: number) {
 
 function compactPlain(v: number) {
   const abs = Math.abs(v);
-  const s = abs >= 100_000 ? `${(abs / 1000).toLocaleString("it-IT", { maximumFractionDigits: 1 })}k` : abs.toLocaleString("it-IT", { maximumFractionDigits: 0 });
+  const s = abs >= 100_000 ? `${fmtN((abs / 1000), { maximumFractionDigits: 1 })}k` : fmtN(abs, { maximumFractionDigits: 0 });
   return `${v < 0 ? "−" : ""}${s} €`;
 }
 

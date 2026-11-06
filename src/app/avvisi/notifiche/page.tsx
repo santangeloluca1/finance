@@ -7,10 +7,10 @@ import { usePortfolioData, saveNotifySettings } from "@/lib/store";
 import { BackLink, LargeTitle, Panel, SectionHeader, SelectButton, Switch } from "@/components/ui";
 import { AUTO_KINDS, settingsOf, type AutoKind } from "@/lib/notify";
 import { usePush } from "@/lib/push-client";
-import { fmtWhen } from "@/lib/format";
+import { fmtWhen, fmtN } from "@/lib/format";
 
 const DROP_OPTIONS = ["0.02", "0.03", "0.05", "0.07", "0.1"].map((v) => ({ value: v, label: `${Number(v) * 100}%` }));
-const MOVE_OPTIONS = ["0.01", "0.015", "0.02", "0.03", "0.05"].map((v) => ({ value: v, label: `${(Number(v) * 100).toLocaleString("it-IT")}%` }));
+const MOVE_OPTIONS = ["0.01", "0.015", "0.02", "0.03", "0.05"].map((v) => ({ value: v, label: `${fmtN((Number(v) * 100))}%` }));
 
 interface Sent {
   id: string;
@@ -158,7 +158,7 @@ export default function NotificheSettings() {
 /** Se la soglia salvata non è tra le opzioni, la si aggiunge. */
 function withCurrent(opts: { value: string; label: string }[], current: number) {
   const v = String(current);
-  return opts.some((o) => o.value === v) ? opts : [...opts, { value: v, label: `${(current * 100).toLocaleString("it-IT")}%` }];
+  return opts.some((o) => o.value === v) ? opts : [...opts, { value: v, label: `${fmtN((current * 100))}%` }];
 }
 
 function PushPanel({ push }: { push: ReturnType<typeof usePush> }) {

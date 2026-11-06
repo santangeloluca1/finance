@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Plus, Repeat } from "lucide-react";
+import { Repeat } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
-import { BankDot, LargeTitle, SelectButton } from "@/components/ui";
+import { BankDot, LargeTitle, SelectButton, AddButton, DayCell, IconButton } from "@/components/ui";
 import { fmtDate, fmtEur, fmtNum, fmtPrice } from "@/lib/format";
 import type { Transaction } from "@/lib/engine/types";
 
@@ -42,13 +42,12 @@ export default function Movimenti() {
     <div>
       <LargeTitle
         right={
-          <Link
-            href="/movimenti/nuovo"
-            aria-label="Aggiungi movimento"
-            className="mb-1 flex h-11 items-center gap-1 rounded-full bg-chip pl-3 pr-4 text-[15px] font-semibold text-ink active:opacity-70"
-          >
-            <Plus size={18} strokeWidth={2.6} /> Aggiungi
-          </Link>
+          <>
+            <IconButton href="/ricorrenti" label="Operazioni ricorrenti">
+              <Repeat size={18} strokeWidth={2.2} />
+            </IconButton>
+            <AddButton href="/movimenti/nuovo" label="Aggiungi movimento" />
+          </>
         }
       >
         Movimenti
@@ -79,9 +78,6 @@ export default function Movimenti() {
             { value: "cash", label: "Saldi" },
           ]}
         />
-        <Link href="/ricorrenti" className="ml-auto flex min-h-[36px] items-center gap-1 text-[15px] font-semibold text-accent">
-          <Repeat size={17} /> Ricorrenti
-        </Link>
       </div>
 
       {months.length === 0 && <p className="px-4 py-10 text-center text-[15px] text-mut">Nessuna operazione con questi filtri.</p>}
@@ -110,7 +106,7 @@ export default function Movimenti() {
                     href={t.id.startsWith("demo-") ? "#" : `/movimenti/nuovo?id=${t.id}`}
                     className="flex min-h-[64px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2"
                   >
-                    <span className="num w-[42px] shrink-0 text-[15px] text-mut">{fmtDate(t.date, { day: "2-digit", month: "2-digit" }).replace("/", ".")}</span>
+                    <DayCell date={t.date} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">{name}</p>
                       <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">

@@ -6,23 +6,20 @@ import { useEffect, useMemo, useState } from "react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { type ChartPoint } from "@/components/AreaChart";
 import { InteractiveChart } from "@/components/InteractiveChart";
-import { ChevronLeft } from "lucide-react";
-import { BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
+import { RANGES, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
+import { DayCell, BackLink, RangePicker, BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { ASSET_CLASS_LABEL, cutoffDate, type FxRates, type PositionView } from "@/lib/analytics";
 import { simulateSale } from "@/lib/engine/portfolio";
 import { detectPac } from "@/lib/pac";
 import { effectiveRate } from "@/lib/engine/tax";
 import type { Account, Instrument, PortfolioState } from "@/lib/engine/types";
-import { exchangeName, fmtDate, fmtEur, fmtNum, fmtPct, fmtPrice, fmtSignedEur, fmtSignedPct, fmtWhen } from "@/lib/format";
+import { exchangeName, fmtDate, fmtEur, fmtNum, fmtPct, fmtPrice, fmtSignedEur, fmtSignedPct, fmtWhen, fmtN, fmtDay } from "@/lib/format";
 
-type Range = "1G" | "1S" | "1M" | "6M" | "1A" | "MAX";
-const RANGE_DAYS: Record<Range, number> = { "1G": 1, "1S": 7, "1M": 31, "6M": 183, "1A": 366, MAX: 99999 };
-const RANGE_LABEL: Record<Range, string> = { "1G": "oggi", "1S": "1 settimana", "1M": "1 mese", "6M": "6 mesi", "1A": "1 anno", MAX: "dall'inizio" };
 
 /** Etichette dell'asse in percentuale: +4%, −1,5%. */
 function axisPct(v: number) {
   const n = v * 100;
-  const s = Math.abs(n).toLocaleString("it-IT", { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 });
+  const s = fmtN(Math.abs(n), { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 });
   return `${n < -0.0001 ? "−" : n > 0.0001 ? "+" : ""}${s}%`;
 }
 const TX_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola/dividendo", split: "Frazionamento", cash: "Liquidità", deposit: "Versamento", withdrawal: "Prelievo", transfer: "Bonifico" } as const;
@@ -62,7 +59,7 @@ export default function PositionDetail() {
     if (!instrument) return [];
     if (range === "1G") return (intraday?.points ?? []).map(([date, value]) => ({ date, value }));
     const s = priceSeries[instrument.ticker] ?? [];
-    const cutoff = cutoffDate(RANGE_DAYS[range]);
+    const cutoff = rangeStart(range);
     return s.filter(([d]) => d >= cutoff).map(([date, value]) => ({ date, value }));
   }, [priceSeries, instrument, range, intraday]);
   // Base della percentuale: chiusura di ieri per "1G", primo prezzo del periodo altrimenti.
@@ -94,13 +91,9 @@ export default function PositionDetail() {
 
   return (
     <div>
-      <div className="flex items-center justify-between px-3">
-        <Link href="/posizioni" aria-label="Torna ai titoli" className="flex h-11 w-11 items-center justify-center rounded-full bg-chip active:opacity-60">
-          <ChevronLeft size={20} strokeWidth={2.4} />
-        </Link>
-      </div>
+      <BackLink href="/posizioni" label="Titoli" />
 
-      <div className="flex items-center gap-3.5 px-4 pt-5">
+      <div className="flex items-center gap-3.5 px-4 pt-2">
         <Logo isin={instrument.isin} name={name} size={48} />
         <div className="min-w-0">
           <h1 className="truncate text-[22px] font-bold tracking-[-0.025em]">{name}</h1>
@@ -120,7 +113,7 @@ export default function PositionDetail() {
                 {rangeChange > 0 ? "↗ " : rangeChange < 0 ? "↘ " : ""}
                 {fmtPct(Math.abs(rangeChange))}
               </span>
-              {scrub ? (scrub.date.length > 10 ? `alle ${new Date(scrub.date).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : `al ${fmtDate(scrub.date)}`) : range === "1G" && prices.length && new Date(prices[prices.length - 1].date).toDateString() !== new Date().toDateString() ? "ultima seduta" : RANGE_LABEL[range]}
+              {scrub ? (scrub.date.length > 10 ? `alle ${new Date(scrub.date).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : `al ${fmtDate(scrub.date)}`) : range === "1G" && prices.length && new Date(prices[prices.length - 1].date).toDateString() !== new Date().toDateString() ? "ultima seduta" : RANGE_PHRASE[range]}
               {!scrub && q && range !== "1G" && (
                 <>
                   <span className="text-faint">·</span>
@@ -163,18 +156,7 @@ export default function PositionDetail() {
           }
         />
       </div>
-      <div role="group" aria-label="Periodo del grafico" className="mt-4 grid grid-cols-6 gap-1 px-3">
-        {(Object.keys(RANGE_DAYS) as Range[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            aria-pressed={range === r}
-            className={`num h-9 rounded-full text-[14px] font-semibold ${range === r ? "bg-chip text-ink" : "text-mut active:text-ink"}`}
-          >
-            {r}
-          </button>
-        ))}
-      </div>
+      <RangePicker value={range} onChange={setRange} options={RANGES} />
 
       {allRows.length > 0 && (
         <>
@@ -240,7 +222,7 @@ export default function PositionDetail() {
       <Panel>
         <InfoRow label="ISIN" value={instrument.isin} />
         <InfoRow label="Valuta" value={instrument.currency} />
-        {instrument.ter !== undefined && <InfoRow label="Costo annuo (TER)" value={`${instrument.ter.toLocaleString("it-IT")}%`} />}
+        {instrument.ter !== undefined && <InfoRow label="Costo annuo (TER)" value={`${fmtN(instrument.ter)}%`} />}
         <InfoRow
           label="Aliquota sulle plusvalenze"
           value={fmtPct(effectiveRate(instrument))}
@@ -252,7 +234,7 @@ export default function PositionDetail() {
       <ul>
         {(allTx ? txs : txs.slice(0, 5)).map((t) => (
           <li key={t.id} className="flex min-h-[60px] items-center gap-3.5 px-4 py-2.5">
-            <span className="num w-[42px] shrink-0 text-[15px] text-mut">{fmtDate(t.date, { day: "2-digit", month: "2-digit" }).replace("/", ".")}</span>
+            <DayCell date={t.date} year={t.date.slice(0, 4) !== String(new Date().getFullYear())} />
             <div className="min-w-0 flex-1">
               <p className="text-[17px] font-semibold">{TX_LABEL[t.type]}</p>
               <p className="num mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
