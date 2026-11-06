@@ -147,9 +147,9 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
 
   if (!geo) {
     return (
-      <div style={{ height }} className="flex items-center justify-center">
+      <div style={{ height }} className={loading ? "" : "flex items-center justify-center"}>
         {loading ? (
-          <div className="h-[2px] w-1/2 animate-pulse rounded-full bg-chip" />
+          <ChartSkeleton height={height} />
         ) : (
           <p className="max-w-[260px] text-center text-[13px] leading-snug text-mut">
             {points.length === 1 ? "Il grafico si disegna dal prossimo giorno di borsa: per ora c'è solo il valore di oggi." : "Nessun dato nel periodo."}
@@ -335,6 +335,65 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Grafico in caricamento: stessa impaginazione di quello vero (griglia, asse dei
+ * valori a destra, date in basso) con una curva fantasma su cui scorre un riflesso.
+ * Quando arrivano i dati niente si sposta.
+ */
+function ChartSkeleton({ height }: { height: number }) {
+  const gid = useId().replace(/:/g, "");
+  const H = height - AXIS_H;
+  // Curva morbida in coordinate 0..100 × 0..H, disegnata con preserveAspectRatio="none".
+  const pts = [0.62, 0.55, 0.6, 0.46, 0.5, 0.38, 0.44, 0.3, 0.36, 0.26, 0.3];
+  const d = pts
+    .map((v, i) => {
+      const x = (i / (pts.length - 1)) * 100;
+      const y = 12 + v * (H - 24);
+      if (!i) return `M0,${y}`;
+      const px = ((i - 1) / (pts.length - 1)) * 100;
+      const py = 12 + pts[i - 1] * (H - 24);
+      const cx = (px + x) / 2;
+      return `C${cx},${py} ${cx},${y} ${x},${y}`;
+    })
+    .join("");
+  return (
+    <div role="status" aria-label="Caricamento del grafico" className="relative h-full">
+      <div className="flex" style={{ height: H }}>
+        <div className="relative min-w-0 flex-1 overflow-hidden">
+          {[0.25, 0.5, 0.75].map((f) => (
+            <div key={f} className="absolute inset-x-0 border-t border-dashed border-sep" style={{ top: `${f * 100}%` }} />
+          ))}
+          <svg viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden>
+            <defs>
+              <linearGradient id={`sk-fill-${gid}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="var(--chip)" stopOpacity="0.9" />
+                <stop offset="1" stopColor="var(--chip)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={`${d}L100,${H}L0,${H}Z`} fill={`url(#sk-fill-${gid})`} className="anim-breathe" />
+            <path d={d} fill="none" stroke="var(--chip)" strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+          {/* Riflesso: una fascia chiara che attraversa il grafico. */}
+          <div
+            className="anim-sweep pointer-events-none absolute inset-y-0 left-0 w-1/2"
+            style={{ background: "linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg) 70%, transparent), transparent)" }}
+          />
+        </div>
+        <div className="flex shrink-0 flex-col justify-around pl-3" style={{ width: GUTTER }}>
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="skeleton h-2.5 w-7" />
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center justify-around" style={{ height: AXIS_H, paddingRight: GUTTER }}>
+        {[0, 1, 2, 3].map((i) => (
+          <span key={i} className="skeleton h-2.5 w-8" />
+        ))}
+      </div>
     </div>
   );
 }

@@ -166,3 +166,44 @@ input[type="range"] {
 .capitalize-first::first-letter {
   text-transform: uppercase;
 }
+
+/* ---------- Caricamento: riflesso che scorre su forme segnaposto ---------- */
+@keyframes sweep {
+  from {
+    transform: translateX(-60%);
+  }
+  to {
+    transform: translateX(160%);
+  }
+}
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.anim-sweep {
+  animation: sweep 1.6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+.anim-breathe {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+/* Blocchi segnaposto per testo e righe che stanno arrivando. */
+.skeleton {
+  border-radius: 6px;
+  background: var(--chip);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-sweep {
+    animation: none;
+    opacity: 0;
+  }
+  .anim-breathe,
+  .skeleton {
+    animation: none;
+  }
+}

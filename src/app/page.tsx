@@ -188,13 +188,21 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           <p className="h-5 truncate text-[14px] capitalize-first text-mut">{caption}</p>
           <BigAmount value={shownValue} className="mt-1" />
         </div>
-        <div className={`num sensitive shrink-0 pb-1 text-right ${tint(gain)}`}>
-          <p className="text-[17px] font-semibold">
-            {gain > 0.005 ? "↗ " : gain < -0.005 ? "↘ " : ""}
-            {fmtPct(Math.abs(gainPct))}
-          </p>
-          <p className="text-[15px] font-medium">{fmtSignedEur(gain)}</p>
-        </div>
+        {!ready && (day ? !intraday : !historyReady) ? (
+          // Variazione del periodo in arrivo: segnaposto invece di un falso 0,00%.
+          <div className="flex shrink-0 flex-col items-end gap-2 pb-1.5" aria-hidden>
+            <span className="skeleton h-4 w-16" />
+            <span className="skeleton h-3.5 w-20" />
+          </div>
+        ) : (
+          <div className={`num sensitive shrink-0 pb-1 text-right ${tint(gain)}`}>
+            <p className="text-[17px] font-semibold">
+              {gain > 0.005 ? "↗ " : gain < -0.005 ? "↘ " : ""}
+              {fmtPct(Math.abs(gainPct))}
+            </p>
+            <p className="text-[15px] font-medium">{fmtSignedEur(gain)}</p>
+          </div>
+        )}
       </div>
       <p className="mt-2 h-5 px-4 text-[14px] text-mut">
         {sel ? (sel.b != null ? "Nell'intervallo" : day ? "Dalla chiusura di ieri" : "Da inizio periodo") : day ? (

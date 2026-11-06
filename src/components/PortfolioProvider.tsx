@@ -169,10 +169,16 @@ function useHistorySeries(data: PortfolioData, disabled = false) {
   useEffect(() => {
     if (!request) return;
     let cancelled = false;
+    // Apertura immediata: lo storico dell'ultima volta (se è per gli stessi titoli), poi quello aggiornato.
+    const cached = readHistoryCache(request);
+    if (cached) setSeries(cached);
     fetch(request)
       .then((r) => r.json())
       .then((j: { series: Series; fx: Series }) => {
-        if (!cancelled) setSeries({ prices: j.series, fx: j.fx });
+        if (cancelled || !j.series) return;
+        const next = { prices: j.series, fx: j.fx ?? {} };
+        setSeries(next);
+        writeHistoryCache(request, next);
       })
       .catch(() => {});
     return () => {
@@ -181,4 +187,25 @@ function useHistorySeries(data: PortfolioData, disabled = false) {
   }, [request]);
 
   return series;
+}
+
+const HISTORY_KEY = "portafoglio:history:v1";
+
+function readHistoryCache(request: string): { prices: Series; fx: Series } | null {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { request: string; prices: Series; fx: Series };
+    return c.request === request ? { prices: c.prices, fx: c.fx } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeHistoryCache(request: string, s: { prices: Series; fx: Series }) {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify({ request, ...s }));
+  } catch {
+    /* spazio esaurito o storage non disponibile: si riscarica ogni volta */
+  }
 }

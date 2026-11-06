@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClipboardPaste, Download, LogOut, RotateCcw, Upload } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
@@ -31,7 +31,7 @@ function parseBackup(raw: string): PortfolioData {
 export default function Impostazioni() {
   const { data } = usePortfolioCtx();
   const [theme, setTheme] = useTheme();
-  const { data: session } = authClient.useSession();
+  const user = useAccount();
   const sync = useSyncStatus();
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -81,18 +81,32 @@ export default function Impostazioni() {
       <BackLink href="/" label="Home" />
       <LargeTitle>Impostazioni</LargeTitle>
 
-      {session?.user && (
+      {/* Il blocco c'è sempre (l'app richiede l'accesso): finché la sessione non arriva
+          si vede il nome salvato sul telefono o uno scheletro della stessa altezza. */}
+      {user !== false && (
         <>
           <SectionHeader>Account</SectionHeader>
           <Panel>
-            <div className="flex items-center gap-3 border-b border-sep px-4 py-3.5">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-chip text-[17px] font-semibold">
-                {(session.user.name || session.user.email)[0]?.toUpperCase()}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-[16px] font-semibold">{session.user.name}</p>
-                <p className="truncate text-[13px] text-mut">{session.user.email}</p>
-              </div>
+            <div className="flex min-h-[72px] items-center gap-3 border-b border-sep px-4 py-3.5">
+              {user ? (
+                <>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-chip text-[17px] font-semibold">
+                    {(user.name || user.email)[0]?.toUpperCase()}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[16px] font-semibold">{user.name || user.email}</p>
+                    <p className="truncate text-[13px] text-mut">{user.email}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="skeleton h-11 w-11 shrink-0 rounded-full" />
+                  <div className="flex flex-col gap-2">
+                    <span className="skeleton h-3.5 w-28" />
+                    <span className="skeleton h-3 w-44" />
+                  </div>
+                </>
+              )}
             </div>
             <button
               onClick={async () => {
@@ -180,4 +194,33 @@ export default function Impostazioni() {
       </p>
     </div>
   );
+}
+
+type AccountUser = { name: string; email: string };
+const USER_KEY = "portafoglio:user:v1";
+
+/**
+ * Utente collegato. Restituisce subito l'ultimo utente salvato sul telefono,
+ * null mentre la sessione arriva per la prima volta, false se non c'è sessione.
+ */
+function useAccount(): AccountUser | null | false {
+  const { data: session, isPending } = authClient.useSession();
+  const [cached, setCached] = useState<AccountUser | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      if (raw) setCached(JSON.parse(raw) as AccountUser);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    if (!session?.user) return;
+    const u = { name: session.user.name, email: session.user.email };
+    setCached(u);
+    try {
+      localStorage.setItem(USER_KEY, JSON.stringify(u));
+    } catch {}
+  }, [session?.user]);
+  if (session?.user) return { name: session.user.name, email: session.user.email };
+  if (isPending) return cached;
+  return false;
 }

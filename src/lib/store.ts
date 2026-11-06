@@ -143,6 +143,8 @@ export function clearLocalData() {
     localStorage.removeItem(DATA_KEY);
     localStorage.removeItem(SYNC_KEY);
     localStorage.removeItem("portafoglio:quotes:v1");
+    localStorage.removeItem("portafoglio:history:v1");
+    localStorage.removeItem("portafoglio:user:v1");
   } catch {}
   current = DEMO;
   listeners.forEach((l) => l());
