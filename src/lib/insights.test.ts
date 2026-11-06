@@ -30,6 +30,12 @@ describe("dividendi di un titolo", () => {
     expect(info.byYear.at(-1)).toEqual({ year: "2026", amount: 0.52, estimate: 0.5 });
   });
 
+  it("crescita a 1 e 3 anni con l'etichetta", () => {
+    // 2024 → 2025: da 0,94 a 1,00. Il 2022 è il primo anno: niente 3 anni.
+    expect(info.growthBy.map((g) => g.years)).toEqual([1]);
+    expect(info.growthBy[0].rate).toBeCloseTo(1 / 0.94 - 1, 6);
+  });
+
   it("crescita media annua sugli anni completi", () => {
     // 2023 → 2025: da 0,88 a 1,00 in 2 anni.
     expect(info.growth).toBeCloseTo(Math.sqrt(1 / 0.88) - 1, 6);

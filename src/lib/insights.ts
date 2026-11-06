@@ -99,6 +99,13 @@ export interface DividendInfo {
   byYear: { year: string; amount: number; estimate: number }[];
   /** Prossimi pagamenti stimati: stesse date e importi dell'anno scorso. */
   upcoming: { date: string; amount: number }[];
+  /** Crescita media annua del dividendo su 1, 3, 5 e 10 anni (anni solari completi). */
+  growthBy: { years: number; rate: number }[];
+}
+
+/** Giudizio sulla crescita del dividendo, come etichetta. */
+export function growthLabel(rate: number) {
+  return rate >= 0.1 ? "Forte crescita" : rate >= 0.03 ? "Crescita" : rate > -0.01 ? "Stabile" : "In calo";
 }
 
 export function dividendInfo(divs: [string, number][], price: number | null, today = iso(Date.now())): DividendInfo | null {
@@ -136,6 +143,16 @@ export function dividendInfo(divs: [string, number][], price: number | null, tod
     growth = Math.pow(b.amount / a.amount, 1 / growthYears) - 1;
   }
 
+  // Crescita su più orizzonti: dall'anno completo n anni prima all'ultimo anno completo.
+  const lastFull = thisYear - 1;
+  const growthBy = [1, 3, 5, 10]
+    .map((n) => {
+      const a = totals.get(lastFull - n);
+      const b = totals.get(lastFull);
+      return a && b && lastFull - n > firstYear ? { years: n, rate: Math.pow(b / a, 1 / n) - 1 } : null;
+    })
+    .filter((g): g is { years: number; rate: number } => g !== null);
+
   const lastPay = divs.filter(([d]) => d <= today).at(-1);
   return {
     trailing,
@@ -146,6 +163,7 @@ export function dividendInfo(divs: [string, number][], price: number | null, tod
     last: lastPay ? { date: lastPay[0], amount: lastPay[1] } : null,
     byYear,
     upcoming,
+    growthBy,
   };
 }
 

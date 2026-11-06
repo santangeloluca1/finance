@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Clock, LoaderCircle, Search, X } from "lucide-react";
+import { LoaderCircle, Search, X } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BackLink, LargeTitle, Logo, SectionHeader } from "@/components/ui";
-import { fmtPrice, fmtSignedPct } from "@/lib/format";
+import { fmtPct, fmtPrice, fmtSignedPct } from "@/lib/format";
+import { POPULAR, TYPE_LABEL, type Popular } from "@/lib/popular";
 
 interface Result {
   ticker: string;
@@ -86,12 +87,31 @@ export default function Cerca() {
     router.push(hrefFor(r));
   };
 
-  const clearRecent = () => {
+  const removeRecent = (ticker: string) => {
+    const next = readRecent().filter((x) => x.ticker !== ticker);
     try {
-      localStorage.removeItem(RECENT_KEY);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
     } catch {}
-    setRecent([]);
+    setRecent(next);
   };
+
+  // Suggerimenti: quotazioni dei titoli più seguiti (per le maggiori variazioni di oggi).
+  const [popQuotes, setPopQuotes] = useState<Record<string, { price: number; previousClose: number; currency: string }>>({});
+  useEffect(() => {
+    const t = POPULAR.map((p) => (p.currency === "EUR" && p.isin ? `${p.ticker}~${p.isin}` : p.ticker)).join(",");
+    fetch(`/api/quotes?t=${encodeURIComponent(t)}`)
+      .then((r) => r.json())
+      .then((j) => setPopQuotes(j.quotes ?? {}))
+      .catch(() => {});
+  }, []);
+  const asResult = (p: Popular): Result => {
+    const qt = popQuotes[p.ticker];
+    return { ticker: p.ticker, name: p.name, exchange: "", type: p.type, isin: p.isin ?? null, currency: qt?.currency ?? p.currency, price: qt?.price ?? null, change: qt?.previousClose ? qt.price / qt.previousClose - 1 : null };
+  };
+  const movers = POPULAR.map(asResult)
+    .filter((r) => r.change !== null)
+    .sort((a, b) => Math.abs(b.change!) - Math.abs(a.change!))
+    .slice(0, 6);
 
   const empty = q.trim().length < 2;
 
@@ -124,28 +144,61 @@ export default function Cerca() {
       </label>
 
       {empty ? (
-        recent.length > 0 ? (
-          <>
-            <SectionHeader
-              right={
-                <button onClick={clearRecent} className="min-h-[44px] text-[15px] font-semibold text-accent">
-                  Cancella
-                </button>
-              }
-            >
-              Recenti
-            </SectionHeader>
-            <ul className="stagger">
-              {recent.map((r) => (
-                <ResultRow key={r.ticker} r={r} icon onClick={() => open(r)} />
-              ))}
-            </ul>
-          </>
-        ) : (
-          <p className="px-8 pt-10 text-center text-[15px] leading-snug text-mut">
-            Cerca qualsiasi titolo per vederne l&apos;andamento, anche se non lo possiedi. Prova con il nome, il ticker o l&apos;ISIN.
-          </p>
-        )
+        <>
+          {/* Maggiori variazioni di oggi tra i titoli più seguiti: schede scorrevoli. */}
+          <p className="px-4 pb-3 pt-7 text-[15px] text-mut">Maggiori variazioni di oggi</p>
+          <div className="no-scrollbar flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-1">
+            {movers.length
+              ? movers.map((r, i) => (
+                  <button
+                    key={r.ticker}
+                    onClick={() => open(r)}
+                    className="press page-in flex h-[172px] w-[148px] shrink-0 snap-start flex-col rounded-[18px] border border-sep p-4 text-left"
+                    style={{ animationDelay: `${i * 40}ms` }}
+                  >
+                    <Logo isin={r.isin ?? r.ticker} name={r.name} size={44} />
+                    <p className="mt-auto line-clamp-2 text-[17px] font-bold leading-tight">{r.name}</p>
+                    <p className={`num mt-2 text-[16px] font-medium ${r.change! > 0 ? "text-up" : "text-dn"}`}>
+                      {r.change! > 0 ? "↗ " : "↘ "}
+                      {fmtPct(Math.abs(r.change!))}
+                    </p>
+                  </button>
+                ))
+              : Array.from({ length: 3 }, (_, i) => <span key={i} className="skeleton h-[172px] w-[148px] shrink-0 rounded-[18px]" />)}
+          </div>
+
+          {recent.length > 0 && (
+            <>
+              <p className="px-4 pb-1 pt-8 text-[15px] text-mut">Ultime ricerche</p>
+              <ul className="stagger">
+                {recent.map((r) => (
+                  <li key={r.ticker} className="flex items-center">
+                    <button onClick={() => open(r)} className="flex min-h-[64px] min-w-0 flex-1 items-center gap-3.5 py-2.5 pl-4 text-left active:bg-panel-2">
+                      <Logo isin={r.isin ?? r.ticker} name={shortName(r.name)} size={44} />
+                      <div className="min-w-0">
+                        <p className="truncate text-[17px] font-semibold">{shortName(r.name)}</p>
+                        <p className="flex items-center gap-2 text-[14px] text-mut">
+                          <span className="num">{r.ticker.split(".")[0]}</span>
+                          <TypeChip type={r.type} />
+                        </p>
+                      </div>
+                    </button>
+                    <button onClick={() => removeRecent(r.ticker)} aria-label={`Togli ${shortName(r.name)} dalle ricerche recenti`} className="flex h-11 w-12 shrink-0 items-center justify-center text-ink-2 active:opacity-50">
+                      <X size={20} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <p className="px-4 pb-1 pt-8 text-[15px] text-mut">I più seguiti</p>
+          <ul className="stagger">
+            {POPULAR.slice(0, 10).map((p) => (
+              <ResultRow key={p.ticker} r={asResult(p)} chip onClick={() => open(asResult(p))} />
+            ))}
+          </ul>
+        </>
       ) : (
         <>
           {mine.length > 0 && (
@@ -182,7 +235,7 @@ export default function Cerca() {
   );
 }
 
-function ResultRow({ r, onClick, icon }: { r: Result; onClick: () => void; icon?: boolean }) {
+function ResultRow({ r, onClick, icon, chip }: { r: Result; onClick: () => void; icon?: boolean; chip?: boolean }) {
   const name = shortName(r.name);
   return (
     <li>
@@ -190,9 +243,12 @@ function ResultRow({ r, onClick, icon }: { r: Result; onClick: () => void; icon?
         <Logo isin={r.isin ?? r.ticker} name={name} size={40} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[17px] font-semibold">{name}</p>
-          <p className="num flex items-center gap-1 truncate text-[14px] text-mut">
-            {icon && <Clock size={12} className="shrink-0" />}
-            {r.ticker.split(".")[0]} · {r.exchange}
+          <p className="num flex items-center gap-2 truncate text-[14px] text-mut">
+            <span>
+              {r.ticker.split(".")[0]}
+              {r.exchange ? ` · ${r.exchange}` : ""}
+            </span>
+            {(chip || !r.exchange) && <TypeChip type={r.type} />}
           </p>
         </div>
         {/* Nei recenti il prezzo sarebbe vecchio: si vede aprendo la scheda. */}
@@ -207,4 +263,9 @@ function ResultRow({ r, onClick, icon }: { r: Result; onClick: () => void; icon?
       </button>
     </li>
   );
+}
+
+function TypeChip({ type }: { type: string }) {
+  const label = TYPE_LABEL[type];
+  return label ? <span className="rounded-full bg-chip px-2 py-px text-[12px] font-medium text-mut">{label}</span> : null;
 }

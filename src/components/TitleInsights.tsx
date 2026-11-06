@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, KeyRound, Newspaper } from "lucide-react";
-import { DayCell, InfoRow, Panel, Segmented } from "@/components/ui";
+import { Panel, Segmented } from "@/components/ui";
 import type { Instrument } from "@/lib/engine/types";
 import { isFundLike } from "@/lib/engine/tax";
 import { exchangeName, fmtDate, fmtEur, fmtN, fmtPct, fmtPrice, fmtSignedPct, fmtWhen } from "@/lib/format";
-import { dividendInfo, priceStats } from "@/lib/insights";
+import { dividendInfo, growthLabel, priceStats } from "@/lib/insights";
 import { useCompositions } from "@/lib/xray-client";
 
 type Tab = "panoramica" | "dividendi" | "notizie" | "analisti";
@@ -66,11 +66,22 @@ export function TitleInsights({ instrument, price, quantity, taxRate }: { instru
 
   return (
     <section className="pt-8">
-      <div className="px-4">
-        <Segmented value={tab} onChange={setTab} options={options} size="sm" />
+      {/* Schede di testo, quella scelta su una pillola (come getquin). */}
+      <div role="tablist" className="no-scrollbar flex gap-1 overflow-x-auto border-b border-sep px-3 pb-3">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            role="tab"
+            aria-selected={tab === o.value}
+            onClick={() => setTab(o.value)}
+            className={`press h-9 shrink-0 rounded-full px-3.5 text-[16px] transition-colors ${tab === o.value ? "bg-chip font-semibold text-ink" : "text-mut"}`}
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
-      <div key={tab} className="page-in pt-4">
-        {tab === "panoramica" && <Overview series={series} loading={!hist} price={price} instrument={instrument} fund={fund && hasIsin} />}
+      <div key={tab} className="page-in">
+        {tab === "panoramica" && <Overview series={series} loading={!hist} price={price} instrument={instrument} fund={fund && hasIsin} q={q.toString()} histKey={histKey} />}
         {tab === "dividendi" && <Dividends insights={insights} price={price} instrument={instrument} quantity={quantity} taxRate={taxRate} fund={fund} />}
         {tab === "notizie" && <News insights={insights} />}
         {tab === "analisti" && <Analysts instrument={instrument} q={q.toString()} />}
@@ -79,32 +90,99 @@ export function TitleInsights({ instrument, price, quantity, taxRate }: { instru
   );
 }
 
+/** Titolo di sezione grande, come le altre pagine. */
+function H({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between px-4 pb-4 pt-7">
+      <h3 className="text-[22px] font-bold tracking-[-0.025em]">{children}</h3>
+      {right}
+    </div>
+  );
+}
+
+/** Dati su due colonne: etichetta grigia sopra, valore sotto. */
+function Stats({ items }: { items: ({ label: string; value: React.ReactNode; tone?: string; hint?: string } | null | false | undefined | 0 | "")[] }) {
+  const list = items.filter(Boolean) as { label: string; value: React.ReactNode; tone?: string; hint?: string }[];
+  return (
+    <dl className="stagger grid grid-cols-2 gap-x-4 gap-y-5 px-4">
+      {list.map((i) => (
+        <div key={i.label} className="min-w-0">
+          <dt className="text-[14px] leading-snug text-mut">{i.label}</dt>
+          <dd className={`num mt-1 truncate text-[18px] font-medium ${i.tone ?? ""}`}>{i.value}</dd>
+          {i.hint && <p className="text-[12px] text-mut">{i.hint}</p>}
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** Barra minimo–massimo con il segmento scuro dove si trova il prezzo (come getquin). */
+function RangeBar({ title, low, high, price, currency }: { title: string; low: number; high: number; price: number; currency: string }) {
+  const pos = high > low ? Math.min(1, Math.max(0, (price - low) / (high - low))) : 0.5;
+  const w = 15;
+  return (
+    <div className="px-4 pb-6">
+      <p className="text-[14px] text-mut">{title}</p>
+      <div className="num mt-1 flex justify-between text-[18px] font-medium">
+        <span>{px(low, currency)}</span>
+        <span>{px(high, currency)}</span>
+      </div>
+      <div className="relative mt-3 h-1.5 rounded-full bg-chip">
+        <div className="absolute inset-y-0 rounded-full bg-ink transition-[left] duration-500" style={{ width: `${w}%`, left: `${pos * (100 - w)}%` }} />
+      </div>
+    </div>
+  );
+}
+
 // ---------- Panoramica ----------
 
-function Overview({ series, loading, price, instrument, fund }: { series: [string, number][] | null; loading: boolean; price: number | null; instrument: Instrument; fund: boolean }) {
+function Overview({ series, loading, price, instrument, fund, q, histKey }: { series: [string, number][] | null; loading: boolean; price: number | null; instrument: Instrument; fund: boolean; q: string; histKey: string }) {
   const stats = useMemo(() => (series ? priceStats(series, price) : null), [series, price]);
+  const day = useJson<{ points: [string, number][]; previousClose: number }>(`/api/intraday?t=${encodeURIComponent(histKey)}`);
+  // Indicatori di Finnhub (azioni USA): stessa richiesta della scheda Analisti, già in memoria.
+  const an = useJson<AnalystResponse>(fund ? null : `/api/analysts?${q}`);
+  const m = an?.status === "ok" ? an.data?.metrics : null;
   const cur = instrument.currency;
-  if (loading) return <Skeleton rows={4} />;
+  if (loading) return <Skeleton rows={5} />;
+  const pts = day?.points ?? [];
+  const dayLow = pts.length ? Math.min(...pts.map((p) => p[1])) : null;
+  const dayHigh = pts.length ? Math.max(...pts.map((p) => p[1])) : null;
   return (
     <div>
+      <H>Dati finanziari</H>
+      {dayLow !== null && dayHigh !== null && dayHigh > dayLow && <RangeBar title="Giornaliero" low={dayLow} high={dayHigh} price={price ?? pts[pts.length - 1][1]} currency={cur} />}
+      {stats && <RangeBar title="Ultime 52 settimane" low={stats.low52} high={stats.high52} price={price ?? stats.low52} currency={cur} />}
+      <Stats
+        items={[
+          pts.length > 0 && { label: "Apertura", value: px(pts[0][1], cur) },
+          !!day?.previousClose && { label: "Chiusura precedente", value: px(day.previousClose, cur) },
+          m?.marketCap && { label: "Capitalizzazione", value: `${fmtN(m.marketCap / 1e9, { maximumFractionDigits: m.marketCap > 1e11 ? 0 : 1 })} mld $` },
+          m?.pe && { label: "Prezzo / utili", value: fmtN(m.pe, { maximumFractionDigits: 2 }) },
+          m?.eps && { label: "Utile per azione", value: fmtPrice(m.eps, "USD") },
+          m?.revenueGrowth != null && { label: "Crescita ricavi", value: fmtSignedPct(m.revenueGrowth / 100), tone: tone(m.revenueGrowth) },
+          m?.netMargin != null && { label: "Margine netto", value: fmtPct(m.netMargin / 100) },
+          m?.beta != null && { label: "Beta", value: fmtN(m.beta, { maximumFractionDigits: 2 }) },
+        ]}
+      />
       {stats ? (
         <>
-          <Range52 low={stats.low52} high={stats.high52} price={price ?? stats.low52} currency={cur} />
-          <Panel className="mt-4">
-            {stats.r1 !== null && <InfoRow label="Rendimento a 1 anno" value={fmtSignedPct(stats.r1)} valueClass={tone(stats.r1)} />}
-            {stats.r3 !== null && <InfoRow label="A 3 anni" hint="media annua" value={fmtSignedPct(stats.r3)} valueClass={tone(stats.r3)} />}
-            {stats.r5 !== null && <InfoRow label="A 5 anni" hint="media annua" value={fmtSignedPct(stats.r5)} valueClass={tone(stats.r5)} />}
-            {stats.volatility !== null && <InfoRow label="Volatilità" hint="oscillazione annua tipica" value={fmtPct(stats.volatility)} />}
-            <InfoRow
-              label="Calo massimo"
-              hint={stats.drawdownDate ? `dal picco, ${fmtDate(stats.drawdownDate, { month: "short", year: "numeric" })}` : "dal picco, ultimi 5 anni"}
-              value={fmtSignedPct(stats.maxDrawdown)}
-              valueClass={stats.maxDrawdown < -0.0001 ? "text-dn" : ""}
-            />
-          </Panel>
-          <p className="px-8 pt-2 text-[12px] leading-snug text-mut">Variazioni di prezzo: dividendi e cedole non inclusi.</p>
+          <H>Rendimento</H>
+          <Stats
+            items={[
+              stats.r1 !== null && { label: "1 anno", value: arrowPct(stats.r1), tone: tone(stats.r1) },
+              stats.r3 !== null && { label: "3 anni, annuo", value: arrowPct(stats.r3), tone: tone(stats.r3) },
+              stats.r5 !== null && { label: "5 anni, annuo", value: arrowPct(stats.r5), tone: tone(stats.r5) },
+              stats.volatility !== null && { label: "Volatilità", value: fmtPct(stats.volatility) },
+              {
+                label: "Calo massimo",
+                value: fmtSignedPct(stats.maxDrawdown),
+                tone: stats.maxDrawdown < -0.0001 ? "text-dn" : "",
+                hint: stats.drawdownDate ? `dal picco, ${fmtDate(stats.drawdownDate, { month: "short", year: "numeric" })}` : undefined,
+              },
+            ]}
+          />
           {stats.years.length > 1 && (
-            <div className="mx-4 mt-4 grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${stats.years.length}, minmax(0, 1fr))` }}>
+            <div className="mx-4 mt-6 grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${stats.years.length}, minmax(0, 1fr))` }}>
               {stats.years.map((y) => (
                 <div key={y.year} className="rounded-[8px] py-1.5 text-center" style={{ background: cellBg(y.ret) }}>
                   <p className="num text-[11px] font-semibold text-mut">{y.year}</p>
@@ -113,32 +191,12 @@ function Overview({ series, loading, price, instrument, fund }: { series: [strin
               ))}
             </div>
           )}
+          <p className="px-4 pt-3 text-[12px] leading-snug text-mut">Variazioni di prezzo: dividendi e cedole non inclusi.</p>
         </>
       ) : (
-        <p className="px-4 text-[15px] text-mut">Storico dei prezzi non disponibile.</p>
+        <p className="px-4 pt-4 text-[15px] text-mut">Storico dei prezzi non disponibile.</p>
       )}
       {fund && <Composition isin={instrument.isin} />}
-    </div>
-  );
-}
-
-/** Barra delle 52 settimane: dove si trova il prezzo tra minimo e massimo. */
-function Range52({ low, high, price, currency }: { low: number; high: number; price: number; currency: string }) {
-  const pos = high > low ? Math.min(1, Math.max(0, (price - low) / (high - low))) : 0.5;
-  return (
-    <div className="px-4">
-      <div className="flex items-baseline justify-between text-[13px] text-mut">
-        <span>Minimo 52 settimane</span>
-        <span>Massimo</span>
-      </div>
-      <div className="relative mt-2 h-1.5 rounded-full bg-chip">
-        <div className="grow-x absolute inset-y-0 left-0 rounded-full bg-accent/35" style={{ width: `${pos * 100}%` }} />
-        <span className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-bg bg-accent" style={{ left: `${pos * 100}%` }} />
-      </div>
-      <div className="num mt-1.5 flex justify-between text-[14px] font-medium">
-        <span>{fmtPrice(low, currency)}</span>
-        <span>{fmtPrice(high, currency)}</span>
-      </div>
     </div>
   );
 }
@@ -153,10 +211,10 @@ function Composition({ isin }: { isin: string }) {
   if (!rows.length && kind !== "countries") return null;
   const max = Math.max(...rows.map((r) => r.weight), 0.0001);
   return (
-    <div className="pt-8">
-      <div className="flex items-center justify-between px-4 pb-3">
-        <h3 className="text-[17px] font-semibold">Composizione</h3>
-        <div className="w-[230px]">
+    <div>
+      <div className="flex items-center justify-between gap-3 px-4 pb-4 pt-7">
+        <h3 className="text-[22px] font-bold tracking-[-0.025em]">Composizione</h3>
+        <div className="w-[200px]">
           <Segmented
             size="sm"
             value={kind}
@@ -193,71 +251,113 @@ const FREQ: Record<string, string> = { mensile: "Mensile", trimestrale: "Trimest
 
 function Dividends({ insights, price, instrument, quantity, taxRate, fund }: { insights: Insights | null; price: number | null; instrument: Instrument; quantity: number; taxRate: number; fund: boolean }) {
   const info = useMemo(() => (insights ? dividendInfo(insights.dividends, price) : null), [insights, price]);
-  if (!insights) return <Skeleton rows={4} />;
+  if (!insights) return <Skeleton rows={5} />;
   const cur = insights.currency || instrument.currency;
   if (!info) {
     return (
-      <p className="px-4 text-[15px] leading-snug text-mut">
+      <p className="px-4 pt-6 text-[15px] leading-snug text-mut">
         {fund ? "Nessuna distribuzione negli ultimi 10 anni: probabilmente è un ETF ad accumulazione, che reinveste i dividendi." : "Nessun dividendo pagato negli ultimi 10 anni."}
       </p>
     );
   }
-  const max = Math.max(...info.byYear.map((b) => b.amount + b.estimate), 0.0001);
-  const thisYear = String(new Date().getFullYear());
-  // Netto per te: solo se la valuta del dividendo coincide con quella del titolo che possiedi (euro).
+  // Netto per te: solo se il dividendo è in euro come il titolo che possiedi.
   const mine = quantity > 0 && cur === "EUR" ? (a: number) => a * quantity * (1 - taxRate) : null;
+  const next = info.upcoming[0];
+  const g3 = info.growthBy.find((g) => g.years === 3) ?? info.growthBy[info.growthBy.length - 1];
+
+  // Linea del tempo: i prossimi stimati (in alto, tratteggiati) e gli ultimi pagati.
+  const timeline = [
+    ...info.upcoming.slice(0, 2).reverse().map((u) => ({ ...u, future: true })),
+    ...insights.dividends
+      .filter(([d]) => d <= new Date().toISOString().slice(0, 10))
+      .slice(-6)
+      .reverse()
+      .map(([date, amount]) => ({ date, amount, future: false })),
+  ];
+  const max = Math.max(...timeline.map((t) => t.amount), 0.0001);
+
   return (
     <div>
-      <Panel>
-        {info.yield !== null && <InfoRow label="Rendimento" hint="ultimi 12 mesi sul prezzo attuale" value={fmtPct(info.yield)} />}
-        <InfoRow label="Dividendo annuo" hint="per azione, ultimi 12 mesi" value={fmtPrice(info.trailing, cur)} />
-        <InfoRow label="Frequenza" value={FREQ[info.frequency]} />
-        {info.growth !== null && <InfoRow label="Crescita" hint={`media annua, ultimi ${info.growthYears} anni`} value={fmtSignedPct(info.growth)} valueClass={tone(info.growth)} />}
-        {info.last && <InfoRow label="Ultimo stacco" hint={fmtDate(info.last.date)} value={fmtPrice(info.last.amount, cur)} />}
-        {mine && <InfoRow label="Per te in un anno" hint="stima netta sulle tue quote" value={fmtEur(mine(info.trailing))} valueClass="text-up" />}
-      </Panel>
+      <H>Generale</H>
+      <Stats
+        items={[
+          { label: "Dividendo annuo (12 mesi)", value: fmtPrice(info.trailing, cur) },
+          info.yield !== null && { label: "Rendimento (12 mesi)", value: fmtPct(info.yield) },
+          { label: "Frequenza", value: FREQ[info.frequency] },
+          g3 && { label: `Crescita (${g3.years} ${g3.years === 1 ? "anno" : "anni"})`, value: fmtSignedPct(g3.rate), tone: tone(g3.rate) },
+          next && { label: "Prossimo pagamento previsto", value: fmtPrice(next.amount, cur), hint: `stima, ${fmtDate(next.date, { day: "numeric", month: "short" })}` },
+          mine && { label: "Per te in un anno", value: fmtEur(mine(info.trailing)), tone: "text-up", hint: "stima netta sulle tue quote" },
+        ]}
+      />
 
-      {/* Andamento per anno: l'anno in corso con la parte stimata tratteggiata. */}
-      <div className="mx-4 mt-6 flex h-[120px] items-end gap-2">
-        {info.byYear.map((b) => (
-          <div key={b.year} className="flex h-full flex-1 flex-col items-center justify-end">
-            {b.estimate > 0 && (
-              <div className="grow-y hatch-box w-full rounded-[6px] border-[1.5px] border-dashed border-accent" style={{ height: `${(b.estimate / max) * 100}%` }} />
-            )}
-            {b.amount > 0 && <div className="grow-y mt-[2px] w-full rounded-[6px] bg-accent" style={{ height: `${(b.amount / max) * 100}%` }} />}
-            <p className={`num mt-1.5 text-[11px] font-semibold ${b.year === thisYear ? "text-ink" : "text-mut"}`}>{b.year}</p>
-          </div>
-        ))}
-      </div>
-
-      {info.upcoming.length > 0 && (
+      {info.growthBy.length > 0 && (
         <>
-          <h3 className="px-4 pb-1 pt-7 text-[17px] font-semibold">Prossimi stacchi stimati</h3>
+          <H>Crescita</H>
           <ul className="stagger">
-            {info.upcoming.slice(0, 4).map((u) => (
-              <li key={u.date} className="flex min-h-[56px] items-center gap-3.5 px-4 py-2">
-                <DayCell date={u.date} year={u.date.slice(0, 4) !== thisYear} className="text-accent" />
-                <div className="min-w-0 flex-1">
-                  <p className="num text-[16px] font-medium">{fmtPrice(u.amount, cur)} per azione</p>
-                  {mine && <p className="num text-[13px] text-mut">circa {fmtEur(mine(u.amount))} netti per te</p>}
-                </div>
-                <span className="text-[13px] text-mut">Stima</span>
+            {info.growthBy.map((g) => (
+              <li key={g.years} className="flex min-h-[48px] items-center gap-3 px-4">
+                <p className="w-[72px] text-[17px] font-semibold">
+                  {g.years} {g.years === 1 ? "anno" : "anni"}
+                </p>
+                <span className="rounded-full bg-chip px-2.5 py-0.5 text-[14px] text-mut">{growthLabel(g.rate)}</span>
+                <p className={`num ml-auto text-[17px] font-medium ${tone(g.rate)}`}>{arrowPct(g.rate)}</p>
               </li>
             ))}
           </ul>
-          <p className="px-4 pt-1 text-[12px] leading-snug text-mut">Stime: stesse date e importi degli ultimi 12 mesi. Lo stacco effettivo lo decide la società.</p>
         </>
       )}
+
+      {/* Calendario a linea del tempo, come getquin. */}
+      <div className="mx-4 mt-7 rounded-[20px] bg-panel px-5 pb-3 pt-5">
+        <h3 className="text-[22px] font-bold tracking-[-0.025em]">Calendario</h3>
+        <ul className="stagger mt-3">
+          {timeline.map((t, i) => {
+            const last = i === timeline.length - 1;
+            const nextFuture = timeline[i + 1]?.future;
+            return (
+              <li key={t.date} className="relative flex min-h-[56px] items-center gap-4">
+                {/* Pallino e tratto verso il pagamento successivo nella lista. */}
+                <span className="relative flex w-3 shrink-0 justify-center self-stretch">
+                  {!last && (
+                    <span
+                      className={`absolute top-1/2 h-full w-0 border-l-2 ${t.future || nextFuture ? "border-dashed border-faint/60" : "border-accent"}`}
+                      style={{ top: "50%" }}
+                    />
+                  )}
+                  <span className={`relative z-10 mt-auto mb-auto h-3 w-3 rounded-full ${t.future ? "border-2 border-faint/70 bg-panel" : "bg-accent"}`} />
+                </span>
+                <p className={`num w-[64px] shrink-0 text-[16px] font-semibold ${t.future ? "text-mut" : ""}`}>{monthYear(t.date)}</p>
+                <div className="min-w-0 flex-1">
+                  <div className={`grow-x h-2.5 rounded-[3px] ${t.future ? "border border-dashed border-accent/60" : "bg-accent"}`} style={{ width: `${Math.max(6, (t.amount / max) * 100)}%` }} />
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className={`num text-[16px] ${t.future ? "text-mut" : "font-medium"}`}>{fmtPrice(t.amount, cur)}</p>
+                  {mine && <p className="num text-[12px] text-mut">{fmtEur(mine(t.amount))} a te</p>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        {info.upcoming.length > 0 && <p className="pb-1 pt-2 text-[12px] leading-snug text-mut">Tratteggiati i prossimi stacchi stimati sugli ultimi 12 mesi.</p>}
+      </div>
     </div>
   );
+}
+
+/** "dic 26". */
+function monthYear(iso: string) {
+  const m = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"][Number(iso.slice(5, 7)) - 1];
+  return `${m} ${iso.slice(2, 4)}`;
 }
 
 // ---------- Notizie ----------
 
 function News({ insights }: { insights: Insights | null }) {
   if (!insights) return <Skeleton rows={4} />;
-  if (!insights.news.length) return <p className="px-4 text-[15px] text-mut">Nessuna notizia recente.</p>;
+  if (!insights.news.length) return <p className="px-4 pt-6 text-[15px] text-mut">Nessuna notizia recente.</p>;
   return (
+    <>
+    <H>Ultime notizie</H>
     <ul className="stagger">
       {insights.news.map((n) => (
         <li key={n.link}>
@@ -276,6 +376,7 @@ function News({ insights }: { insights: Insights | null }) {
         </li>
       ))}
     </ul>
+    </>
   );
 }
 
@@ -301,7 +402,7 @@ function Analysts({ instrument, q }: { instrument: Instrument; q: string }) {
   if (!res) return <Skeleton rows={4} />;
   if (res.status === "nokey") {
     return (
-      <Panel className="px-4 py-4">
+      <Panel className="mt-6 px-4 py-4">
         <p className="flex items-center gap-2 text-[16px] font-semibold">
           <KeyRound size={18} className="text-accent" /> Da attivare una volta
         </p>
@@ -312,7 +413,7 @@ function Analysts({ instrument, q }: { instrument: Instrument; q: string }) {
     );
   }
   if (res.status === "unavailable" || !res.data) {
-    return <p className="px-4 text-[15px] leading-snug text-mut">Dati degli analisti disponibili per le azioni americane. Per questo titolo il servizio gratuito non li fornisce.</p>;
+    return <p className="px-4 pt-6 text-[15px] leading-snug text-mut">Dati degli analisti disponibili per le azioni americane. Per questo titolo il servizio gratuito non li fornisce.</p>;
   }
   const d = res.data;
   const usPrice = symbol ? usQuote?.quotes?.[symbol]?.price ?? null : null;
@@ -324,7 +425,10 @@ function Analysts({ instrument, q }: { instrument: Instrument; q: string }) {
   return (
     <div>
       {r && total > 0 && (
-        <div className="px-4">
+        <p className="px-4 pt-7 text-[14px] text-mut">Consenso degli analisti</p>
+      )}
+      {r && total > 0 && (
+        <div className="px-4 pt-1">
           <div className="flex items-baseline justify-between">
             <p className="text-[22px] font-bold tracking-[-0.02em]">{verdict}</p>
             <p className="text-[13px] text-mut">{total} analisti</p>
@@ -353,32 +457,23 @@ function Analysts({ instrument, q }: { instrument: Instrument; q: string }) {
       {d.target && (
         <div className="px-4 pt-7">
           <div className="flex items-baseline justify-between">
-            <h3 className="text-[17px] font-semibold">Prezzo obiettivo a 12 mesi</h3>
+            <h3 className="text-[22px] font-bold tracking-[-0.025em]">Prezzo obiettivo</h3>
             {usPrice && <p className={`num text-[15px] font-semibold ${tone(d.target.mean / usPrice - 1)}`}>{fmtSignedPct(d.target.mean / usPrice - 1)}</p>}
           </div>
           <TargetBar low={d.target.low} mean={d.target.mean} high={d.target.high} price={usPrice} />
         </div>
       )}
 
-      <Panel className="mt-6">
-        {d.nextEarnings && (
-          <InfoRow
-            label="Prossimi risultati"
-            hint={d.nextEarnings.epsEstimate != null ? `utile per azione atteso ${fmtPrice(d.nextEarnings.epsEstimate, "USD")}` : undefined}
-            value={fmtDate(d.nextEarnings.date, { day: "numeric", month: "short", year: "numeric" })}
-          />
-        )}
-        {m?.marketCap && <InfoRow label="Capitalizzazione" value={`${fmtN(m.marketCap / 1e9, { maximumFractionDigits: m.marketCap > 1e11 ? 0 : 1 })} mld $`} />}
-        {m?.pe && <InfoRow label="Prezzo / utili" hint="ultimi 12 mesi" value={fmtN(m.pe, { maximumFractionDigits: 1 })} />}
-        {m?.revenueGrowth != null && <InfoRow label="Crescita dei ricavi" hint="anno su anno" value={fmtSignedPct(m.revenueGrowth / 100)} valueClass={tone(m.revenueGrowth)} />}
-        {m?.netMargin != null && <InfoRow label="Margine netto" value={fmtPct(m.netMargin / 100)} />}
-        {m?.beta != null && <InfoRow label="Beta" hint="sensibilità al mercato (1 = come l'indice)" value={fmtN(m.beta, { maximumFractionDigits: 2 })} />}
-        {m?.dividendYield ? <InfoRow label="Rendimento da dividendo" value={fmtPct(m.dividendYield / 100)} /> : null}
-      </Panel>
-
+      <H>Risultati</H>
+      <Stats
+        items={[
+          d.nextEarnings && { label: "Prossima trimestrale", value: fmtDate(d.nextEarnings.date, { day: "numeric", month: "short", year: "numeric" }) },
+          d.nextEarnings?.epsEstimate != null && { label: "Utile per azione atteso", value: fmtPrice(d.nextEarnings.epsEstimate, "USD") },
+        ]}
+      />
       {d.earnings.length > 0 && (
         <>
-          <h3 className="px-4 pb-1 pt-7 text-[17px] font-semibold">Ultimi risultati</h3>
+          <p className="px-4 pb-1 pt-6 text-[14px] text-mut">Ultimi trimestri: utile per azione effettivo contro atteso</p>
           <ul className="stagger">
             {d.earnings.map((e) => (
               <li key={e.period} className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-2">
@@ -423,7 +518,7 @@ function TargetBar({ low, mean, high, price }: { low: number; mean: number; high
 
 function Skeleton({ rows }: { rows: number }) {
   return (
-    <div className="space-y-3 px-4" aria-label="Caricamento">
+    <div className="space-y-3 px-4 pt-6" aria-label="Caricamento">
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex items-center justify-between">
           <span className="skeleton h-3.5" style={{ width: `${40 + ((i * 17) % 30)}%` }} />
@@ -432,6 +527,16 @@ function Skeleton({ rows }: { rows: number }) {
       ))}
     </div>
   );
+}
+
+/** Prezzo con due decimali (quattro solo sotto 1, es. 0,0106 €). */
+function px(v: number, currency: string) {
+  return fmtPrice(v >= 1 ? Math.round(v * 100) / 100 : v, currency);
+}
+
+/** "↗ 9,61%" come getquin. */
+function arrowPct(v: number) {
+  return `${v > 0.00005 ? "↗ " : v < -0.00005 ? "↘ " : ""}${fmtPct(Math.abs(v))}`;
 }
 
 function tone(n: number) {
