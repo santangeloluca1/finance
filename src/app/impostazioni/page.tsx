@@ -1,226 +1,168 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ClipboardPaste, Download, LogOut, RotateCcw, Upload } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { Bell, ChevronRight, Database, Eye, Info, LogOut, Palette, Repeat, Target, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { usePortfolioCtx } from "@/components/PortfolioProvider";
-import { BackLink, LargeTitle, Panel, SectionHeader, Segmented } from "@/components/ui";
-import { clearLocalData, resetToDemo, setData, type PortfolioData } from "@/lib/store";
-import { merge, useSyncStatus } from "@/lib/sync";
-import { fmtTime } from "@/lib/format";
-import { useTheme, type ThemePref } from "@/lib/theme";
+import { usePortfolioView } from "@/components/PortfolioProvider";
+import { Avatar, SettingsRow, SettingsSection, useAccount } from "@/components/settings";
+import { BackLink, LargeTitle, Switch } from "@/components/ui";
+import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
+import { monthlyReturns, twrSeries } from "@/lib/performance";
+import { usePrivacy } from "@/lib/privacy";
+import { usePush } from "@/lib/push-client";
+import { clearLocalData } from "@/lib/store";
+import { useSyncStatus } from "@/lib/sync";
+import { useTheme } from "@/lib/theme";
 
-/**
- * Legge un backup anche se arriva "sporco": testo codificato come URL (%7B…),
- * con spazi o caratteri attorno, o incollato da una chat. Un PDF viene segnalato.
- */
-function parseBackup(raw: string): PortfolioData {
-  let text = raw.replace(/^\uFEFF/, "").trim();
-  if (text.startsWith("%PDF")) throw new Error("hai scelto un PDF, non il file .json");
-  if (/^%7B/i.test(text) || /^data:/i.test(text)) {
-    try {
-      text = decodeURIComponent(text.replace(/^data:[^,]*,/i, ""));
-    } catch {}
-  }
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start < 0 || end < start) throw new Error("nel testo non c'è un backup");
-  return JSON.parse(text.slice(start, end + 1)) as PortfolioData;
-}
+const THEME_LABEL = { auto: "Automatico, come l'iPhone", light: "Chiaro", dark: "Scuro" } as const;
+const MONTHS = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
 export default function Impostazioni() {
-  const { data } = usePortfolioCtx();
-  const [theme, setTheme] = useTheme();
   const user = useAccount();
+  const [theme] = useTheme();
+  const [privacy, togglePrivacy] = usePrivacy();
+  const push = usePush();
   const sync = useSyncStatus();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  const exportBackup = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `basis-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  const importText = (text: string) => {
-    try {
-      const parsed = parseBackup(text);
-      if (!Array.isArray(parsed.transactions) || !Array.isArray(parsed.instruments) || !Array.isArray(parsed.accounts)) throw new Error("il file non è un backup di Basis");
-      // Con dati reali già presenti il file si aggiunge (a parità di id vince il file),
-      // così importare una sola banca non cancella le altre.
-      if (data.isDemo) {
-        setData({ ...parsed, isDemo: false });
-        setMsg(`Importate ${parsed.transactions.length} operazioni.`);
-      } else {
-        const next = merge(parsed, data);
-        setData(next);
-        setMsg(`Importate ${parsed.transactions.length} operazioni (${next.transactions.length - data.transactions.length} nuove), unite a quelle già presenti.`);
-      }
-    } catch (e) {
-      setMsg(`Ripristino non riuscito: ${(e as Error).message}. Usa un file .json di Basis.`);
-    }
-  };
-
-  const importFile = async (file: File) => importText(await file.text());
-
-  const importClipboard = async () => {
-    try {
-      importText(await navigator.clipboard.readText());
-    } catch {
-      setMsg("Non riesco a leggere gli appunti: copia il contenuto del file e riprova, consentendo l'accesso quando Safari lo chiede.");
-    }
-  };
-
-  const row = "flex w-full items-center gap-3 border-b border-sep px-4 py-3.5 text-left text-[16px] last:border-0 active:bg-panel-2";
+  const { data } = usePortfolioView();
 
   return (
     <div>
       <BackLink href="/" label="Home" />
       <LargeTitle>Impostazioni</LargeTitle>
 
-      {/* Il blocco c'è sempre (l'app richiede l'accesso): finché la sessione non arriva
-          si vede il nome salvato sul telefono o uno scheletro della stessa altezza. */}
+      <MonthRecap />
+
+      {/* Profilo: sempre presente; nome salvato sul telefono o scheletro finché arriva la sessione. */}
       {user !== false && (
-        <>
-          <SectionHeader>Account</SectionHeader>
-          <Panel>
-            <div className="flex min-h-[72px] items-center gap-3 border-b border-sep px-4 py-3.5">
-              {user ? (
-                <>
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-chip text-[17px] font-semibold">
-                    {(user.name || user.email)[0]?.toUpperCase()}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[16px] font-semibold">{user.name || user.email}</p>
-                    <p className="truncate text-[13px] text-mut">{user.email}</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <span className="skeleton h-11 w-11 shrink-0 rounded-full" />
-                  <div className="flex flex-col gap-2">
-                    <span className="skeleton h-3.5 w-28" />
-                    <span className="skeleton h-3 w-44" />
-                  </div>
-                </>
-              )}
-            </div>
-            <button
-              onClick={async () => {
-                await authClient.signOut();
-                clearLocalData();
-                window.location.replace("/accedi");
-              }}
-              className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-[16px] text-dn active:bg-panel-2"
-            >
-              <LogOut size={20} /> Esci
-            </button>
-          </Panel>
-        </>
+        <Link href="/impostazioni/account" className="mt-2 flex min-h-[76px] items-center gap-4 px-4 py-3 active:bg-panel-2">
+          {user ? (
+            <>
+              <Avatar name={user.name || user.email} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[19px] font-medium">{user.name || user.email}</p>
+                <p className="truncate text-[15px] text-mut">Visualizza profilo</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="skeleton h-[52px] w-[52px] shrink-0 rounded-full" />
+              <div className="flex flex-1 flex-col gap-2">
+                <span className="skeleton h-4 w-28" />
+                <span className="skeleton h-3.5 w-36" />
+              </div>
+            </>
+          )}
+          <ChevronRight size={20} strokeWidth={1.8} className="shrink-0 text-ink-2" />
+        </Link>
       )}
 
-      <SectionHeader>Aspetto</SectionHeader>
-      <div className="px-4">
-        <Segmented<ThemePref>
-          value={theme}
-          onChange={setTheme}
-          options={[
-            { value: "auto", label: "Automatico" },
-            { value: "light", label: "Chiaro" },
-            { value: "dark", label: "Scuro" },
-          ]}
+      <SettingsSection title="Portafoglio">
+        <SettingsRow
+          icon={Database}
+          title="Dati e backup"
+          subtitle={data.isDemo ? "Stai vedendo l'esempio · importa i tuoi movimenti" : sync.state === "ok" ? "Sincronizzati con il tuo account" : "Esporta, importa e sincronizzazione"}
+          href="/impostazioni/dati"
         />
-        <p className="px-1 pt-2 text-[13px] text-mut">Automatico segue l&apos;impostazione dell&apos;iPhone.</p>
-      </div>
+        <SettingsRow icon={Repeat} title="Operazioni ricorrenti" subtitle="Stipendio, bonifici e PAC" href="/ricorrenti" />
+        <SettingsRow icon={Target} title="Obiettivi e pianificazione" subtitle="Traguardi, ribilanciamento e proiezioni" href="/#obiettivi" />
+      </SettingsSection>
 
-      <SectionHeader>Dati</SectionHeader>
-      <Panel>
-        <button onClick={exportBackup} className={row}>
-          <Download size={20} className="text-accent" /> Esporta backup
-        </button>
-        <button onClick={() => fileRef.current?.click()} className={row}>
-          <Upload size={20} className="text-accent" /> Importa da file
-        </button>
-        <button onClick={importClipboard} className={row}>
-          <ClipboardPaste size={20} className="text-accent" /> Incolla dagli appunti
-        </button>
-      </Panel>
-      <Panel className="mt-6">
-        <button
-          onClick={() => {
-            if (confirm("Mostrare il portafoglio di esempio su questo dispositivo? I tuoi dati restano salvati nel tuo account e torneranno alla prossima sincronizzazione.")) resetToDemo();
-          }}
-          className={`${row} text-dn`}
-        >
-          <RotateCcw size={20} /> Carica portafoglio di esempio
-        </button>
-      </Panel>
-      {/* Senza "accept": su iOS il filtro application/json rende i file .json non selezionabili. */}
-      <input
-        ref={fileRef}
-        type="file"
-        hidden
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (f) void importFile(f);
-        }}
-      />
-      {msg && <p className="px-8 pt-2 text-[13px] text-mut">{msg}</p>}
-      <p className="flex items-center gap-2 px-8 pt-2 text-[13px] leading-snug text-mut">
-        <span
-          className={`h-2 w-2 shrink-0 rounded-full ${
-            sync.state === "ok" ? "bg-up" : sync.state === "syncing" ? "animate-pulse bg-accent" : sync.state === "idle" ? "bg-faint" : "bg-warn"
-          }`}
+      <SettingsSection title="App">
+        <SettingsRow
+          icon={Bell}
+          title="Notifiche"
+          subtitle={push.status === "on" ? "Push attive su questo dispositivo" : "Notifiche push, avvisi automatici e regole"}
+          href="/avvisi/notifiche"
         />
-        {data.isDemo
-          ? "Stai vedendo l'esempio: i tuoi dati si sincronizzano dal primo movimento che inserisci."
-          : sync.state === "syncing"
-            ? "Sincronizzazione in corso…"
-            : sync.state === "ok"
-              ? `Sincronizzato con il tuo account${sync.at ? ` alle ${fmtTime(sync.at)}` : ""}. I dati sono disponibili su tutti i tuoi dispositivi.`
-              : sync.state === "offline"
-                ? "Sei offline: le modifiche restano sul telefono e verranno inviate appena torni online."
-                : sync.state === "error"
-                  ? "Sincronizzazione non riuscita: riprovo automaticamente. Le modifiche restano sul telefono."
-                  : "In attesa di sincronizzazione."}
-      </p>
+        <SettingsRow icon={Palette} title="Aspetto" subtitle={THEME_LABEL[theme]} href="/impostazioni/aspetto" />
+        <SettingsRow
+          icon={Eye}
+          title="Nascondi gli importi"
+          subtitle="Per guardare l'app in pubblico; anche dall'occhio in alto"
+          right={<Switch checked={privacy} onChange={togglePrivacy} label="Nascondi gli importi" />}
+        />
+        <SettingsRow icon={Info} title="Informazioni" subtitle="Fonti dei dati, calcoli e versione" href="/impostazioni/info" />
+      </SettingsSection>
 
-      <p className="px-6 pb-2 pt-10 text-center text-[12px] leading-relaxed text-mut">
-        Basis · quotazioni Yahoo Finance ogni 5 minuti (borse europee ~15 min di ritardo), cambi BCE, loghi Parqet.
-      </p>
+      {user && (
+        <ul className="pt-6">
+          <SettingsRow
+            icon={LogOut}
+            title="Esci"
+            danger
+            onClick={async () => {
+              await authClient.signOut();
+              clearLocalData();
+              window.location.replace("/accedi");
+            }}
+          />
+        </ul>
+      )}
     </div>
   );
 }
 
-type AccountUser = { name: string; email: string };
-const USER_KEY = "portafoglio:user:v1";
-
 /**
- * Utente collegato. Restituisce subito l'ultimo utente salvato sul telefono,
- * null mentre la sessione arriva per la prima volta, false se non c'è sessione.
+ * Riquadro in cima (come il "rewind" di getquin): com'è andato il mese appena
+ * chiuso. Si chiude con la X e ricompare il mese dopo.
  */
-function useAccount(): AccountUser | null | false {
-  const { data: session, isPending } = authClient.useSession();
-  const [cached, setCached] = useState<AccountUser | null>(null);
+function MonthRecap() {
+  const { history, totals, state } = usePortfolioView();
+  const [hidden, setHidden] = useState(true);
+  const now = new Date();
+  const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const key = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}`;
+  const storeKey = `portafoglio:recap:${key}`;
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(USER_KEY);
-      if (raw) setCached(JSON.parse(raw) as AccountUser);
-    } catch {}
-  }, []);
-  useEffect(() => {
-    if (!session?.user) return;
-    const u = { name: session.user.name, email: session.user.email };
-    setCached(u);
-    try {
-      localStorage.setItem(USER_KEY, JSON.stringify(u));
-    } catch {}
-  }, [session?.user]);
-  if (session?.user) return { name: session.user.name, email: session.user.email };
-  if (isPending) return cached;
-  return false;
+      setHidden(localStorage.getItem(storeKey) === "off");
+    } catch {
+      setHidden(false);
+    }
+  }, [storeKey]);
+
+  const recap = useMemo(() => {
+    if (!history?.length || !totals || !state) return null;
+    const inMonth = history.filter((h) => h.date.startsWith(key));
+    const before = history.filter((h) => h.date < `${key}-01`).at(-1);
+    if (!inMonth.length || !before) return null;
+    const ret = monthlyReturns(twrSeries(history.map((h) => ({ ...h, value: h.value - (h.cash ?? 0) }))))[key];
+    if (ret === undefined) return null;
+    return { ret, gain: inMonth[inMonth.length - 1].gain - before.gain };
+  }, [history, totals, state, key]);
+
+  if (hidden || !recap) return null;
+  const up = recap.ret >= 0;
+  return (
+    <div className="relative mx-4 mb-2 overflow-hidden rounded-[18px] bg-panel">
+      <Link href="/analisi" className="flex min-h-[104px] items-center gap-4 px-5 py-4 pr-24 active:opacity-80">
+        <div className="min-w-0">
+          <p className="text-[17px] font-bold">{MONTHS[last.getMonth()].replace(/^./, (c) => c.toUpperCase())} in breve</p>
+          <p className="mt-1 text-[15px] leading-snug text-mut">
+            Il portafoglio ha fatto <span className={`num sensitive font-semibold ${up ? "text-up" : "text-dn"}`}>{fmtSignedPct(recap.ret)}</span>,{" "}
+            <span className="num sensitive">{fmtSignedEur(recap.gain)}</span>. Vedi i dettagli in Analisi.
+          </p>
+        </div>
+      </Link>
+      {/* Decorazione: tre barre e la linea del logo, in grande e tagliate dal bordo. */}
+      <svg aria-hidden viewBox="0 0 100 100" className="pointer-events-none absolute -bottom-3 -right-2 h-[96px] w-[96px]">
+        <rect x="14" y="52" width="18" height="48" rx="5" fill="var(--chip)" className="grow-y" />
+        <rect x="41" y="24" width="18" height="76" rx="5" fill={up ? "var(--up)" : "var(--dn)"} opacity="0.85" className="grow-y" style={{ animationDelay: "80ms" }} />
+        <rect x="68" y="40" width="18" height="60" rx="5" fill="var(--chip)" className="grow-y" style={{ animationDelay: "160ms" }} />
+      </svg>
+      <button
+        aria-label="Chiudi il riepilogo del mese"
+        onClick={() => {
+          setHidden(true);
+          try {
+            localStorage.setItem(storeKey, "off");
+          } catch {}
+        }}
+        className="absolute right-1.5 top-1.5 flex h-9 w-9 items-center justify-center text-mut active:opacity-50"
+      >
+        <X size={18} />
+      </button>
+    </div>
+  );
 }

@@ -191,11 +191,14 @@ input[type="range"] {
 .anim-breathe {
   animation: breathe 1.6s ease-in-out infinite;
 }
-/* Blocchi segnaposto per testo e righe che stanno arrivando. */
-.skeleton {
-  border-radius: 6px;
-  background: var(--chip);
-  animation: breathe 1.6s ease-in-out infinite;
+/* Blocchi segnaposto per testo e righe che stanno arrivando.
+   Nel livello "components": le classi rounded-* di Tailwind restano più forti. */
+@layer components {
+  .skeleton {
+    border-radius: 6px;
+    background: var(--chip);
+    animation: breathe 1.6s ease-in-out infinite;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .anim-sweep {

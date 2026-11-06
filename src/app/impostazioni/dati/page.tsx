@@ -1,0 +1,133 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { ClipboardPaste, Download, LogOut, RotateCcw, Upload } from "lucide-react";
+import { usePortfolioCtx } from "@/components/PortfolioProvider";
+import { BackLink, LargeTitle, Panel } from "@/components/ui";
+import { resetToDemo, setData, type PortfolioData } from "@/lib/store";
+import { merge, useSyncStatus } from "@/lib/sync";
+import { fmtTime } from "@/lib/format";
+
+/**
+ * Legge un backup anche se arriva "sporco": testo codificato come URL (%7B…),
+ * con spazi o caratteri attorno, o incollato da una chat. Un PDF viene segnalato.
+ */
+function parseBackup(raw: string): PortfolioData {
+  let text = raw.replace(/^\uFEFF/, "").trim();
+  if (text.startsWith("%PDF")) throw new Error("hai scelto un PDF, non il file .json");
+  if (/^%7B/i.test(text) || /^data:/i.test(text)) {
+    try {
+      text = decodeURIComponent(text.replace(/^data:[^,]*,/i, ""));
+    } catch {}
+  }
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end < start) throw new Error("nel testo non c'è un backup");
+  return JSON.parse(text.slice(start, end + 1)) as PortfolioData;
+}
+
+export default function DatiBackup() {
+  const { data } = usePortfolioCtx();
+  const sync = useSyncStatus();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const exportBackup = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `basis-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const importText = (text: string) => {
+    try {
+      const parsed = parseBackup(text);
+      if (!Array.isArray(parsed.transactions) || !Array.isArray(parsed.instruments) || !Array.isArray(parsed.accounts)) throw new Error("il file non è un backup di Basis");
+      // Con dati reali già presenti il file si aggiunge (a parità di id vince il file),
+      // così importare una sola banca non cancella le altre.
+      if (data.isDemo) {
+        setData({ ...parsed, isDemo: false });
+        setMsg(`Importate ${parsed.transactions.length} operazioni.`);
+      } else {
+        const next = merge(parsed, data);
+        setData(next);
+        setMsg(`Importate ${parsed.transactions.length} operazioni (${next.transactions.length - data.transactions.length} nuove), unite a quelle già presenti.`);
+      }
+    } catch (e) {
+      setMsg(`Ripristino non riuscito: ${(e as Error).message}. Usa un file .json di Basis.`);
+    }
+  };
+
+  const importFile = async (file: File) => importText(await file.text());
+
+  const importClipboard = async () => {
+    try {
+      importText(await navigator.clipboard.readText());
+    } catch {
+      setMsg("Non riesco a leggere gli appunti: copia il contenuto del file e riprova, consentendo l'accesso quando Safari lo chiede.");
+    }
+  };
+
+  const row = "flex w-full items-center gap-3 border-b border-sep px-4 py-3.5 text-left text-[16px] last:border-0 active:bg-panel-2";
+
+  return (
+    <div>
+      <BackLink href="/impostazioni" label="Impostazioni" />
+      <LargeTitle>Dati e backup</LargeTitle>
+      <Panel>
+        <button onClick={exportBackup} className={row}>
+          <Download size={20} className="text-accent" /> Esporta backup
+        </button>
+        <button onClick={() => fileRef.current?.click()} className={row}>
+          <Upload size={20} className="text-accent" /> Importa da file
+        </button>
+        <button onClick={importClipboard} className={row}>
+          <ClipboardPaste size={20} className="text-accent" /> Incolla dagli appunti
+        </button>
+      </Panel>
+      <Panel className="mt-6">
+        <button
+          onClick={() => {
+            if (confirm("Mostrare il portafoglio di esempio su questo dispositivo? I tuoi dati restano salvati nel tuo account e torneranno alla prossima sincronizzazione.")) resetToDemo();
+          }}
+          className={`${row} text-dn`}
+        >
+          <RotateCcw size={20} /> Carica portafoglio di esempio
+        </button>
+      </Panel>
+      {/* Senza "accept": su iOS il filtro application/json rende i file .json non selezionabili. */}
+      <input
+        ref={fileRef}
+        type="file"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) void importFile(f);
+        }}
+      />
+      {msg && <p className="px-8 pt-2 text-[13px] text-mut">{msg}</p>}
+      <p className="flex items-center gap-2 px-8 pt-2 text-[13px] leading-snug text-mut">
+        <span
+          className={`h-2 w-2 shrink-0 rounded-full ${
+            sync.state === "ok" ? "bg-up" : sync.state === "syncing" ? "animate-pulse bg-accent" : sync.state === "idle" ? "bg-faint" : "bg-warn"
+          }`}
+        />
+        {data.isDemo
+          ? "Stai vedendo l'esempio: i tuoi dati si sincronizzano dal primo movimento che inserisci."
+          : sync.state === "syncing"
+            ? "Sincronizzazione in corso…"
+            : sync.state === "ok"
+              ? `Sincronizzato con il tuo account${sync.at ? ` alle ${fmtTime(sync.at)}` : ""}. I dati sono disponibili su tutti i tuoi dispositivi.`
+              : sync.state === "offline"
+                ? "Sei offline: le modifiche restano sul telefono e verranno inviate appena torni online."
+                : sync.state === "error"
+                  ? "Sincronizzazione non riuscita: riprovo automaticamente. Le modifiche restano sul telefono."
+                  : "In attesa di sincronizzazione."}
+      </p>
+
+    </div>
+  );
+}
