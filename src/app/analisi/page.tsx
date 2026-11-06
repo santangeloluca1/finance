@@ -16,7 +16,7 @@ export default function AnalisiPage() {
       <div className="flex items-center justify-between pr-4">
         <h1 className={`px-4 py-1 ${PAGE_TITLE}`}>Analisi</h1>
         <Link href="/consulente" className="press flex h-9 items-center gap-2 rounded-full bg-chip pl-1.5 pr-3.5 text-[14px] font-semibold text-ink">
-          <Orb size={24} /> Consulente
+          <Orb size={24} /> Minerva
         </Link>
       </div>
       <Toolbar filter={filter} setFilter={setFilter} view={view} />

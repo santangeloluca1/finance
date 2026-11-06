@@ -138,5 +138,33 @@ export function useAdvisor() {
     [context, view.data.profile],
   );
 
-  return { ready, configured, run, chat, view };
+  /** Chat con risposta a pezzi: onText riceve il testo accumulato finora. */
+  const stream = useCallback(
+    async (messages: ChatTurn[], onText: (text: string) => void): Promise<{ status: "ok"; text: string } | { status: "nokey" } | { status: "error"; message: string }> => {
+      const ctx = await context(null);
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages, context: ctx, profile: view.data.profile }),
+      });
+      if (res.status === 412) return { status: "nokey" };
+      if (!res.ok || !res.body) {
+        const j = await res.json().catch(() => null);
+        return { status: "error", message: j?.message ?? `HTTP ${res.status}` };
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let text = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += dec.decode(value, { stream: true });
+        onText(personalize(text));
+      }
+      return { status: "ok", text: personalize(text) };
+    },
+    [context, view.data.profile],
+  );
+
+  return { ready, configured, run, chat, stream, view };
 }

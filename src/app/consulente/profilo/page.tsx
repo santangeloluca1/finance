@@ -23,7 +23,7 @@ export default function Profilo() {
 
   return (
     <div>
-      <BackLink href="/consulente" label="Consulente" />
+      <BackLink href="/consulente" label="Minerva" />
       {/* Avanzamento */}
       <div className="mx-4 mt-2 flex gap-1.5">
         {Array.from({ length: total }, (_, i) => (
@@ -64,7 +64,7 @@ export default function Profilo() {
         ) : (
           <>
             <p className="text-[14px] font-medium text-mut">Ultimo passo, facoltativo</p>
-            <h1 className="mt-1 text-[26px] font-bold leading-tight tracking-[-0.03em]">C&apos;è altro che il consulente deve sapere?</h1>
+            <h1 className="mt-1 text-[26px] font-bold leading-tight tracking-[-0.03em]">C&apos;è altro che Minerva deve sapere?</h1>
             <textarea
               value={answers.notes ?? ""}
               onChange={(e) => setAnswers({ ...answers, notes: e.target.value.slice(0, 600) })}

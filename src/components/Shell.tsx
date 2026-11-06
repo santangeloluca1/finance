@@ -14,8 +14,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
   trackPath(path);
   if (path.startsWith("/accedi")) return <main>{children}</main>;
   const noBar = path.startsWith("/movimenti/nuovo");
+  // La chat occupa tutto lo schermo: intestazione e campo di scrittura sono fissi.
+  const chat = path.startsWith("/consulente/chat");
   return (
-    <main className={`mx-auto max-w-xl pt-safe ${noBar ? "pb-[calc(env(safe-area-inset-bottom)+24px)]" : "pb-tabbar"}`}>
+    <main className={`mx-auto max-w-xl pt-safe ${chat ? "" : noBar ? "pb-[calc(env(safe-area-inset-bottom)+24px)]" : "pb-tabbar"}`}>
       <div key={path} className="page-in">
         {children}
       </div>

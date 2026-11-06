@@ -235,7 +235,7 @@ export default function PositionDetail() {
       <AdvisorCard
         className="mt-8"
         href={`/consulente/analisi?${new URLSearchParams({ a: qty > 0 ? "vendere" : "titolo", isin: instrument.isin, t: instrument.ticker, n: name, c: instrument.currency })}`}
-        title={qty > 0 ? "Devo venderlo? Chiedi al consulente" : "Chiedi al consulente"}
+        title={qty > 0 ? "Devo venderlo? Chiedi a Minerva" : "Chiedi a Minerva"}
         subtitle={qty > 0 ? "Tasse, minus, ruolo nel portafoglio e alternative" : "Ha senso per il tuo portafoglio? Quanto pesarlo?"}
       />
 

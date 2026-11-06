@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUp, ChevronRight, KeyRound, Sparkles, UserRound } from "lucide-react";
+import { ArrowUp, ChevronRight, KeyRound, MessageCircle, SquarePen, Sparkles, UserRound } from "lucide-react";
+import { useThreads } from "@/lib/ai/threads";
 import { ICON } from "@/components/advisor/icons";
-import { Orb } from "@/components/advisor/Orb";
+import { ASSISTANT, Orb } from "@/components/advisor/Orb";
 import { SettingsRow, SettingsSection } from "@/components/settings";
 import { BackLink, LargeTitle } from "@/components/ui";
 import { useAdvisor } from "@/lib/ai/client";
@@ -21,6 +22,7 @@ export default function Consulente() {
   const [focused, setFocused] = useState(false);
   const profile = view.data.profile;
   const reports = view.data.aiReports ?? [];
+  const threads = useThreads();
   const groups = (Object.keys(GROUP_LABEL) as AnalysisMeta["group"][]).map((g) => ({ g, items: ANALYSES.filter((a) => a.group === g) }));
 
   const ask = (text: string) => {
@@ -31,13 +33,13 @@ export default function Consulente() {
   return (
     <div>
       <BackLink href="/analisi" label="Analisi" />
-      <LargeTitle>Consulente</LargeTitle>
+      <LargeTitle>{ASSISTANT}</LargeTitle>
 
       {/* L'oracolo: la sfera si anima di più mentre scrivi la domanda. */}
       <div className="flex flex-col items-center px-6 pb-2 pt-4 text-center">
         <Orb size={112} active={focused && q.length > 0} />
-        <p className="mt-6 text-[22px] font-bold leading-tight tracking-[-0.025em]">Chiedimi del tuo portafoglio</p>
-        <p className="mt-1.5 text-[14px] leading-snug text-mut">Leggo posizioni, zainetto, rendimenti, obiettivi e il tuo profilo. Mai nome ed email.</p>
+        <p className="mt-7 text-[22px] font-bold leading-tight tracking-[-0.025em]">La tua consulente finanziaria</p>
+        <p className="mt-1.5 text-[14px] leading-snug text-mut">Conosco posizioni, zainetto, rendimenti, obiettivi e il tuo profilo. Mai nome ed email.</p>
       </div>
 
       <form
@@ -53,7 +55,7 @@ export default function Consulente() {
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Fai una domanda"
+          placeholder={`Scrivi a ${ASSISTANT}`}
           enterKeyHint="send"
           className="h-full min-w-0 flex-1 bg-transparent text-[17px] outline-none placeholder:text-faint"
         />
@@ -90,6 +92,19 @@ export default function Consulente() {
         </div>
         <ChevronRight size={20} strokeWidth={1.8} className="shrink-0 text-ink-2" />
       </Link>
+
+      <SettingsSection title="Conversazioni">
+        <SettingsRow icon={SquarePen} title="Nuova conversazione" subtitle={`Parla con ${ASSISTANT} come con la tua consulente`} href="/consulente/chat" />
+        {threads.slice(0, 5).map((t) => (
+          <SettingsRow
+            key={t.id}
+            icon={MessageCircle}
+            title={t.title}
+            subtitle={<span className="line-clamp-1">{t.messages.at(-1)?.text.replace(/\*\*/g, "") ?? ""}</span>}
+            href={`/consulente/chat?id=${t.id}`}
+          />
+        ))}
+      </SettingsSection>
 
       {groups.map(({ g, items }) => (
         <SettingsSection key={g} title={GROUP_LABEL[g]}>

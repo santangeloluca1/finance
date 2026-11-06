@@ -3,7 +3,9 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { RefreshCw, Trash2 } from "lucide-react";
-import { ReportView } from "@/components/advisor/ReportView";
+import { reportAsMessage, ReportView } from "@/components/advisor/ReportView";
+import { msgId, writeThread } from "@/lib/ai/threads";
+import { useRouter } from "next/navigation";
 import { Orb } from "@/components/advisor/Orb";
 import { ICON } from "@/components/advisor/icons";
 import { BackLink, Logo, Panel } from "@/components/ui";
@@ -21,11 +23,12 @@ export default function AnalisiPage() {
   );
 }
 
-const STEPS = ["Raccolgo posizioni, zainetto e simulazioni fiscali", "Leggo profilo, obiettivi e piani di accumulo", "Il consulente sta ragionando sui numeri", "Scrivo le raccomandazioni"];
+const STEPS = ["Raccolgo posizioni, zainetto e simulazioni fiscali", "Leggo profilo, obiettivi e piani di accumulo", "Minerva sta ragionando sui numeri", "Scrivo le raccomandazioni"];
 
 function Analisi() {
   const params = useSearchParams();
   const { run, view, ready, configured } = useAdvisor();
+  const router = useRouter();
   const saved = (view.data.aiReports ?? []).find((r) => r.id === params.get("r"));
   const id = (saved?.analysis ?? params.get("a")) as AnalysisId | null;
   const meta = ANALYSES.find((a) => a.id === id);
@@ -63,7 +66,7 @@ function Analisi() {
         saveReport(rep);
         setResult(rep);
         history.replaceState(null, "", `/consulente/analisi?r=${rep.id}`);
-      } else setError(res.status === "nokey" ? "Il consulente non è ancora attivo: manca la chiave GEMINI_API_KEY su Vercel." : res.message);
+      } else setError(res.status === "nokey" ? "Minerva non è ancora attiva: manca la chiave GEMINI_API_KEY su Vercel." : res.message);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -86,12 +89,12 @@ function Analisi() {
 
   return (
     <div>
-      <BackLink href="/consulente" label="Consulente" />
+      <BackLink href="/consulente" label="Minerva" />
       <div className="px-4 pb-2 pt-1">
         <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em]">{meta.title}</h1>
         <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
           <I size={14} className="shrink-0" />
-          {result ? `${result.subject ? `${result.subject} · ` : ""}${fmtWhen(Date.parse(result.date))}` : meta.subtitle}
+          {meta.subtitle}
         </p>
       </div>
 
@@ -164,7 +167,17 @@ function Analisi() {
 
       {result && !running && (
         <>
-          <ReportView report={result.report} />
+          <ReportView
+            report={result.report}
+            date={`${result.subject ? `${result.subject} · ` : ""}${fmtWhen(Date.parse(result.date))}`}
+            onDiscuss={() => {
+              // Nuova conversazione che parte dall'analisi: si può rispondere e approfondire.
+              const now = new Date().toISOString();
+              const t = { id: msgId(), title: `${result.title}${result.subject ? ` · ${result.subject}` : ""}`, updatedAt: now, messages: [{ id: msgId(), role: "assistant" as const, text: reportAsMessage(result.title, result.report), at: now }] };
+              writeThread(t);
+              router.push(`/consulente/chat?id=${t.id}`);
+            }}
+          />
           <div className="flex gap-2 px-4 pt-6">
             <button
               onClick={() => {
