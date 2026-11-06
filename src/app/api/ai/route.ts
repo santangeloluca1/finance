@@ -6,7 +6,7 @@ import { sessionUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 type Body =
   | { kind: "analysis"; id: AnalysisId; extra?: { title?: string; amount?: number }; context: unknown; profile?: InvestorProfile }

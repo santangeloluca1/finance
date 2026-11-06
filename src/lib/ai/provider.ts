@@ -12,42 +12,64 @@ export interface ChatTurn {
 export class NoKeyError extends Error {}
 
 /** Modelli da provare in ordine: se uno è sovraccarico (503) o esaurito (429) si passa al successivo. */
-const MODELS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"];
+const MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-flash-lite-latest"];
+
+/** Tempo massimo complessivo per i tentativi (la funzione ne ha 300). */
+const BUDGET_MS = 200_000;
 
 export class BusyError extends Error {}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Chiama Gemini con ripetizioni e ripiego: su "molto richiesto" (503/500)
- * riprova due volte con attesa crescente, poi prova il modello successivo;
- * su limite raggiunto (429) o modello inesistente (404) passa subito al successivo.
+ * Chiama Gemini con ripetizioni e ripiego, entro un tempo massimo:
+ * - "molto richiesto" (503/500): un nuovo tentativo dopo 1,5 s, poi il modello successivo;
+ * - limite raggiunto (429) o modello inesistente (404): subito il modello successivo;
+ * - parametro non accettato (400): stesso modello senza il limite di riflessione.
+ * Ogni richiesta ha un suo tempo massimo, così la funzione non va mai in timeout.
  */
-async function callGemini(method: "generateContent" | "streamGenerateContent?alt=sse", body: string, key: string): Promise<Response> {
+async function callGemini(method: "generateContent" | "streamGenerateContent?alt=sse", payload: Record<string, unknown>, key: string): Promise<Response> {
   const preferred = process.env.GEMINI_MODEL;
   const models = preferred ? [preferred, ...MODELS.filter((m) => m !== preferred)] : MODELS;
+  const started = Date.now();
   let last: Response | null = null;
+  let timedOut = false;
   for (const model of models) {
+    let thinking = true;
     for (let attempt = 0; attempt < 3; attempt++) {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${method}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body,
-        cache: "no-store",
-      });
+      const left = BUDGET_MS - (Date.now() - started);
+      if (left < 5_000) break;
+      const body = { ...payload, generationConfig: { ...(payload.generationConfig as object), ...(thinking ? { thinkingConfig: { thinkingBudget: 512 } } : {}) } };
+      let res: Response;
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${method}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify(body),
+          cache: "no-store",
+          signal: AbortSignal.timeout(Math.min(left, 120_000)),
+        });
+      } catch {
+        timedOut = true;
+        break; // troppo lento: modello successivo
+      }
       if (res.ok) return res;
       last = res;
-      if (res.status === 503 || res.status === 500) {
-        if (attempt < 2) {
-          await sleep(attempt === 0 ? 900 : 2200);
-          continue;
-        }
+      if (res.status === 400 && thinking) {
+        thinking = false; // il modello non accetta il limite di riflessione
+        continue;
       }
-      if ([404, 429, 500, 503].includes(res.status)) break; // modello successivo
+      if ((res.status === 503 || res.status === 500) && attempt === 0) {
+        await sleep(1500);
+        continue;
+      }
+      if ([404, 429, 500, 503].includes(res.status)) break;
       throw new Error(`Gemini HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
     }
+    if (Date.now() - started > BUDGET_MS - 5_000) break;
   }
   if (last?.status === 429) throw new BusyError("Hai raggiunto il limite gratuito di richieste per ora: riprova tra qualche minuto.");
+  if (timedOut && !last) throw new BusyError("Minerva ci sta mettendo troppo a rispondere: riprova tra poco.");
   throw new BusyError("Minerva è molto richiesta in questo momento (i server di Google sono sovraccarichi). Riprova tra poco.");
 }
 
@@ -69,15 +91,15 @@ function alternate(turns: ChatTurn[]): ChatTurn[] {
 export async function generate(opts: { system: string; turns: ChatTurn[]; schema?: object; temperature?: number }): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new NoKeyError("GEMINI_API_KEY mancante");
-  const body = JSON.stringify({
+  const payload = {
     systemInstruction: { parts: [{ text: opts.system }] },
     contents: alternate(opts.turns).map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.text }] })),
     generationConfig: {
       temperature: opts.temperature ?? 0.4,
       ...(opts.schema ? { responseMimeType: "application/json", responseSchema: opts.schema } : {}),
     },
-  });
-  const res = await callGemini("generateContent", body, key);
+  };
+  const res = await callGemini("generateContent", payload, key);
   const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[] };
   const parts = json.candidates?.[0]?.content?.parts ?? [];
   const text = parts.filter((p) => !p.thought && p.text).map((p) => p.text).join("");
@@ -92,12 +114,12 @@ export async function generate(opts: { system: string; turns: ChatTurn[]; schema
 export async function generateStream(opts: { system: string; turns: ChatTurn[]; temperature?: number }): Promise<ReadableStream<Uint8Array>> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new NoKeyError("GEMINI_API_KEY mancante");
-  const body = JSON.stringify({
+  const payload = {
     systemInstruction: { parts: [{ text: opts.system }] },
     contents: alternate(opts.turns).map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.text }] })),
     generationConfig: { temperature: opts.temperature ?? 0.5 },
-  });
-  const res = await callGemini("streamGenerateContent?alt=sse", body, key);
+  };
+  const res = await callGemini("streamGenerateContent?alt=sse", payload, key);
   if (!res.body) throw new BusyError("Risposta vuota dal modello: riprova.");
   const reader = res.body.getReader();
   const dec = new TextDecoder();

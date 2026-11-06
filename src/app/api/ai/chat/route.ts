@@ -5,7 +5,7 @@ import { sessionUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /** Chat con Minerva: la risposta arriva a pezzi, mentre viene scritta. */
 export async function POST(req: Request) {
