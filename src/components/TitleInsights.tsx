@@ -84,7 +84,7 @@ export function TitleInsights({ instrument, price, quantity, taxRate }: { instru
         {tab === "panoramica" && <Overview series={series} loading={!hist} price={price} instrument={instrument} fund={fund && hasIsin} q={q.toString()} histKey={histKey} />}
         {tab === "dividendi" && <Dividends insights={insights} price={price} instrument={instrument} quantity={quantity} taxRate={taxRate} fund={fund} />}
         {tab === "notizie" && <News insights={insights} />}
-        {tab === "analisti" && <Analysts instrument={instrument} q={q.toString()} />}
+        {tab === "analisti" && <Analysts instrument={instrument} q={q.toString()} price={price} />}
       </div>
     </section>
   );
@@ -142,6 +142,7 @@ function Overview({ series, loading, price, instrument, fund, q, histKey }: { se
   // Indicatori di Finnhub (azioni USA): stessa richiesta della scheda Analisti, già in memoria.
   const an = useJson<AnalystResponse>(fund ? null : `/api/analysts?${q}`);
   const m = an?.status === "ok" ? an.data?.metrics : null;
+  const L = useLocal(an, instrument, price);
   const cur = instrument.currency;
   if (loading) return <Skeleton rows={5} />;
   const pts = day?.points ?? [];
@@ -156,9 +157,9 @@ function Overview({ series, loading, price, instrument, fund, q, histKey }: { se
         items={[
           pts.length > 0 && { label: "Apertura", value: px(pts[0][1], cur) },
           !!day?.previousClose && { label: "Chiusura precedente", value: px(day.previousClose, cur) },
-          m?.marketCap && { label: "Capitalizzazione", value: `${fmtN(m.marketCap / 1e9, { maximumFractionDigits: m.marketCap > 1e11 ? 0 : 1 })} mld $` },
+          m?.marketCap && { label: "Capitalizzazione", value: L.company(m.marketCap) },
           m?.pe && { label: "Prezzo / utili", value: fmtN(m.pe, { maximumFractionDigits: 2 }) },
-          m?.eps && { label: "Utile per azione", value: fmtPrice(m.eps, "USD") },
+          m?.eps && !L.adr && { label: "Utile per azione", value: L.perShare(m.eps) },
           m?.revenueGrowth != null && { label: "Crescita ricavi", value: fmtSignedPct(m.revenueGrowth / 100), tone: tone(m.revenueGrowth) },
           m?.netMargin != null && { label: "Margine netto", value: fmtPct(m.netMargin / 100) },
           m?.beta != null && { label: "Beta", value: fmtN(m.beta, { maximumFractionDigits: 2 }) },
@@ -386,6 +387,7 @@ interface AnalystResponse {
   status: "ok" | "nokey" | "unavailable";
   data?: {
     symbol: string;
+    adr?: boolean;
     recommendation: { period: string; strongBuy: number; buy: number; hold: number; sell: number; strongSell: number } | null;
     target: { mean: number; low: number; high: number } | null;
     metrics: { marketCap?: number; pe?: number; eps?: number; beta?: number; dividendYield?: number; revenueGrowth?: number; netMargin?: number } | null;
@@ -394,11 +396,36 @@ interface AnalystResponse {
   };
 }
 
-function Analysts({ instrument, q }: { instrument: Instrument; q: string }) {
+/**
+ * I dati degli analisti arrivano dalla quotazione USA (in dollari): qui li si
+ * riporta alla borsa del titolo. Prezzi obiettivo in proporzione al prezzo
+ * locale (stesso potenziale), importi aziendali in euro col cambio BCE, dati
+ * per azione nascosti per gli ADR (un ADR può valere più azioni europee).
+ */
+function useLocal(res: AnalystResponse | null, instrument: Instrument, price: number | null) {
+  const symbol = res?.status === "ok" ? res.data?.symbol : undefined;
+  const us = useJson<{ quotes: Record<string, { price: number }>; fx: Record<string, number> }>(symbol ? `/api/quotes?t=${symbol}` : null);
+  const usPrice = symbol ? (us?.quotes?.[symbol]?.price ?? null) : null;
+  const adr = !!res?.data?.adr;
+  const cur = instrument.currency;
+  const eurPerUsd = us?.fx?.USD ? 1 / us.fx.USD : null;
+  const sameUs = cur === "USD";
+  return {
+    usPrice,
+    /** Prezzo obiettivo nella valuta della borsa del titolo. */
+    target: (v: number) => (sameUs || !usPrice || !price ? { v, c: "USD" } : { v: (v / usPrice) * price, c: cur }),
+    localPrice: sameUs ? usPrice : price,
+    /** Importi aziendali (capitalizzazione) in euro per i titoli in euro. */
+    company: (v: number) => (cur === "EUR" && eurPerUsd ? `${fmtN((v * eurPerUsd) / 1e9, { maximumFractionDigits: v > 1e11 ? 0 : 1 })} mld €` : `${fmtN(v / 1e9, { maximumFractionDigits: v > 1e11 ? 0 : 1 })} mld $`),
+    /** Dati per azione: in euro per i titoli in euro; nascosti per gli ADR. */
+    perShare: (v: number) => (adr ? null : cur === "EUR" && eurPerUsd ? fmtPrice(v * eurPerUsd, "EUR") : fmtPrice(v, "USD")),
+    adr,
+  };
+}
+
+function Analysts({ instrument, q, price }: { instrument: Instrument; q: string; price: number | null }) {
   const res = useJson<AnalystResponse>(`/api/analysts?${q}`);
-  const symbol = res?.data?.symbol;
-  // Prezzo della quotazione USA, per confrontarlo con il prezzo obiettivo (in dollari).
-  const usQuote = useJson<{ quotes: Record<string, { price: number }> }>(symbol ? `/api/quotes?t=${symbol}` : null);
+  const L = useLocal(res, instrument, price);
   if (!res) return <Skeleton rows={4} />;
   if (res.status === "nokey") {
     return (
@@ -413,11 +440,11 @@ function Analysts({ instrument, q }: { instrument: Instrument; q: string }) {
     );
   }
   if (res.status === "unavailable" || !res.data) {
-    return <p className="px-4 pt-6 text-[15px] leading-snug text-mut">Dati degli analisti disponibili per le azioni americane. Per questo titolo il servizio gratuito non li fornisce.</p>;
+    return <p className="px-4 pt-6 text-[15px] leading-snug text-mut">Dati degli analisti disponibili per le azioni americane e le principali europee. Per questo titolo il servizio gratuito non li fornisce.</p>;
   }
   const d = res.data;
-  const usPrice = symbol ? usQuote?.quotes?.[symbol]?.price ?? null : null;
   const r = d.recommendation;
+  const usPrice = L.usPrice;
   const total = r ? r.strongBuy + r.buy + r.hold + r.sell + r.strongSell : 0;
   const score = r && total ? (r.strongBuy * 2 + r.buy - r.sell - r.strongSell * 2) / total : 0;
   const verdict = score > 1.2 ? "Acquisto forte" : score > 0.4 ? "Acquisto" : score > -0.4 ? "Mantenere" : score > -1.2 ? "Vendita" : "Vendita forte";
@@ -460,7 +487,7 @@ function Analysts({ instrument, q }: { instrument: Instrument; q: string }) {
             <h3 className="text-[22px] font-bold tracking-[-0.025em]">Prezzo obiettivo</h3>
             {usPrice && <p className={`num text-[15px] font-semibold ${tone(d.target.mean / usPrice - 1)}`}>{fmtSignedPct(d.target.mean / usPrice - 1)}</p>}
           </div>
-          <TargetBar low={d.target.low} mean={d.target.mean} high={d.target.high} price={usPrice} />
+          <TargetBar low={L.target(d.target.low)} mean={L.target(d.target.mean)} high={L.target(d.target.high)} price={L.localPrice} />
         </div>
       )}
 
@@ -468,48 +495,52 @@ function Analysts({ instrument, q }: { instrument: Instrument; q: string }) {
       <Stats
         items={[
           d.nextEarnings && { label: "Prossima trimestrale", value: fmtDate(d.nextEarnings.date, { day: "numeric", month: "short", year: "numeric" }) },
-          d.nextEarnings?.epsEstimate != null && { label: "Utile per azione atteso", value: fmtPrice(d.nextEarnings.epsEstimate, "USD") },
+          d.nextEarnings?.epsEstimate != null && !L.adr && { label: "Utile per azione atteso", value: L.perShare(d.nextEarnings.epsEstimate) },
         ]}
       />
       {d.earnings.length > 0 && (
         <>
-          <p className="px-4 pb-1 pt-6 text-[14px] text-mut">Ultimi trimestri: utile per azione effettivo contro atteso</p>
+          <p className="px-4 pb-1 pt-6 text-[14px] text-mut">{L.adr ? "Ultimi trimestri" : "Ultimi trimestri: utile per azione effettivo contro atteso"}</p>
           <ul className="stagger">
             {d.earnings.map((e) => (
               <li key={e.period} className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-2">
                 <p className="text-[15px]">{fmtDate(e.period, { month: "short", year: "numeric" })}</p>
-                <p className="num text-[14px] text-mut">
-                  {e.actual != null ? fmtPrice(e.actual, "USD") : "—"} vs {e.estimate != null ? fmtPrice(e.estimate, "USD") : "—"}
-                </p>
+                {!L.adr && (
+                  <p className="num text-[14px] text-mut">
+                    {e.actual != null ? L.perShare(e.actual) : "—"} vs {e.estimate != null ? L.perShare(e.estimate) : "—"}
+                  </p>
+                )}
                 {e.surprisePercent != null && <p className={`num w-[64px] text-right text-[15px] font-semibold ${tone(e.surprisePercent)}`}>{fmtSignedPct(e.surprisePercent / 100)}</p>}
               </li>
             ))}
           </ul>
-          <p className="px-4 pt-1 text-[12px] text-mut">Utile per azione effettivo contro atteso. Quotazione USA {d.symbol} · {exchangeName(d.symbol)}.</p>
+          <p className="px-4 pt-1 text-[12px] text-mut">Sorpresa rispetto all&apos;utile atteso dagli analisti.</p>
         </>
       )}
-      <p className="px-4 pt-4 text-[12px] leading-snug text-mut">Dati Finnhub. Opinioni degli analisti, non consigli di investimento.</p>
+      <p className="px-4 pt-4 text-[12px] leading-snug text-mut">
+        Dati Finnhub{L.adr ? `, dalla quotazione americana ${d.symbol}: obiettivi riportati sul prezzo di ${exchangeName(instrument.ticker)}` : ""}. Opinioni degli analisti, non consigli di investimento.
+      </p>
     </div>
   );
 }
 
-function TargetBar({ low, mean, high, price }: { low: number; mean: number; high: number; price: number | null }) {
-  const lo = Math.min(low, price ?? low);
-  const hi = Math.max(high, price ?? high);
+function TargetBar({ low, mean, high, price }: { low: { v: number; c: string }; mean: { v: number; c: string }; high: { v: number; c: string }; price: number | null }) {
+  const lo = Math.min(low.v, price ?? low.v);
+  const hi = Math.max(high.v, price ?? high.v);
   const x = (v: number) => `${((v - lo) / (hi - lo || 1)) * 100}%`;
   return (
     <div className="pb-1 pt-4">
       <div className="relative h-1.5 rounded-full bg-chip">
-        <div className="absolute inset-y-0 rounded-full bg-accent/35" style={{ left: x(low), width: `calc(${x(high)} - ${x(low)})` }} />
-        <span className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-bg bg-accent" style={{ left: x(mean) }} />
+        <div className="absolute inset-y-0 rounded-full bg-accent/35" style={{ left: x(low.v), width: `calc(${x(high.v)} - ${x(low.v)})` }} />
+        <span className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-bg bg-accent" style={{ left: x(mean.v) }} />
         {price && <span className="absolute top-1/2 h-4 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink" style={{ left: x(price) }} />}
       </div>
       <div className="num mt-2 flex justify-between text-[13px] text-mut">
-        <span>min {fmtPrice(low, "USD")}</span>
-        <span className="font-semibold text-accent">media {fmtPrice(mean, "USD")}</span>
-        <span>max {fmtPrice(high, "USD")}</span>
+        <span>min {px(low.v, low.c)}</span>
+        <span className="font-semibold text-accent">media {px(mean.v, mean.c)}</span>
+        <span>max {px(high.v, high.c)}</span>
       </div>
-      {price && <p className="num mt-1 text-[12px] text-mut">Prezzo attuale {fmtPrice(price, "USD")} (barra scura)</p>}
+      {price && <p className="num mt-1 text-[12px] text-mut">Prezzo attuale {px(price, mean.c)} (barra scura)</p>}
     </div>
   );
 }

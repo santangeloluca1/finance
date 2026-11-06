@@ -1,3 +1,4 @@
+import { adrFor } from "./adr";
 import { searchYahoo } from "./yahoo";
 
 const US = ["NMS", "NYQ", "NGM", "NCM", "ASE", "PCX", "BTS"];
@@ -8,7 +9,9 @@ const US = ["NMS", "NYQ", "NGM", "NCM", "ASE", "PCX", "BTS"];
  */
 export async function usSymbol(ticker: string, isin?: string | null, name?: string | null): Promise<string | null> {
   if (!ticker.includes(".") && !ticker.includes("-")) return ticker;
-  // Solo titoli americani: per ISIN US, o (senza ISIN) se il nome trova una quotazione USA.
+  // Aziende europee: quotazione USA dalla tabella verificata, mai indovinata dal nome.
+  const adr = adrFor(ticker, isin);
+  if (adr) return adr;
   if (isin && !isin.startsWith("US")) return null;
   const pick = (hits: { symbol: string; exchange?: string; quoteType?: string }[]) =>
     hits.find((h) => US.includes(h.exchange ?? "") && !h.symbol.includes(".") && h.quoteType === "EQUITY")?.symbol ?? null;

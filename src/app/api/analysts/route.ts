@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cached } from "@/lib/market/cache";
 import { usSymbol } from "@/lib/market/listing";
+import { adrFor } from "@/lib/market/adr";
 
 export const dynamic = "force-dynamic";
 
@@ -101,5 +102,7 @@ export async function GET(req: Request) {
     };
   });
   const empty = !data.recommendation && !data.target && !data.metrics && !data.nextEarnings && !data.earnings.length;
-  return NextResponse.json(empty ? { status: "unavailable" } : { status: "ok", data });
+  // ADR: i dati per azione si riferiscono all'ADR (che può valere più azioni europee).
+  const adr = !!adrFor(t, p.get("isin"));
+  return NextResponse.json(empty ? { status: "unavailable" } : { status: "ok", data: { ...data, adr } });
 }
