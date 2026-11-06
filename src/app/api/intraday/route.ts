@@ -3,10 +3,20 @@ import { bestIntraday, parseEntries } from "@/lib/market/sources";
 
 export const dynamic = "force-dynamic";
 
-/** Andamento della giornata per un titolo: ?t=SIMBOLO~ISIN */
+const EMPTY = { points: [] as [string, number][], previousClose: 0, source: undefined };
+
+/**
+ * Andamento della giornata: ?t=SIMBOLO~ISIN per un titolo,
+ * ?t=A~ISIN,B,...&batch=1 per più titoli insieme ({ series: { simbolo: … } }).
+ */
 export async function GET(req: Request) {
-  const [entry] = parseEntries(new URL(req.url).searchParams.get("t"));
-  if (!entry) return NextResponse.json({ points: [], previousClose: 0 }, { status: 400 });
-  const data = await bestIntraday(entry.ticker, entry.isin).catch(() => ({ points: [], previousClose: 0, source: undefined }));
-  return NextResponse.json(data);
+  const params = new URL(req.url).searchParams;
+  const entries = parseEntries(params.get("t"));
+  if (!entries.length) return NextResponse.json(EMPTY, { status: 400 });
+  if (params.get("batch") !== "1") {
+    const data = await bestIntraday(entries[0].ticker, entries[0].isin).catch(() => EMPTY);
+    return NextResponse.json(data);
+  }
+  const results = await Promise.all(entries.map((e) => bestIntraday(e.ticker, e.isin).catch(() => EMPTY)));
+  return NextResponse.json({ series: Object.fromEntries(entries.map((e, i) => [e.ticker, results[i]])) });
 }

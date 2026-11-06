@@ -208,3 +208,20 @@ export function Logo({ isin, name, size = 40 }: { isin: string; name: string; si
     />
   );
 }
+
+/** Interruttore stile iOS. */
+export function Switch({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors disabled:opacity-40 ${checked ? "bg-up" : "bg-mut/30"}`}
+    >
+      <span className={`absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgb(0_0_0/0.2)] transition-transform ${checked ? "translate-x-[20px]" : ""}`} />
+    </button>
+  );
+}

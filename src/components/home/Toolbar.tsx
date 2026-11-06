@@ -36,8 +36,8 @@ export type View = ReturnType<typeof usePortfolioView>;
 
 function AlertsBell({ view }: { view: View }) {
   const count = useMemo(
-    () => (view.state && view.totals ? unseenAlerts(computeAlerts(view.data, view.state, view.views, view.totals.value), view.data).length : 0),
-    [view.data, view.state, view.views, view.totals],
+    () => (view.state && view.totals ? unseenAlerts(computeAlerts(view.data, view.state, view.views, view.totals, view.quotes), view.data).length : 0),
+    [view.data, view.state, view.views, view.totals, view.quotes],
   );
   return (
     <Link href="/avvisi" aria-label={count ? `Avvisi, ${count} nuovi` : "Avvisi"} className="relative flex h-11 w-10 items-center justify-center text-mut active:opacity-50">

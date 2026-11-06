@@ -5,6 +5,7 @@ import { DEMO_ACCOUNTS, DEMO_INSTRUMENTS, DEMO_TRANSACTIONS } from "./demo";
 import { buildPortfolio, CashError } from "./engine/portfolio";
 import { fmtEur as eurFmt } from "./format";
 import type { RecurringPlan } from "./recurring";
+import type { AlertRule, NotifySettings } from "./notify";
 import type { Account, Instrument, PortfolioState, Transaction } from "./engine/types";
 import type { FxRates, Quotes } from "./analytics";
 
@@ -49,6 +50,10 @@ export interface PortfolioData {
   alertsSeen?: string[];
   /** Avvisi archiviati (non compaiono più). */
   alertsDismissed?: string[];
+  /** Regole di notifica create dall'utente. */
+  alertRules?: AlertRule[];
+  /** Interruttori e soglie degli avvisi automatici. */
+  notify?: NotifySettings;
 }
 
 export interface Reminder {
@@ -340,6 +345,24 @@ export function nextOccurrence(date: string, repeat: "monthly" | "yearly") {
   const nm = repeat === "yearly" ? m : (m % 12) + 1;
   const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
   return `${ny}-${String(nm).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
+
+// ---- regole e impostazioni delle notifiche ----
+
+export function saveRule(rule: AlertRule) {
+  const base = editableBase();
+  const list = base.alertRules ?? [];
+  setData({ ...base, alertRules: list.some((r) => r.id === rule.id) ? list.map((r) => (r.id === rule.id ? rule : r)) : [...list, rule] });
+}
+
+export function deleteRule(id: string) {
+  const base = getData();
+  setData({ ...base, alertRules: (base.alertRules ?? []).filter((r) => r.id !== id) });
+}
+
+export function saveNotifySettings(patch: NotifySettings) {
+  const base = editableBase();
+  setData({ ...base, notify: { ...base.notify, ...patch } });
 }
 
 // ---- obiettivi e pianificazione ----

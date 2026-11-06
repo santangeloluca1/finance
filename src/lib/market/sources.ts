@@ -1,5 +1,6 @@
 import { getFxHistory, getFxLatest } from "./fx";
 import { getTradegate, tradegateTime } from "./tradegate";
+import { romeClock } from "../notify";
 import { getHistory, getIntraday, getQuote, searchYahoo, type Quote } from "./yahoo";
 
 /** Richiesta dal client: "SIMBOLO" oppure "SIMBOLO~ISIN" (l'ISIN abilita le fonti alternative). */
@@ -101,6 +102,8 @@ export async function bestIntraday(ticker: string, isin?: string, now = Date.now
   const previousClose = (data?.previousClose ?? 0) / rate;
   const live = await bestQuote(ticker, isin, now).catch(() => null);
   const lastTime = points.length ? Date.parse(points[points.length - 1][0]) : 0;
-  if (live && live.time > lastTime + 60_000) points.push([new Date(live.time).toISOString(), live.price]);
+  // Il prezzo live (es. Tradegate la mattina presto) si aggiunge solo se è della stessa seduta.
+  const sameDay = !points.length || romeClock(new Date(live?.time ?? 0)).date === romeClock(new Date(lastTime)).date;
+  if (live && live.time > lastTime + 60_000 && sameDay) points.push([new Date(live.time).toISOString(), live.price]);
   return { points, previousClose: previousClose || live?.previousClose || points[0]?.[1] || 0, source: live?.source };
 }

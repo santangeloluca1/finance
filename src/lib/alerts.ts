@@ -1,9 +1,10 @@
-import type { PositionView } from "./analytics";
+import type { PositionView, Quotes, Totals } from "./analytics";
 import { dividendsForYear } from "./dividends";
 import { usableLosses } from "./engine/portfolio";
 import type { PortfolioState } from "./engine/types";
 import type { PortfolioData } from "./store";
 import { pendingOccurrences } from "./recurring";
+import { readRule, ruleAlert, settingsOf, type AutoKind } from "./notify";
 
 export interface Alert {
   id: string;
@@ -11,16 +12,29 @@ export interface Alert {
   title: string;
   detail: string;
   href: string;
+  /** Categoria automatica, oppure "regola" per le regole dell'utente. */
+  kind: AutoKind | "regola";
   /** Presente se l'avviso nasce da un promemoria dell'utente. */
   reminderId?: string;
+  /** Presente se l'avviso nasce da una regola dell'utente. */
+  ruleId?: string;
 }
 
 const eur = (n: number) => `${Math.round(n).toLocaleString("it-IT")} €`;
 
 /** Avvisi calcolati sul momento dai dati del portafoglio. */
-export function computeAlerts(data: PortfolioData, state: PortfolioState, views: PositionView[], totalValue: number, today = new Date().toISOString().slice(0, 10)): Alert[] {
+export function computeAlerts(
+  data: PortfolioData,
+  state: PortfolioState,
+  views: PositionView[],
+  totals: Totals,
+  quotes: Quotes = {},
+  today = new Date().toISOString().slice(0, 10),
+): Alert[] {
   if (data.isDemo) return [];
   const out: Alert[] = [];
+  const settings = settingsOf(data.notify);
+  const totalValue = totals.value;
   const nextYearEnd = `${Number(today.slice(0, 4)) + 1}-12-31`;
 
   for (const acc of data.accounts) {
@@ -30,6 +44,7 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
     const first = expiring.map((l) => l.expires).sort()[0];
     out.push({
       id: `minus-${acc.id}-${first}`,
+      kind: "minus",
       level: "attenzione",
       title: `${eur(amount)} di minus in scadenza su ${acc.name}`,
       detail: `La prima scade il ${new Date(`${first}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}. Vedi come recuperarle.`,
@@ -38,24 +53,40 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
   }
 
   for (const v of views) {
-    if (v.dayChangePct <= -0.03 && !v.stale) {
+    if (v.dayChangePct <= -settings.dropThreshold && !v.stale) {
       out.push({
         id: `calo-${v.position.account}-${v.instrument.isin}-${today}`,
+        kind: "calo",
         level: "attenzione",
         title: `${v.instrument.shortName ?? v.instrument.name} ${(v.dayChangePct * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% oggi`,
-        detail: `Calo giornaliero sopra il 3%: ${eur(Math.abs(v.dayChange))} sul tuo portafoglio.`,
+        detail: `Calo giornaliero sopra il ${(settings.dropThreshold * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%: ${eur(Math.abs(v.dayChange))} sul tuo portafoglio.`,
         href: `/posizioni/${v.instrument.isin}`,
       });
     }
     if (v.stale) {
       out.push({
         id: `stale-${v.instrument.isin}`,
+        kind: "quotazioni",
         level: "info",
         title: `Nessuna quotazione per ${v.instrument.shortName ?? v.instrument.name}`,
         detail: `Il valore è stimato al prezzo di carico. Controlla il ticker ${v.instrument.ticker}.`,
         href: `/posizioni/${v.instrument.isin}`,
       });
     }
+  }
+
+  // L'intero portafoglio si muove molto in una giornata.
+  const move = totals.dayChangePct;
+  if (views.some((v) => !v.stale) && Math.abs(move) >= settings.moveThreshold) {
+    const up = move > 0;
+    out.push({
+      id: `portafoglio-${up ? "su" : "giu"}-${today}`,
+      kind: "portafoglio",
+      level: up ? "positivo" : "attenzione",
+      title: `Portafoglio ${up ? "+" : "−"}${Math.abs(move * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% oggi`,
+      detail: `${up ? "Guadagno" : "Perdita"} di ${eur(Math.abs(totals.dayChange))} rispetto alla chiusura di ieri.`,
+      href: "/",
+    });
   }
 
   const in30 = new Date(Date.parse(`${today}T12:00:00Z`) + 30 * 86400_000).toISOString().slice(0, 10);
@@ -66,6 +97,7 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
       const ins = instruments.get(d.isin);
       out.push({
         id: `cedola-${d.isin}-${d.date}`,
+        kind: "cedole",
         level: "positivo",
         title: `Cedola in arrivo da ${ins?.shortName ?? ins?.name ?? d.isin}`,
         detail: `Circa ${eur(d.amount)} intorno al ${new Date(`${d.date}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}, stimata sull'anno scorso.`,
@@ -78,6 +110,7 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
   if (pending.length) {
     out.push({
       id: `ricorrenti-${pending[pending.length - 1].id}-${pending.length}`,
+      kind: "ricorrenti",
       level: "attenzione",
       title: pending.length === 1 ? `${pending[0].plan.label} da confermare` : `${pending.length} rate ricorrenti da confermare`,
       detail: pending.map((o) => o.plan.label).join(", "),
@@ -89,6 +122,7 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
     if (r.date > today) continue;
     out.push({
       id: `promemoria-${r.id}-${r.date}`,
+      kind: "promemoria",
       level: "attenzione",
       title: r.title,
       detail: `Promemoria del ${new Date(`${r.date}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}`,
@@ -100,12 +134,28 @@ export function computeAlerts(data: PortfolioData, state: PortfolioState, views:
   for (const g of data.goals ?? []) {
     const current = g.scope === "tutto" ? totalValue : null;
     if (current !== null && current >= g.target) {
-      out.push({ id: `goal-${g.id}`, level: "positivo", title: `Obiettivo "${g.name}" raggiunto`, detail: `Hai superato ${eur(g.target)}.`, href: "/#obiettivi" });
+      out.push({ id: `goal-${g.id}`, kind: "obiettivi", level: "positivo", title: `Obiettivo "${g.name}" raggiunto`, detail: `Hai superato ${eur(g.target)}.`, href: "/#obiettivi" });
     }
+  }
+
+  // Regole dell'utente.
+  const ctx = { views, totals, quotes, instruments: data.instruments };
+  for (const rule of data.alertRules ?? []) {
+    if (!rule.enabled) continue;
+    const reading = readRule(rule, ctx);
+    if (!reading.hit) continue;
+    out.push({ ...ruleAlert(rule, reading, data.instruments, today), kind: "regola", level: "attenzione", ruleId: rule.id });
   }
 
   const dismissed = new Set(data.alertsDismissed ?? []);
   return out.filter((a) => !dismissed.has(a.id));
+}
+
+/** Avvisi da inviare come notifica push secondo le impostazioni. */
+export function pushableAlerts(alerts: Alert[], data: PortfolioData) {
+  const off = new Set(settingsOf(data.notify).off);
+  const seen = new Set(data.alertsSeen ?? []);
+  return alerts.filter((a) => (a.kind === "regola" || !off.has(a.kind)) && !seen.has(a.id));
 }
 
 /** Avvisi che accendono la campanella: importanti e non ancora visti. */

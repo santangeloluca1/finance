@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    { "path": "/api/notify/run?slot=mattina", "schedule": "0 7 * * *" },
+    { "path": "/api/notify/run?slot=sera", "schedule": "0 17 * * 1-5" }
+  ]
+}

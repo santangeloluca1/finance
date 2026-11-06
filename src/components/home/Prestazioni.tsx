@@ -10,9 +10,11 @@ import { cutoffDate, type FxRates, type HistoryPoint, type Period, type Position
 import type { Account, PortfolioState, Transaction } from "@/lib/engine/types";
 import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
 import { annualize, cashFlows, monthlyReturns, twrSeries, xirr } from "@/lib/performance";
+import { alignIntraday } from "@/lib/intraday";
+import { useIntradaySeries, usePortfolioIntraday } from "@/lib/intraday-client";
 
-type Range = "1A" | "YTD" | "3A" | "MAX";
-const RANGE_LABEL: Record<Range, string> = { "1A": "1 anno", YTD: "Da gennaio", "3A": "3 anni", MAX: "Dall'inizio" };
+type Range = "1G" | "1A" | "YTD" | "3A" | "MAX";
+const RANGE_LABEL: Record<Range, string> = { "1G": "Oggi", "1A": "1 anno", YTD: "Da gennaio", "3A": "3 anni", MAX: "Dall'inizio" };
 
 const BENCHMARKS = [
   { value: "SWDA.MI", label: "MSCI World" },
@@ -52,8 +54,13 @@ export function Prestazioni({
   const [bench, setBench] = useState<Bench>("SWDA.MI");
   const [benchSeries, setBenchSeries] = useState<[string, number][] | null>(null);
 
-  // Serie storica + punto di oggi.
+  const day = range === "1G";
+  const intraday = usePortfolioIntraday(views, fx, day);
+  const benchDay = useIntradaySeries(bench === "none" ? [] : [bench], day && bench !== "none");
+
+  // Serie storica + punto di oggi; per "1G" i prezzi della giornata.
   const series = useMemo(() => {
+    if (day) return intraday ? intraday.dates.map((date, i) => ({ date, value: intraday.values[i], invested: 0, gain: intraday.values[i] - intraday.base })) : [];
     if (!history?.length) return [];
     const today = new Date().toISOString().slice(0, 10);
     const realized = state.realized.reduce((a, r) => a + r.gain, 0);
@@ -62,9 +69,12 @@ export function Prestazioni({
     const all = [...history.filter((h) => h.date < today).map((h) => ({ ...h, value: h.value - (h.cash ?? 0), invested: h.invested - (h.cash ?? 0) })), live];
     const from = range === "MAX" ? "0000" : range === "YTD" ? `${new Date().getFullYear()}-01-01` : cutoffDate(range === "1A" ? 366 : 1096);
     return all.filter((h) => h.date >= from);
-  }, [history, state, totals, range]);
+  }, [history, state, totals, range, day, intraday]);
 
-  const twr = useMemo(() => twrSeries(series), [series]);
+  const twr = useMemo(
+    () => (day ? series.map((h) => ({ date: h.date, value: intraday?.base ? h.value / intraday.base - 1 : 0 })) : twrSeries(series)),
+    [series, day, intraday],
+  );
   const twrAll = useMemo(() => {
     if (!history?.length) return [];
     return twrSeries([
@@ -74,7 +84,7 @@ export function Prestazioni({
   }, [history, totals, state]);
   const months = useMemo(() => monthlyReturns(twrAll), [twrAll]);
 
-  const start = series[0]?.date;
+  const start = day ? undefined : series[0]?.date;
   useEffect(() => {
     if (bench === "none" || !start) {
       setBenchSeries(null);
@@ -92,6 +102,7 @@ export function Prestazioni({
 
   // Indice allineato alle date del portafoglio, rendimento cumulato dal primo giorno.
   const compare = useMemo(() => {
+    if (day) return bench === "none" ? undefined : alignIntraday(twr.map((p) => p.date), benchDay?.[bench]);
     if (!benchSeries?.length || !twr.length) return undefined;
     let j = 0;
     let last: number | null = null;
@@ -101,13 +112,13 @@ export function Prestazioni({
     });
     const base = aligned.find((v) => v !== null);
     return base ? aligned.map((v) => (v === null ? null : v / base - 1)) : undefined;
-  }, [benchSeries, twr]);
+  }, [benchSeries, twr, day, bench, benchDay]);
 
-  const total = twr.at(-1)?.value ?? 0;
-  const gain = series.length ? series[series.length - 1].gain - series[0].gain : 0;
+  const total = day && !twr.length ? totals.dayChangePct : (twr.at(-1)?.value ?? 0);
+  const gain = day ? (series.at(-1)?.gain ?? totals.dayChange) : series.length ? series[series.length - 1].gain - series[0].gain : 0;
   const benchTotal = compare?.at(-1) ?? null;
   const days = start ? (Date.now() - Date.parse(start)) / 86400_000 : 0;
-  const annual = annualize(total, days);
+  const annual = day ? null : annualize(total, days);
 
   const irr = useMemo(() => {
     const flows = cashFlows(transactions);
@@ -132,7 +143,7 @@ export function Prestazioni({
       <div className="flex items-end justify-between gap-3 px-4 pt-6">
         <div className="min-w-0">
           <p className="text-[14px] text-mut">Valore degli investimenti</p>
-          <BigAmount value={totals.value - totals.cash} className="mt-1" />
+          <BigAmount value={day && series.length ? series[series.length - 1].value : totals.value - totals.cash} className="mt-1" />
         </div>
         <div className={`num sensitive shrink-0 pb-1 text-right ${tone(total)}`}>
           <p className="text-[17px] font-semibold">{fmtSignedPct(total)}</p>
@@ -140,9 +151,9 @@ export function Prestazioni({
         </div>
       </div>
       <p className="num mt-2 px-4 text-[14px] text-mut">
-        Rendimento ponderato nel tempo{annual !== null ? ` · ${fmtSignedPct(annual)} all'anno` : ""}
+        {day ? (intraday && !intraday.today && twr.length ? "Ultima seduta, sulla chiusura precedente" : "Variazione sulla chiusura di ieri") : "Rendimento ponderato nel tempo"}{annual !== null ? ` · ${fmtSignedPct(annual)} all'anno` : ""}
       </p>
-      <div role="group" aria-label="Periodo" className="mt-4 grid grid-cols-4 gap-1 px-3">
+      <div role="group" aria-label="Periodo" className="mt-4 grid grid-cols-5 gap-1 px-3">
         {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
           <button
             key={r}
@@ -173,6 +184,7 @@ export function Prestazioni({
         <InteractiveChart
           points={twr}
           height={230}
+          loading={day && !intraday}
           reference={0}
           compare={compare}
           format={(v) => fmtSignedPct(v)}
@@ -181,7 +193,7 @@ export function Prestazioni({
             return `${n > 0.0001 ? "+" : n < -0.0001 ? "−" : ""}${Math.abs(n).toLocaleString("it-IT", { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 })}%`;
           }}
           describePoint={(i) => `${fmtSignedPct(twr[i].value)}${compare?.[i] != null ? ` · indice ${fmtSignedPct(compare[i]!)}` : ""}`}
-          describeRange={(a, b) => `${fmtSignedPct((1 + twr[b].value) / (1 + twr[a].value) - 1)}`}
+          describeRange={(a, b) => `${fmtSignedPct((1 + twr[b].value) / (1 + twr[a].value) - 1)}${day ? ` · ${fmtSignedEur(series[b].value - series[a].value)}` : ""}`}
           trend={(a, b) => twr[b].value - twr[a].value}
         />
       </div>

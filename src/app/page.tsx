@@ -16,6 +16,7 @@ import { cutoffDate, type Period } from "@/lib/analytics";
 import { usableLosses } from "@/lib/engine/portfolio";
 import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime } from "@/lib/format";
 import { twrSeries } from "@/lib/performance";
+import { usePortfolioIntraday } from "@/lib/intraday-client";
 import { pendingOccurrences } from "@/lib/recurring";
 
 type Tab = "panoramica" | "obiettivi" | "dividendi";
@@ -25,9 +26,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "dividendi", label: "Cedole" },
 ];
 
-type Range = "1S" | "1M" | "3M" | "YTD" | "1A" | "MAX";
-const RANGE_DAYS: Record<Exclude<Range, "YTD" | "MAX">, number> = { "1S": 7, "1M": 31, "3M": 92, "1A": 366 };
-const RANGE_LABEL: Record<Range, string> = { "1S": "nell'ultima settimana", "1M": "nell'ultimo mese", "3M": "negli ultimi 3 mesi", YTD: "da inizio anno", "1A": "nell'ultimo anno", MAX: "dall'inizio" };
+type Range = "1G" | "1S" | "1M" | "3M" | "YTD" | "1A" | "MAX";
+const RANGE_DAYS: Record<Exclude<Range, "1G" | "YTD" | "MAX">, number> = { "1S": 7, "1M": 31, "3M": 92, "1A": 366 };
+const RANGE_LABEL: Record<Range, string> = { "1G": "oggi", "1S": "nell'ultima settimana", "1M": "nell'ultimo mese", "3M": "negli ultimi 3 mesi", YTD: "da inizio anno", "1A": "nell'ultimo anno", MAX: "dall'inizio" };
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("panoramica");
@@ -91,18 +92,35 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   const [sel, setSel] = useState<Selection | null>(null);
   const [period, setPeriod] = useState<Period>("oggi");
 
-  // Serie giornaliera del periodo + punto live di oggi.
+  const intraday = usePortfolioIntraday(views, fx, range === "1G");
+  const day = range === "1G";
+
+  // Serie giornaliera del periodo + punto live di oggi; per "1G" i prezzi ogni 5 minuti.
   const series = useMemo(() => {
-    if (!history?.length || !totals || !state) return [];
-    const cutoff = rangeStart(range);
+    if (!totals || !state) return [];
+    if (range === "1G") {
+      if (!intraday) return [];
+      return intraday.dates.map((date, i) => ({ date, value: intraday.values[i] + totals.cash, invested: 0, gain: intraday.values[i] - intraday.base, cash: totals.cash }));
+    }
+    if (!history?.length) return [];
+    const cutoff = rangeStart(range as Exclude<Range, "1G">);
     const today = new Date().toISOString().slice(0, 10);
     const slice = history.filter((h) => h.date >= cutoff && h.date < today);
     const realized = state.realized.reduce((a, r) => a + r.gain, 0);
     return [...slice, { date: today, value: totals.value, invested: totals.cost + totals.cash, gain: totals.unrealized + realized + totals.income, cash: totals.cash }];
-  }, [history, totals, range, state]);
+  }, [history, totals, range, state, intraday]);
 
   // Rendimento ponderato nel tempo dall'inizio del periodo: i versamenti non lo gonfiano.
-  const twr = useMemo(() => twrSeries(series.map((h) => ({ ...h, value: h.value - (h.cash ?? 0) }))).map((p) => p.value), [series]);
+  // In giornata: variazione sulla chiusura di ieri, come "Oggi".
+  const twr = useMemo(
+    () =>
+      range === "1G"
+        ? intraday?.base
+          ? series.map((h) => (h.value - (h.cash ?? 0)) / intraday.base - 1)
+          : series.map(() => 0)
+        : twrSeries(series.map((h) => ({ ...h, value: h.value - (h.cash ?? 0) }))).map((p) => p.value),
+    [series, range, intraday],
+  );
   const points = useMemo<SeriesPoint[]>(() => series.map((h, i) => ({ date: h.date, value: twr[i] })), [series, twr]);
 
   // Operazioni da mostrare sulla linea del tempo.
@@ -139,14 +157,21 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   const from = sel?.b != null ? sel.a : 0;
   const to = sel ? (sel.b ?? sel.a) : last;
   const ready = series.length > 1;
-  const gain = ready ? gainBetween(from, to) : 0;
-  const gainPct = ready ? pctBetween(from, to) : 0;
-  const shownValue = ready && sel ? series[to].value : totals.value;
+  // In giornata, senza intervallo, la variazione parte dalla chiusura di ieri.
+  const fromClose = day && sel?.b == null;
+  const gain = fromClose ? (ready ? series[to].gain : totals.dayChange) : ready ? gainBetween(from, to) : 0;
+  const gainPct = fromClose ? (ready ? twr[to] : totals.dayChangePct) : ready ? pctBetween(from, to) : 0;
+  const shownValue = ready && (sel || day) ? series[to].value : totals.value;
   const caption = !sel
     ? "Valore del portafoglio"
     : sel.b != null
-      ? `Dal ${fmtDate(series[from].date, { day: "numeric", month: "short", year: "numeric" })} al ${fmtDate(series[to].date, { day: "numeric", month: "short", year: "numeric" })}`
-      : fmtDate(series[to].date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      ? day
+        ? `Dalle ${clock(series[from].date)} alle ${clock(series[to].date)}`
+        : `Dal ${fmtDate(series[from].date, { day: "numeric", month: "short", year: "numeric" })} al ${fmtDate(series[to].date, { day: "numeric", month: "short", year: "numeric" })}`
+      : day
+        ? `Alle ${clock(series[to].date)}`
+        : fmtDate(series[to].date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const lastSession = day && !!intraday && !intraday.today && series.length > 1;
 
   const totalReturn = totals.unrealized + state.realized.reduce((a, r) => a + r.gain, 0) + totals.income;
   const today = new Date().toISOString().slice(0, 10);
@@ -172,7 +197,9 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         </div>
       </div>
       <p className="mt-2 h-5 px-4 text-[14px] text-mut">
-        {sel ? (sel.b != null ? "Nell'intervallo" : "Da inizio periodo") : (
+        {sel ? (sel.b != null ? "Nell'intervallo" : day ? "Dalla chiusura di ieri" : "Da inizio periodo") : day ? (
+          lastSession ? "Ultima seduta" : "Oggi"
+        ) : (
           <>
             {RANGE_LABEL[range].replace(/^./, (c) => c.toUpperCase())}
             <span className="mx-1.5 text-faint">·</span>
@@ -187,18 +214,18 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           points={points}
           height={240}
           reference={0}
-          events={events}
+          events={day ? [] : events}
           onSelect={setSel}
-          loading={!historyReady}
+          loading={day ? !intraday : !historyReady}
           format={(v) => fmtSignedPct(v)}
           formatAxis={axisPct}
-          describePoint={(i) => `${fmtSignedPct(pctBetween(0, i))} · ${fmtEur(series[i].value)}`}
+          describePoint={(i) => `${fmtSignedPct(day ? twr[i] : pctBetween(0, i))} · ${fmtEur(series[i].value)}`}
           describeRange={(i, j) => `${fmtSignedPct(pctBetween(i, j))} · ${fmtSignedEur(gainBetween(i, j))}`}
           trend={gainBetween}
         />
       </div>
 
-      <div role="group" aria-label="Periodo del grafico" className="mt-4 grid grid-cols-6 gap-1 px-3">
+      <div role="group" aria-label="Periodo del grafico" className="mt-4 grid grid-cols-7 gap-0.5 px-3">
         {(Object.keys(RANGE_LABEL) as Range[]).map((r) => (
           <button
             key={r}
@@ -273,8 +300,13 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   );
 }
 
+/** Ora di un istante intraday: "14:35". */
+function clock(iso: string) {
+  return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+
 /** Primo giorno del periodo selezionato. */
-function rangeStart(r: Range) {
+function rangeStart(r: Exclude<Range, "1G">) {
   if (r === "YTD") return `${new Date().getFullYear()}-01-01`;
   if (r === "MAX") return "0000-01-01";
   return cutoffDate(RANGE_DAYS[r]);

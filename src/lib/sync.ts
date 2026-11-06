@@ -52,6 +52,8 @@ export function merge(local: PortfolioData, remote: PortfolioData): PortfolioDat
     goals: byId(local.goals ?? [], remote.goals ?? [], (g) => g.id),
     reminders: byId(local.reminders ?? [], remote.reminders ?? [], (r) => r.id),
     recurring: byId(local.recurring ?? [], remote.recurring ?? [], (r) => r.id),
+    alertRules: byId(local.alertRules ?? [], remote.alertRules ?? [], (r) => r.id),
+    notify: local.notify ?? remote.notify,
     recurringSkipped: [...new Set([...(remote.recurringSkipped ?? []), ...(local.recurringSkipped ?? [])])],
     alertsSeen: [...new Set([...(remote.alertsSeen ?? []), ...(local.alertsSeen ?? [])])],
     alertsDismissed: [...new Set([...(remote.alertsDismissed ?? []), ...(local.alertsDismissed ?? [])])],

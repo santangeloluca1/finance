@@ -17,5 +17,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!accedi|api/auth|_next/|icon|apple-icon|manifest|favicon).*)"],
+  matcher: ["/((?!accedi|api/auth|api/notify/run|sw\.js|_next/|icon|apple-icon|manifest|favicon).*)"],
 };
