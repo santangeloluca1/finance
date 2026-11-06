@@ -448,31 +448,36 @@ html[data-splash="off"] .splash {
   border-radius: 9999px;
   overflow: hidden;
   isolation: isolate;
+  /* Safari non ritaglia al cerchio i livelli animati: maschera e clip-path lo costringono. */
+  clip-path: circle(50% at 50% 50%);
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+  mask-image: radial-gradient(circle, #000 70%, #000 100%);
+  transform: translateZ(0);
   background: radial-gradient(circle at 50% 60%, #1a1f5c 0%, #070920 72%);
 }
+/* Colori: sfumature radiali morbide (niente sfocatura, che Safari lascerebbe uscire dal cerchio). */
 .orb3d-blob {
   position: absolute;
-  inset: 8%;
+  inset: 4%;
   border-radius: 9999px;
-  filter: blur(calc(var(--s) * 0.065));
-  mix-blend-mode: screen;
+  opacity: 0.9;
 }
 .orb3d-blob.a {
-  background: radial-gradient(circle, #6d7dff 0%, #4255ff 30%, transparent 64%);
+  background: radial-gradient(circle, rgb(110 125 255 / 0.95) 0%, rgb(66 85 255 / 0.7) 32%, rgb(66 85 255 / 0) 68%);
   animation: blob-a calc(9s / var(--speed)) ease-in-out infinite;
 }
 .orb3d-blob.b {
-  background: radial-gradient(circle, #3ef0c0 0%, #14c49a 28%, transparent 62%);
+  background: radial-gradient(circle, rgb(62 240 192 / 0.9) 0%, rgb(20 196 154 / 0.6) 30%, rgb(20 196 154 / 0) 66%);
   animation: blob-b calc(11s / var(--speed)) ease-in-out infinite;
 }
 .orb3d-blob.c {
-  background: radial-gradient(circle, #d58bff 0%, #a35cff 30%, transparent 60%);
+  background: radial-gradient(circle, rgb(213 139 255 / 0.9) 0%, rgb(163 92 255 / 0.65) 30%, rgb(163 92 255 / 0) 64%);
   animation: blob-c calc(7s / var(--speed)) ease-in-out infinite;
 }
 .orb3d-blob.d {
   inset: 20%;
-  background: radial-gradient(circle, #ff8ac6 0%, #f05aa8 26%, transparent 60%);
-  opacity: 0.8;
+  background: radial-gradient(circle, rgb(255 138 198 / 0.85) 0%, rgb(240 90 168 / 0.5) 28%, rgb(240 90 168 / 0) 62%);
+  opacity: 0.75;
   animation: blob-a calc(13s / var(--speed)) ease-in-out infinite reverse;
 }
 /* Riflesso che gira lentamente sulla superficie. */
@@ -480,9 +485,9 @@ html[data-splash="off"] .splash {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  background: conic-gradient(from 200deg, transparent 0deg, rgb(255 255 255 / 0.16) 40deg, transparent 90deg, transparent 360deg);
+  /* Un bagliore morbido fuori centro che, ruotando, gira attorno alla sfera. */
+  background: radial-gradient(circle at 28% 74%, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0) 30%);
   animation: orb-sheen calc(16s / var(--speed)) linear infinite;
-  mix-blend-mode: soft-light;
 }
 /* Volume: luce speculare in alto a sinistra, bordo luminoso, ombra interna in basso. */
 .orb3d-light {

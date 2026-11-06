@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUp, Check, ChevronLeft, Copy, CornerUpLeft, SquarePen, X } from "lucide-react";
+import { ArrowUp, Check, ChevronLeft, Copy, CornerUpLeft, RotateCw, SquarePen, X } from "lucide-react";
 import { Markdown } from "@/components/advisor/Markdown";
 import { ASSISTANT, Orb } from "@/components/advisor/Orb";
 import { useAdvisor } from "@/lib/ai/client";
@@ -74,6 +74,11 @@ function Chat() {
     history.replaceState(null, "", `/consulente/chat?id=${base.id}`);
     setText("");
     setReply(null);
+    await answer(base);
+  };
+
+  /** Fa rispondere Minerva all'ultima domanda della conversazione (anche per riprovare). */
+  const answer = async (base: Thread) => {
     setError(null);
     setLive("");
     try {
@@ -208,7 +213,19 @@ function Chat() {
               </div>
             </div>
           )}
-          {error && <p className="rounded-[14px] border border-sep px-4 py-3 text-[14px] text-ink-2">{error}</p>}
+          {error && !busy && (
+            <div className="page-in flex gap-2.5">
+              <Orb size={28} className="mt-0.5 opacity-60" />
+              <div className="min-w-0 flex-1 rounded-[20px] rounded-tl-[6px] bg-panel px-4 py-3">
+                <p className="text-[15px] leading-snug text-ink-2">{error}</p>
+                {thread.messages.at(-1)?.role === "user" && (
+                  <button onClick={() => void answer(thread)} className="press mt-2.5 flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-[14px] font-semibold text-bg">
+                    <RotateCw size={15} /> Riprova
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         <div ref={end} className="h-2" />
       </div>

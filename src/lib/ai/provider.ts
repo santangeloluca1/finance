@@ -11,8 +11,45 @@ export interface ChatTurn {
 
 export class NoKeyError extends Error {}
 
-const DEFAULT_MODEL = "gemini-flash-latest";
-const FALLBACK_MODEL = "gemini-2.5-flash";
+/** Modelli da provare in ordine: se uno è sovraccarico (503) o esaurito (429) si passa al successivo. */
+const MODELS = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"];
+
+export class BusyError extends Error {}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Chiama Gemini con ripetizioni e ripiego: su "molto richiesto" (503/500)
+ * riprova due volte con attesa crescente, poi prova il modello successivo;
+ * su limite raggiunto (429) o modello inesistente (404) passa subito al successivo.
+ */
+async function callGemini(method: "generateContent" | "streamGenerateContent?alt=sse", body: string, key: string): Promise<Response> {
+  const preferred = process.env.GEMINI_MODEL;
+  const models = preferred ? [preferred, ...MODELS.filter((m) => m !== preferred)] : MODELS;
+  let last: Response | null = null;
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body,
+        cache: "no-store",
+      });
+      if (res.ok) return res;
+      last = res;
+      if (res.status === 503 || res.status === 500) {
+        if (attempt < 2) {
+          await sleep(attempt === 0 ? 900 : 2200);
+          continue;
+        }
+      }
+      if ([404, 429, 500, 503].includes(res.status)) break; // modello successivo
+      throw new Error(`Gemini HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
+    }
+  }
+  if (last?.status === 429) throw new BusyError("Hai raggiunto il limite gratuito di richieste per ora: riprova tra qualche minuto.");
+  throw new BusyError("Minerva è molto richiesta in questo momento (i server di Google sono sovraccarichi). Riprova tra poco.");
+}
 
 export function aiConfigured() {
   return !!process.env.GEMINI_API_KEY;
@@ -40,22 +77,7 @@ export async function generate(opts: { system: string; turns: ChatTurn[]; schema
       ...(opts.schema ? { responseMimeType: "application/json", responseSchema: opts.schema } : {}),
     },
   });
-  const call = (model: string) =>
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body,
-      cache: "no-store",
-    });
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  let res = await call(model);
-  // Se l'alias del modello non esiste più, si ripiega su un modello noto.
-  if (res.status === 404 && model !== FALLBACK_MODEL) res = await call(FALLBACK_MODEL);
-  if (!res.ok) {
-    const err = await res.text().catch(() => "");
-    if (res.status === 429) throw new Error("Limite di richieste gratuite raggiunto: riprova tra qualche minuto.");
-    throw new Error(`Gemini HTTP ${res.status}: ${err.slice(0, 300)}`);
-  }
+  const res = await callGemini("generateContent", body, key);
   const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[] };
   const parts = json.candidates?.[0]?.content?.parts ?? [];
   const text = parts.filter((p) => !p.thought && p.text).map((p) => p.text).join("");
@@ -75,20 +97,8 @@ export async function generateStream(opts: { system: string; turns: ChatTurn[]; 
     contents: alternate(opts.turns).map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.text }] })),
     generationConfig: { temperature: opts.temperature ?? 0.5 },
   });
-  const call = (model: string) =>
-    fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body,
-      cache: "no-store",
-    });
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  let res = await call(model);
-  if (res.status === 404 && model !== FALLBACK_MODEL) res = await call(FALLBACK_MODEL);
-  if (!res.ok || !res.body) {
-    if (res.status === 429) throw new Error("Limite di richieste gratuite raggiunto: riprova tra qualche minuto.");
-    throw new Error(`Gemini HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
-  }
+  const res = await callGemini("streamGenerateContent?alt=sse", body, key);
+  if (!res.body) throw new BusyError("Risposta vuota dal modello: riprova.");
   const reader = res.body.getReader();
   const dec = new TextDecoder();
   const enc = new TextEncoder();
