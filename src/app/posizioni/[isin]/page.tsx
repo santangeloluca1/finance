@@ -102,8 +102,8 @@ export default function PositionDetail() {
             </p>
             {q && (
               <p className="mt-1 text-[13px] text-mut">
-                {exchangeName(instrument.ticker)} · prezzo {fmtWhen(q.time)}
-                {Date.now() - q.time > 30 * 60_000 ? " (borsa chiusa o in pausa)" : ", ritardo ~15 min"}
+                {q.source ?? exchangeName(instrument.ticker)} · prezzo {fmtWhen(q.time)}
+                {q.source === "Tradegate" ? ", fuori orario di borsa" : Date.now() - q.time > 30 * 60_000 ? " (borsa chiusa)" : ", ritardo ~15 min"}
               </p>
             )}
           </>

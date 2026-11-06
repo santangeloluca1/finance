@@ -42,7 +42,8 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   const tickers = useMemo(() => {
     if (onLogin) return [];
     const open = new Set(state?.positions.filter((p) => p.quantity > 0).map((p) => p.isin));
-    return data.instruments.filter((i) => open.has(i.isin)).map((i) => i.ticker);
+    // Per i titoli in euro si passa anche l'ISIN: abilita Tradegate la sera.
+    return data.instruments.filter((i) => open.has(i.isin)).map((i) => (i.currency === "EUR" ? `${i.ticker}~${i.isin}` : i.ticker));
   }, [data.instruments, state, onLogin]);
 
   const { quotes, fx, fetchedAt, loading, error, refresh } = useQuotes(tickers);
@@ -86,7 +87,7 @@ function useTickerRepair(data: PortfolioData, state: PortfolioState | null, quot
       tried.current.add(ins.isin);
       const qty = pos.reduce((a, p) => a + p.quantity, 0);
       const avg = pos.reduce((a, p) => a + p.totalCost, 0) / qty;
-      const params = new URLSearchParams({ isin: ins.isin, currency: ins.currency, name: ins.name });
+      const params = new URLSearchParams({ isin: ins.isin, currency: ins.currency, name: ins.name, current: ins.ticker });
       // Il prezzo medio è in euro: vale come riferimento di scala solo per i titoli in euro.
       if (ins.currency === "EUR" && avg > 0) params.set("ref", String(avg));
       fetch(`/api/resolve?${params}`)
@@ -160,7 +161,7 @@ function useHistorySeries(data: PortfolioData, disabled = false) {
   const request = useMemo(() => {
     const first = data.transactions.map((t) => t.date).sort()[0];
     if (!first || disabled) return null;
-    const tickers = [...new Set(data.instruments.map((i) => i.ticker))].sort();
+    const tickers = [...new Set(data.instruments.map((i) => `${i.ticker}~${i.isin}`))].sort();
     const currencies = [...new Set(data.instruments.map((i) => i.currency).filter((c) => c !== "EUR"))].sort();
     return `/api/history?from=${first}&t=${encodeURIComponent(tickers.join(","))}&c=${currencies.join(",")}`;
   }, [data, disabled]);

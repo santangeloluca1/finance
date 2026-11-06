@@ -6,6 +6,8 @@ export interface QuoteLite {
   previousClose: number;
   currency: string;
   time: number;
+  /** Mercato del prezzo: "Xetra", "Borsa Italiana", "Tradegate"… */
+  source?: string;
 }
 
 export type Quotes = Record<string, QuoteLite>;

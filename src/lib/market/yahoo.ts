@@ -16,6 +16,8 @@ export interface Quote {
   /** Timestamp ultimo prezzo, millisecondi. */
   time: number;
   name?: string;
+  /** Mercato del prezzo (es. "Xetra", "Borsa Italiana", "Tradegate"). */
+  source?: string;
 }
 
 interface ChartResponse {
@@ -29,6 +31,7 @@ interface ChartResponse {
         regularMarketTime: number;
         longName?: string;
         shortName?: string;
+        fullExchangeName?: string;
       };
       timestamp?: number[];
       indicators: { quote: Array<{ close: Array<number | null> }> };
@@ -60,6 +63,7 @@ export function getQuote(ticker: string): Promise<Quote> {
       currency: m.currency,
       time: m.regularMarketTime * 1000,
       name: m.longName ?? m.shortName,
+      source: m.fullExchangeName,
     };
   });
 }
@@ -119,7 +123,8 @@ export function exchangeRank(exchange?: string) {
 export async function resolveTicker(opts: { isin: string; name?: string; currency: string; refPrice?: number }): Promise<Quote | null> {
   const hits = [...(await searchYahoo(opts.isin)), ...(opts.name ? await searchYahoo(opts.name, 15) : [])];
   const seen = new Set<string>();
-  const unique = hits.filter((h) => !seen.has(h.symbol) && seen.add(h.symbol)).sort((a, b) => exchangeRank(a.exchange) - exchangeRank(b.exchange)).slice(0, 12);
+  // I simboli che sono l'ISIN stesso (es. "IE00….SG") sono quotazioni poco scambiate: si scartano.
+  const unique = hits.filter((h) => !h.symbol.startsWith(opts.isin) && !seen.has(h.symbol) && seen.add(h.symbol)).sort((a, b) => exchangeRank(a.exchange) - exchangeRank(b.exchange)).slice(0, 12);
   const quotes = await Promise.allSettled(unique.map((h) => getQuote(h.symbol)));
   for (const r of quotes) {
     if (r.status !== "fulfilled") continue;
