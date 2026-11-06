@@ -240,7 +240,7 @@ export function Prestazioni({
           />
         </div>
       </div>
-      <ul>
+      <ul className="stagger">
         {contributions.map((c) => (
           <li key={c.key}>
           <Link href={`/posizioni/${c.instrument.isin}`} className="flex min-h-[64px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">
@@ -255,7 +255,7 @@ export function Prestazioni({
               <p className="num sensitive text-[14px] text-mut">{contribUnit === "eur" ? fmtSignedPct(c.change.pct) : fmtSignedEur(c.change.abs)}</p>
               <div className="mt-1.5 h-1 overflow-hidden rounded-full">
                 <div
-                  className={`h-full rounded-full ${measure(c) >= 0 ? "bg-up" : "bg-dn"}`}
+                  className={`grow-x h-full rounded-full ${measure(c) >= 0 ? "bg-up" : "bg-dn"}`}
                   style={{ width: `${(Math.abs(measure(c)) / maxAbs) * 100}%` }}
                 />
               </div>

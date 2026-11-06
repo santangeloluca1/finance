@@ -32,7 +32,7 @@ export function Salute({ views, totals, state, accounts }: { views: PositionView
           </span>
         </p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-chip">
-          <div className="h-full rounded-full" style={{ width: `${health.score}%`, background: color }} />
+          <div className="grow-x h-full rounded-full" style={{ width: `${health.score}%`, background: color }} />
         </div>
         <p className="mt-2 text-[14px] text-mut">Regole su diversificazione, costi, fisco e liquidità.</p>
       </div>

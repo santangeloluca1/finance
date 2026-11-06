@@ -91,7 +91,7 @@ export function Analisi({
       >
         Composizione
       </SectionHeader>
-      <ul>
+      <ul className="stagger">
         {slices.map((s) => {
           const share = s.value / (invested || 1);
           return (
@@ -103,7 +103,7 @@ export function Analisi({
                 <p className="num w-[62px] text-right text-[17px] font-semibold">{fmtPct(share)}</p>
               </div>
               <div className="ml-[19px] mt-2 h-1 overflow-hidden rounded-full bg-chip">
-                <div className="h-full rounded-full" style={{ width: `${share * 100}%`, background: s.color }} />
+                <div key={by} className="grow-x h-full rounded-full" style={{ width: `${share * 100}%`, background: s.color }} />
               </div>
             </li>
           );
@@ -119,7 +119,7 @@ export function Analisi({
       {companies.length > 0 && (
         <>
           <SectionHeader>Prime aziende</SectionHeader>
-          <ul>
+          <ul className="stagger">
             {companies.map((c) => (
               <li key={c.name} className="flex min-h-[60px] items-center gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
@@ -138,7 +138,7 @@ export function Analisi({
       )}
 
       <SectionHeader>Rendimento per banca</SectionHeader>
-      <ul>
+      <ul className="stagger">
         {banks.map(({ a, value, pct }) => (
           <li key={a.id} className="flex min-h-[60px] items-center gap-3 px-4 py-2.5">
             <BankDot color={a.color} size={9} />

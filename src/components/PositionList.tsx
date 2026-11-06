@@ -75,7 +75,7 @@ export function PositionList({
   const byId = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
   const cashRows = Object.entries(cash ?? {}).filter(([, c]) => c.amount !== 0);
   return (
-    <ul>
+    <ul className="stagger">
       {rows.map((r) => (
         <li key={r.key}>
           <Link href={`/posizioni/${r.instrument.isin}`} className="flex min-h-[68px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">

@@ -207,3 +207,155 @@ input[type="range"] {
     animation: none;
   }
 }
+
+/* ---------- Movimento: entrate leggere, mai più di ~0,4 s ---------- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes arc {
+  from {
+    stroke-dasharray: 0 10000;
+  }
+}
+
+/* Pagina o scheda che entra. */
+.page-in {
+  animation: rise 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/* Righe di una lista che arrivano una dopo l'altra (solo le prime). */
+.stagger > * {
+  animation: rise 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.stagger > *:nth-child(2) { animation-delay: 30ms; }
+.stagger > *:nth-child(3) { animation-delay: 60ms; }
+.stagger > *:nth-child(4) { animation-delay: 90ms; }
+.stagger > *:nth-child(5) { animation-delay: 120ms; }
+.stagger > *:nth-child(6) { animation-delay: 150ms; }
+.stagger > *:nth-child(7) { animation-delay: 180ms; }
+.stagger > *:nth-child(n + 8) { animation-delay: 210ms; }
+
+/* Linea del grafico che si disegna da sinistra. */
+.draw-line {
+  stroke-dasharray: 1;
+  animation: draw 0.7s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+.fade-in {
+  animation: fade 0.5s ease-out both;
+}
+/* Barre che crescono. */
+.grow-x {
+  transform-origin: left center;
+  animation: grow-x 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.grow-y {
+  transform-origin: center bottom;
+  animation: grow-y 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/* Pressione: il pulsante si abbassa appena. */
+.press {
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.press:active {
+  transform: scale(0.94);
+}
+/* Indicatore che scivola sotto l'opzione scelta. */
+.slide-ind {
+  transition:
+    transform 0.28s cubic-bezier(0.3, 0.8, 0.2, 1),
+    width 0.28s cubic-bezier(0.3, 0.8, 0.2, 1);
+}
+
+/* ---------- Apertura: il logo si compone e si dissolve ---------- */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  pointer-events: none;
+  animation: fade 0.35s ease-in 0.95s reverse both;
+}
+.splash svg {
+  width: 88px;
+  height: 88px;
+  border-radius: 20px;
+  animation: splash-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.splash .bar {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: grow-y 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.splash .bar:nth-of-type(2) { animation-delay: 0.12s; }
+.splash .bar:nth-of-type(3) { animation-delay: 0.2s; }
+.splash .bar:nth-of-type(4) { animation-delay: 0.28s; }
+.splash .trend {
+  stroke-dasharray: 1;
+  animation: draw 0.45s ease-out 0.45s both;
+}
+@keyframes splash-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+/* Solo alla prima apertura della sessione (lo decide lo script di avvio). */
+html[data-splash="off"] .splash {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-in,
+  .stagger > *,
+  .draw-line,
+  .fade-in,
+  .grow-x,
+  .grow-y,
+  .splash svg,
+  .splash .bar,
+  .splash .trend {
+    animation: none;
+  }
+  .splash {
+    animation-duration: 0.2s;
+    animation-delay: 0.3s;
+  }
+  .press:active {
+    transform: none;
+  }
+  .slide-ind {
+    transition: none;
+  }
+}

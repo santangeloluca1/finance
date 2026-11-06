@@ -28,6 +28,7 @@ export function Gauge({ slices, children, size = 280 }: { slices: Slice[]; child
               strokeWidth={stroke}
               strokeDasharray={`${Math.max(0.5, l - gap)} ${len * 2}`}
               strokeDashoffset={-offset}
+              style={{ animation: "arc 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both" }}
             />
           );
           offset += l;

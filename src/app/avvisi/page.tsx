@@ -119,7 +119,7 @@ export default function Avvisi() {
               <p className="text-[15px] leading-snug text-mut">Nessun avviso. Qui compaiono minus in scadenza, cali forti, cedole in arrivo, le tue regole e i promemoria.</p>
             </div>
           ) : (
-            <ul>
+            <ul className="stagger">
               {alerts.map((a) => {
                 const I = ICON[a.level];
                 const fresh = a.level !== "info" && !seen.has(a.id);
@@ -180,7 +180,7 @@ export default function Avvisi() {
               </p>
             </button>
           ) : (
-            <ul>
+            <ul className="stagger">
               {rules.map((r) => {
                 const reading = totals ? readRule(r, { views, totals, quotes, instruments: data.instruments }) : null;
                 return (
@@ -215,7 +215,7 @@ export default function Avvisi() {
               Nessun promemoria. Creane uno, ad esempio per il versamento dello stipendio o per controllare il PAC ogni mese.
             </p>
           ) : (
-            <ul>
+            <ul className="stagger">
               {upcoming.map((r) => (
                 <li key={r.id}>
                   <button onClick={() => setEditing(r)} className="flex min-h-[60px] w-full items-center gap-3 px-4 py-2.5 text-left active:bg-panel-2">

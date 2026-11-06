@@ -14,5 +14,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   trackPath(path);
   if (path.startsWith("/accedi")) return <main>{children}</main>;
   const noBar = path.startsWith("/movimenti/nuovo");
-  return <main className={`mx-auto max-w-xl pt-safe ${noBar ? "pb-[calc(env(safe-area-inset-bottom)+24px)]" : "pb-tabbar"}`}>{children}</main>;
+  return (
+    <main className={`mx-auto max-w-xl pt-safe ${noBar ? "pb-[calc(env(safe-area-inset-bottom)+24px)]" : "pb-tabbar"}`}>
+      <div key={path} className="page-in">
+        {children}
+      </div>
+    </main>
+  );
 }

@@ -1,9 +1,11 @@
 "use client";
 
+import { Search } from "lucide-react";
+
 import { useMemo, useState } from "react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { buildRows, PERIOD_OPTIONS, PositionList, type SortKey } from "@/components/PositionList";
-import { BankDot, LargeTitle, SelectButton } from "@/components/ui";
+import { BankDot, LargeTitle, SelectButton, IconButton } from "@/components/ui";
 import type { Period } from "@/lib/analytics";
 import { fmtEur } from "@/lib/format";
 
@@ -36,7 +38,15 @@ export default function Posizioni() {
 
   return (
     <div>
-      <LargeTitle>Titoli</LargeTitle>
+      <LargeTitle
+        right={
+          <IconButton href="/cerca" label="Cerca un titolo">
+            <Search size={18} strokeWidth={2.2} />
+          </IconButton>
+        }
+      >
+        Titoli
+      </LargeTitle>
       <div className="flex items-center gap-5 px-4">
         <SelectButton
           label="Raggruppa"

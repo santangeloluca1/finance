@@ -221,6 +221,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
   const tipEvents = tipIdx !== null ? eventIdx.get(tipIdx) ?? [] : [];
   const axisFmt = formatAxis ?? format;
   const ticks = timeTicks(points, geo.x);
+  const drawKey = `${points.length}-${points[0]?.date}-${points[points.length - 1]?.date}`;
   // Tipi di operazione visibili nel periodo, per la legenda a comparsa.
   const kinds = (["buy", "sell", "dividend"] as const).filter((k) => [...eventIdx.values()].some((evs) => evs.some((e) => e.kind === k)));
   const showLegend = sel !== null && kinds.length > 0;
@@ -261,10 +262,22 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
         {/* Area solo sull'intervallo selezionato */}
         {ranged && <path d={geo.area} fill={`url(#f-${gid})`} clipPath={`url(#c-${gid})`} />}
         {geo.compareLine && (
-          <path d={geo.compareLine} fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeDasharray="6 4" strokeLinejoin="round" opacity="0.9" />
+          <path key={`c-${drawKey}`} className="fade-in" d={geo.compareLine} fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeDasharray="6 4" strokeLinejoin="round" opacity="0.9" />
         )}
         {geo.invested && <path d={geo.invested} fill="none" stroke="var(--mut)" strokeWidth="1.5" strokeDasharray="5 4" strokeLinejoin="round" />}
-        <path d={geo.line} fill="none" stroke={ranged ? "var(--faint)" : stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" opacity={ranged ? 0.5 : 1} />
+        {/* La linea si disegna da sinistra quando cambiano i dati (non mentre si scorre col dito). */}
+        <path
+          key={drawKey}
+          d={geo.line}
+          pathLength={1}
+          className="draw-line"
+          fill="none"
+          stroke={ranged ? "var(--faint)" : stroke}
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          opacity={ranged ? 0.5 : 1}
+        />
         {ranged && <path d={geo.line} fill="none" stroke={stroke} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#c-${gid})`} />}
 
 

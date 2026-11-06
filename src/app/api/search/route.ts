@@ -11,6 +11,8 @@ export interface SearchResult {
   isin: string | null;
   currency: string | null;
   price: number | null;
+  /** Variazione di oggi (0.012 = +1,2%). */
+  change: number | null;
 }
 
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
@@ -51,6 +53,7 @@ export async function GET(req: Request) {
       isin,
       currency: qt?.currency ?? null,
       price: qt?.price ?? null,
+      change: qt?.price && qt.previousClose ? qt.price / qt.previousClose - 1 : null,
     };
   });
   return NextResponse.json({ results });

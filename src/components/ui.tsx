@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
@@ -24,7 +24,7 @@ export function LargeTitle({ children, right }: { children: ReactNode; right?: R
  * Stessa misura ovunque, nel titolo di pagina e nelle intestazioni di sezione.
  */
 export function IconButton({ href, onClick, label, children }: { href?: string; onClick?: () => void; label: string; children: ReactNode }) {
-  const cls = "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chip text-ink active:opacity-60";
+  const cls = "press flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chip text-ink";
   return href ? (
     <Link href={href} aria-label={label} title={label} className={cls}>
       {children}
@@ -59,6 +59,7 @@ export function trackPath(path: string) {
 const PAGE_NAMES: [RegExp, string][] = [
   [/^\/$/, "Home"],
   [/^\/analisi/, "Analisi"],
+  [/^\/cerca/, "Cerca"],
   [/^\/posizioni\/./, "Titolo"],
   [/^\/posizioni/, "Titoli"],
   [/^\/fisco/, "Fisco"],
@@ -156,7 +157,7 @@ export function ChipRow({ children }: { children: ReactNode }) {
   return <div className="no-scrollbar flex gap-2 overflow-x-auto px-4">{children}</div>;
 }
 
-/** Controllo segmentato iOS. */
+/** Controllo segmentato iOS, con la pillola che scivola sull'opzione scelta. */
 export function Segmented<T extends string>({
   options,
   value,
@@ -168,17 +169,21 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void;
   size?: "sm" | "md";
 }) {
+  const i = Math.max(0, options.findIndex((o) => o.value === value));
   return (
-    <div role="tablist" className={`flex rounded-[10px] bg-chip p-[3px] ${size === "sm" ? "text-[12px]" : "text-[13px]"}`}>
+    <div role="tablist" className={`relative flex rounded-[10px] bg-chip p-[3px] ${size === "sm" ? "text-[12px]" : "text-[13px]"}`}>
+      <span
+        aria-hidden
+        className="slide-ind absolute bottom-[3px] left-[3px] top-[3px] rounded-[8px] bg-panel shadow-[0_1px_3px_rgb(0_0_0/0.12)]"
+        style={{ width: `calc((100% - 6px) / ${options.length})`, transform: `translateX(${i * 100}%)` }}
+      />
       {options.map((o) => (
         <button
           key={o.value}
           role="tab"
           aria-selected={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`flex-1 rounded-[8px] font-semibold transition-all ${size === "sm" ? "px-2.5 py-1" : "px-2 py-1.5"} ${
-            value === o.value ? "bg-panel text-ink shadow-[0_1px_3px_rgb(0_0_0/0.12)]" : "text-mut"
-          }`}
+          className={`relative flex-1 rounded-[8px] font-semibold transition-colors ${size === "sm" ? "px-2.5 py-1" : "px-2 py-1.5"} ${value === o.value ? "text-ink" : "text-mut"}`}
         >
           {o.label}
         </button>
@@ -194,14 +199,17 @@ export function SelectButton<T extends string>({
   onChange,
   label,
   variant = "link",
+  display,
 }: {
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
   label: string;
   variant?: "link" | "chip";
+  /** Testo breve da mostrare al posto dell'opzione scelta (il menu resta completo). */
+  display?: string;
 }) {
-  const current = options.find((o) => o.value === value)?.label;
+  const current = display ?? options.find((o) => o.value === value)?.label;
   const cls =
     variant === "chip"
       ? `h-9 rounded-full px-3.5 text-[15px] font-semibold ${value === options[0].value ? "text-ink" : "bg-chip text-ink"}`
@@ -305,15 +313,29 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
  * quella scelta su una pillola. Uguale in Home, Analisi e scheda titolo.
  */
 export function RangePicker<T extends string>({ value, onChange, options, label = "Periodo del grafico" }: { value: T; onChange: (v: T) => void; options: readonly T[]; label?: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ x: number; w: number } | null>(null);
+  // La pillola scivola sotto il periodo scelto: posizione misurata sul pulsante.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = box.current?.querySelector<HTMLButtonElement>(`[data-r="${value}"]`);
+      if (el) setPos({ x: el.offsetLeft, w: el.offsetWidth });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [value]);
   return (
-    <div role="group" aria-label={label} className="mt-4 flex justify-between px-3">
+    <div ref={box} role="group" aria-label={label} className="relative mt-4 flex justify-between px-3">
+      {pos && <span aria-hidden className="slide-ind absolute left-0 top-0 h-8 rounded-full bg-chip" style={{ width: pos.w, transform: `translateX(${pos.x}px)` }} />}
       {options.map((r) => (
         <button
           key={r}
+          data-r={r}
           type="button"
           onClick={() => onChange(r)}
           aria-pressed={value === r}
-          className={`num h-8 min-w-[44px] rounded-full px-2 text-[13px] font-semibold tracking-[0.01em] transition-colors ${value === r ? "bg-chip text-ink" : "text-mut active:text-ink"}`}
+          className={`press num relative h-8 min-w-[44px] rounded-full px-2 text-[13px] font-semibold tracking-[0.01em] transition-colors ${value === r ? `text-ink ${pos ? "" : "bg-chip"}` : "text-mut active:text-ink"}`}
         >
           {r}
         </button>

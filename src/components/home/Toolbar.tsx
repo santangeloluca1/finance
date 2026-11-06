@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Bell, Eye, EyeOff, Settings } from "lucide-react";
+import { Bell, Eye, EyeOff, Search, Settings } from "lucide-react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
 import { Analisi } from "@/components/home/Analisi";
 import { Prestazioni } from "@/components/home/Prestazioni";
@@ -20,11 +20,14 @@ export function Toolbar({ filter, setFilter, view, showFilters = true }: { filte
     <div className="mt-1 flex min-h-[44px] items-center pr-2">
       {showFilters && <Filters filter={filter} setFilter={setFilter} view={view} />}
       <div className="ml-auto flex shrink-0">
-        <button onClick={togglePrivacy} aria-label={privacy ? "Mostra importi" : "Nascondi importi"} aria-pressed={privacy} className="flex h-11 w-10 items-center justify-center text-mut active:opacity-50">
+        <Link href="/cerca" aria-label="Cerca un titolo" className="flex h-11 w-9 items-center justify-center text-mut active:opacity-50">
+          <Search size={20} strokeWidth={1.8} />
+        </Link>
+        <button onClick={togglePrivacy} aria-label={privacy ? "Mostra importi" : "Nascondi importi"} aria-pressed={privacy} className="flex h-11 w-9 items-center justify-center text-mut active:opacity-50">
           {privacy ? <EyeOff size={20} strokeWidth={1.8} /> : <Eye size={20} strokeWidth={1.8} />}
         </button>
         <AlertsBell view={view} />
-        <Link href="/impostazioni" aria-label="Impostazioni" className="flex h-11 w-10 items-center justify-center text-mut active:opacity-50">
+        <Link href="/impostazioni" aria-label="Impostazioni" className="flex h-11 w-9 items-center justify-center text-mut active:opacity-50">
           <Settings size={20} strokeWidth={1.8} />
         </Link>
       </div>
@@ -108,6 +111,7 @@ export function Filters({ filter, setFilter, view }: { filter: Filter; setFilter
         {bank && <BankDot color={bank.color} />}
         <SelectButton
           label="Conto"
+          display={filter.account === "all" ? "Conti" : undefined}
           value={filter.account}
           onChange={(account) => setFilter({ ...filter, account })}
           options={[{ value: "all", label: "Tutti i conti" }, ...view.data.accounts.map((a) => ({ value: a.id, label: a.name }))]}
@@ -115,6 +119,7 @@ export function Filters({ filter, setFilter, view }: { filter: Filter; setFilter
       </span>
       <SelectButton
         label="Asset class"
+        display={filter.asset === "all" ? "Asset" : undefined}
         value={filter.asset}
         onChange={(asset) => setFilter({ ...filter, asset })}
         options={[

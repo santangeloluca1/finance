@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { type ChartPoint } from "@/components/AreaChart";
@@ -25,14 +25,38 @@ function axisPct(v: number) {
 const TX_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola/dividendo", split: "Frazionamento", cash: "Liquidità", deposit: "Versamento", withdrawal: "Prelievo", transfer: "Bonifico" } as const;
 
 export default function PositionDetail() {
-  const { isin } = useParams<{ isin: string }>();
-  const { data, state, views, quotes, fx, priceSeries, historyReady } = usePortfolioView();
+  const { isin: rawId } = useParams<{ isin: string }>();
+  const id = decodeURIComponent(rawId);
+  const search = useSearchParams();
+  const { data, state, views, quotes: ownQuotes, fx, priceSeries: ownSeries, historyReady: ownReady } = usePortfolioView();
   const [range, setRange] = useState<Range>("1A");
   const [scrub, setScrub] = useState<ChartPoint | null>(null);
   const [bank, setBank] = useState<string>("all");
   const [allTx, setAllTx] = useState(false);
 
-  const instrument = data.instruments.find((i) => i.isin === isin);
+  // Titolo del portafoglio (per ISIN o simbolo) oppure titolo cercato, descritto nell'indirizzo.
+  const known = data.instruments.find((i) => i.isin === id) ?? data.instruments.find((i) => i.ticker === id);
+  const instrument = useMemo<Instrument | undefined>(() => {
+    if (known) return known;
+    const t = search.get("t");
+    if (!t) return undefined;
+    const name = search.get("n") ?? t;
+    const type = search.get("k") ?? "";
+    return {
+      isin: /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(id) ? id : t,
+      name,
+      shortName: name,
+      ticker: t,
+      currency: search.get("c") ?? "EUR",
+      assetClass: type === "ETF" ? "etf_azionario" : type === "CRYPTOCURRENCY" ? "crypto" : "azione",
+    };
+  }, [known, search, id]);
+  const isin = instrument?.isin ?? id;
+  const watched = !known && !!instrument;
+  const extra = useWatchedData(watched ? instrument : undefined);
+  const quotes = watched ? extra.quotes : ownQuotes;
+  const priceSeries = watched ? extra.series : ownSeries;
+  const historyReady = watched ? extra.ready : ownReady;
   const accounts = useMemo(() => new Map(data.accounts.map((a) => [a.id, a])), [data.accounts]);
   const allRows = views.filter((v) => v.instrument.isin === isin);
   const rows = bank === "all" ? allRows : allRows.filter((r) => r.position.account === bank);
@@ -98,7 +122,7 @@ export default function PositionDetail() {
         <div className="min-w-0">
           <h1 className="truncate text-[22px] font-bold tracking-[-0.025em]">{name}</h1>
           <p className="num truncate text-[14px] text-mut">
-            {instrument.ticker.split(".")[0]} · {instrument.isin}
+            {instrument.ticker.split(".")[0]} · {watched ? exchangeName(instrument.ticker) : instrument.isin}
           </p>
         </div>
       </div>
@@ -220,7 +244,8 @@ export default function PositionDetail() {
 
       <SectionHeader>Informazioni</SectionHeader>
       <Panel>
-        <InfoRow label="ISIN" value={instrument.isin} />
+        {/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(instrument.isin) ? <InfoRow label="ISIN" value={instrument.isin} /> : <InfoRow label="Simbolo" value={instrument.ticker} />}
+        {watched && <InfoRow label="Borsa" value={exchangeName(instrument.ticker)} />}
         <InfoRow label="Valuta" value={instrument.currency} />
         {instrument.ter !== undefined && <InfoRow label="Costo annuo (TER)" value={`${fmtN(instrument.ter)}%`} />}
         <InfoRow
@@ -230,7 +255,7 @@ export default function PositionDetail() {
         />
       </Panel>
 
-      <SectionHeader>Operazioni</SectionHeader>
+      {txs.length > 0 && <SectionHeader>Operazioni</SectionHeader>}
       <ul>
         {(allTx ? txs : txs.slice(0, 5)).map((t) => (
           <li key={t.id} className="flex min-h-[60px] items-center gap-3.5 px-4 py-2.5">
@@ -265,6 +290,33 @@ export default function PositionDetail() {
       )}
     </div>
   );
+}
+
+/** Quotazione e storico di un titolo che non è in portafoglio (cercato con la lente). */
+function useWatchedData(instrument: Instrument | undefined) {
+  const [state, setState] = useState<{ quotes: Record<string, { price: number; previousClose: number; time: number; source?: string; currency: string }>; series: Record<string, [string, number][]>; ready: boolean }>({
+    quotes: {},
+    series: {},
+    ready: false,
+  });
+  const key = instrument ? (instrument.currency === "EUR" && /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(instrument.isin) ? `${instrument.ticker}~${instrument.isin}` : instrument.ticker) : null;
+  useEffect(() => {
+    if (!key) return;
+    let stop = false;
+    const from = new Date(Date.now() - 10 * 366 * 86400_000).toISOString().slice(0, 10);
+    fetch(`/api/quotes?t=${encodeURIComponent(key)}`)
+      .then((r) => r.json())
+      .then((j) => !stop && setState((s) => ({ ...s, quotes: j.quotes ?? {} })))
+      .catch(() => {});
+    fetch(`/api/history?from=${from}&t=${encodeURIComponent(key)}`)
+      .then((r) => r.json())
+      .then((j) => !stop && setState((s) => ({ ...s, series: j.series ?? {}, ready: true })))
+      .catch(() => !stop && setState((s) => ({ ...s, ready: true })));
+    return () => {
+      stop = true;
+    };
+  }, [key]);
+  return state;
 }
 
 function Simulator({

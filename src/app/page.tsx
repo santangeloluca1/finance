@@ -70,13 +70,15 @@ export default function Home() {
       <Toolbar filter={filter} setFilter={setFilter} view={view} showFilters={tab !== "obiettivi"} />
 
       {view.totals && view.state ? (
-        tab === "panoramica" ? (
+        <div key={tab} className="page-in">
+        {tab === "panoramica" ? (
           <Panoramica view={view} filter={filter} goto={go} />
         ) : tab === "obiettivi" ? (
           <Obiettivi embedded />
         ) : (
           <Dividendi data={view.data} state={view.state} totals={view.totals} views={view.views} />
-        )
+        )}
+        </div>
       ) : null}
     </div>
   );

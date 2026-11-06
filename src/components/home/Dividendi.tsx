@@ -80,9 +80,9 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
           {byMonth.map((m, i) => (
             <div key={i} className="flex h-full flex-1 flex-col justify-end">
               {m.forecast > 0 && (
-                <div className="hatch-box rounded-[6px] border-[1.5px] border-dashed border-accent" style={{ height: `${(m.forecast / max) * 100}%` }} />
+                <div className="grow-y hatch-box rounded-[6px] border-[1.5px] border-dashed border-accent" style={{ height: `${(m.forecast / max) * 100}%` }} />
               )}
-              {m.paid > 0 && <div className="mt-[2px] rounded-[6px] bg-accent" style={{ height: `${(m.paid / max) * 100}%` }} />}
+              {m.paid > 0 && <div className="grow-y mt-[2px] rounded-[6px] bg-accent" style={{ height: `${(m.paid / max) * 100}%` }} />}
               {m.paid + m.forecast === 0 && <div className="h-1 rounded-full bg-chip" />}
             </div>
           ))}
@@ -107,7 +107,7 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
       {perTitle.length > 0 && (
         <>
           <SectionHeader right={<span className="text-[13px] text-mut">ultimi 12 mesi</span>}>Per titolo</SectionHeader>
-          <ul>
+          <ul className="stagger">
             {perTitle.map((d) => {
               const ins = instruments.get(d.isin);
               const name = ins?.shortName ?? ins?.name ?? d.isin;
@@ -133,7 +133,7 @@ export function Dividendi({ data, state, totals, views = [] }: { data: Portfolio
       )}
 
       <SectionHeader>Calendario</SectionHeader>
-      <ul>
+      <ul className="stagger">
         {events.length === 0 && <li className="px-4 py-6 text-center text-[15px] text-mut">Nessuna cedola o dividendo nel {year}.</li>}
         {[...events].reverse().map((e, i) => {
           const ins = instruments.get(e.isin);

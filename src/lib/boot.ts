@@ -11,5 +11,6 @@ export const BOOT_SCRIPT = [
   "var t=localStorage.getItem('portafoglio:theme');",
   "if(t==='light'||t==='dark'){d.dataset.theme=t}",
   "if(localStorage.getItem('portafoglio:privacy')==='on'){d.dataset.privacy='on'}",
+  "if(sessionStorage.getItem('portafoglio:splash')){d.dataset.splash='off'}else{sessionStorage.setItem('portafoglio:splash','1')}",
   "}catch(e){}",
 ].join("");
