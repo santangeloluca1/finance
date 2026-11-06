@@ -12,6 +12,7 @@ import { twrSeries } from "@/lib/performance";
 import { toggleWatch, usePortfolioData } from "@/lib/store";
 import { Plus, Star } from "lucide-react";
 import { TitleInsights } from "@/components/TitleInsights";
+import { AdvisorCard } from "@/components/advisor/AdvisorCard";
 import { DayCell, BackLink, RangePicker, SelectButton, BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { ASSET_CLASS_LABEL, cutoffDate, type FxRates, type HistoryPoint, type PositionView } from "@/lib/analytics";
 import { simulateSale } from "@/lib/engine/portfolio";
@@ -230,6 +231,13 @@ export default function PositionDetail() {
       )}
 
       <TitleInsights instrument={instrument} price={q?.price ?? prices.at(-1)?.value ?? null} quantity={qty} taxRate={effectiveRate(instrument)} />
+
+      <AdvisorCard
+        className="mt-8"
+        href={`/consulente/analisi?${new URLSearchParams({ a: qty > 0 ? "vendere" : "titolo", isin: instrument.isin, t: instrument.ticker, n: name, c: instrument.currency })}`}
+        title={qty > 0 ? "Devo venderlo? Chiedi al consulente" : "Chiedi al consulente"}
+        subtitle={qty > 0 ? "Tasse, minus, ruolo nel portafoglio e alternative" : "Ha senso per il tuo portafoglio? Quanto pesarlo?"}
+      />
 
       {allRows.length > 0 && (
         <>

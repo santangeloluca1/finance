@@ -1,5 +1,7 @@
 "use client";
 
+import { AdvisorCard } from "@/components/advisor/AdvisorCard";
+
 import { useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, ChevronDown, OctagonAlert } from "lucide-react";
 import { Panel } from "@/components/ui";
@@ -75,6 +77,7 @@ export function Salute({ views, totals, state, accounts }: { views: PositionView
           );
         })}
       </ul>
+      <AdvisorCard href="/consulente/analisi?a=checkup" title="Approfondisci con il consulente" subtitle="Un check-up ragionato sui tuoi numeri e sul tuo profilo" className="mt-6" />
       <p className="px-6 pb-2 pt-6 text-center text-[12px] leading-relaxed text-mut">Indicazioni automatiche, non consulenza finanziaria.</p>
     </div>
   );

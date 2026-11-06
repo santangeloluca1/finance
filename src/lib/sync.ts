@@ -55,6 +55,8 @@ export function merge(local: PortfolioData, remote: PortfolioData): PortfolioDat
     alertRules: byId(local.alertRules ?? [], remote.alertRules ?? [], (r) => r.id),
     notify: local.notify ?? remote.notify,
     watchlist: local.watchlist ?? remote.watchlist,
+    profile: local.profile ?? remote.profile,
+    aiReports: byId(local.aiReports ?? [], remote.aiReports ?? [], (r) => r.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30),
     recurringSkipped: [...new Set([...(remote.recurringSkipped ?? []), ...(local.recurringSkipped ?? [])])],
     alertsSeen: [...new Set([...(remote.alertsSeen ?? []), ...(local.alertsSeen ?? [])])],
     alertsDismissed: [...new Set([...(remote.alertsDismissed ?? []), ...(local.alertsDismissed ?? [])])],

@@ -60,6 +60,8 @@ const PAGE_NAMES: [RegExp, string][] = [
   [/^\/$/, "Home"],
   [/^\/analisi/, "Analisi"],
   [/^\/cerca/, "Cerca"],
+  [/^\/consulente\/./, "Consulente"],
+  [/^\/consulente/, "Consulente"],
   [/^\/posizioni\/./, "Titolo"],
   [/^\/posizioni/, "Titoli"],
   [/^\/fisco/, "Fisco"],

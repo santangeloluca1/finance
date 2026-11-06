@@ -6,6 +6,8 @@ import { buildPortfolio, CashError } from "./engine/portfolio";
 import { fmtEur as eurFmt } from "./format";
 import type { RecurringPlan } from "./recurring";
 import type { AlertRule, NotifySettings } from "./notify";
+import type { InvestorProfile } from "./ai/profile";
+import type { AnalysisId, Report } from "./ai/prompts";
 import type { Account, Instrument, PortfolioState, Transaction } from "./engine/types";
 import type { FxRates, Quotes } from "./analytics";
 
@@ -56,6 +58,20 @@ export interface PortfolioData {
   notify?: NotifySettings;
   /** Titoli osservati (non posseduti), dalla ricerca. */
   watchlist?: WatchItem[];
+  /** Profilo dell'investitore per il consulente. */
+  profile?: InvestorProfile;
+  /** Analisi del consulente salvate (le più recenti per prime). */
+  aiReports?: SavedReport[];
+}
+
+export interface SavedReport {
+  id: string;
+  analysis: AnalysisId;
+  title: string;
+  /** Titolo o importo su cui è stata fatta l'analisi. */
+  subject?: string;
+  date: string;
+  report: Report;
 }
 
 export interface WatchItem {
@@ -375,6 +391,31 @@ export function toggleWatch(item: WatchItem) {
     return;
   }
   setData({ ...base, watchlist });
+}
+
+// ---- consulente ----
+
+/** Modifica che funziona anche sul portafoglio di esempio, senza sostituirlo. */
+function patchData(patch: Partial<PortfolioData>) {
+  const base = getData();
+  if (base.isDemo) {
+    current = { ...base, ...patch };
+    listeners.forEach((l) => l());
+    return;
+  }
+  setData({ ...base, ...patch });
+}
+
+export function saveProfile(profile: InvestorProfile) {
+  patchData({ profile: { ...profile, updatedAt: new Date().toISOString() } });
+}
+
+export function saveReport(r: SavedReport) {
+  patchData({ aiReports: [r, ...(getData().aiReports ?? []).filter((x) => x.id !== r.id)].slice(0, 30) });
+}
+
+export function deleteReport(id: string) {
+  patchData({ aiReports: (getData().aiReports ?? []).filter((x) => x.id !== id) });
 }
 
 // ---- regole e impostazioni delle notifiche ----

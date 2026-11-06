@@ -1,5 +1,7 @@
 "use client";
 
+import { AdvisorCard } from "@/components/advisor/AdvisorCard";
+
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
@@ -160,6 +162,8 @@ export default function Fisco() {
         ))}
         <InfoRow label="Costi di gestione degli ETF" hint="TER sul valore attuale" value={fmtEur(terCost)} />
       </Panel>
+
+      <AdvisorCard href="/consulente/analisi?a=fisco" title="Ottimizza le tasse con il consulente" subtitle="Quali minus recuperare, con quali titoli e quando" className="mt-8" />
 
       <p className="px-6 pb-2 pt-8 text-center text-[12px] leading-relaxed text-mut">
         Stime con il prezzo medio ponderato per banca. Fa fede il calcolo dell&apos;intermediario.
