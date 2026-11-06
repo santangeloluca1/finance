@@ -291,7 +291,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
       )}
 
       <p className="num px-4 pb-2 pt-8 text-center text-[12px] text-faint">
-        {loading ? "Aggiornamento quotazioni…" : fetchedAt ? `Quotazioni delle ${fmtTime(fetchedAt)} · ritardo ~15 min` : "Quotazioni non ancora disponibili"}
+        {loading ? "Aggiornamento quotazioni…" : fetchedAt ? `Quotazioni delle ${fmtTime(fetchedAt)} · titoli in euro in tempo reale` : "Quotazioni non ancora disponibili"}
       </p>
     </div>
   );

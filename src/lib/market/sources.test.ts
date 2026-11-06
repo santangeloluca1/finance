@@ -34,10 +34,29 @@ describe("scelta della quotazione", () => {
     expect(q).toMatchObject({ price: 46.168, previousClose: 47.736, source: "Tradegate" });
   });
 
-  test("di giorno resta la borsa ufficiale", async () => {
-    const now = Date.parse("2026-11-05T10:00:00Z");
+  test("di giorno usa il prezzo in tempo reale (medio tra denaro e lettera), sulla chiusura ufficiale di ieri", async () => {
+    const now = Date.parse("2026-11-05T14:47:00Z");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("tradegate") ? new Response(JSON.stringify({ last: 47.2, bid: 47.18, ask: 47.22, close: 46.9 })) : yahoo(47, now - 15 * 60_000))));
+    expect(await bestQuote("SPPX.DE", "IE00BFY0GT22", now)).toMatchObject({ price: 47.2, previousClose: 47.736, source: "Tradegate" });
+  });
+
+  test("al mattino, prima dell'apertura ufficiale, il riferimento è l'ultima chiusura ufficiale", async () => {
+    const now = Date.parse("2026-11-06T07:30:00Z"); // venerdì 8:30
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("tradegate") ? new Response(JSON.stringify({ last: 46.5, close: 46.4 })) : yahoo(46.723, Date.parse("2026-11-05T16:36:00Z")))));
+    // Yahoo mostra ancora la seduta di giovedì: la sua chiusura (46,723) è il riferimento, non quella di mercoledì.
+    expect(await bestQuote("SPPY.DE", "IE00BFY0GT30", now)).toMatchObject({ price: 46.5, previousClose: 46.723 });
+  });
+
+  test("senza ISIN (titoli USA) resta la borsa ufficiale", async () => {
+    const now = Date.parse("2026-11-05T15:00:00Z");
     vi.stubGlobal("fetch", vi.fn(async () => yahoo(47, now - 15 * 60_000)));
-    expect(await bestQuote("SPPW.F", "IE00BFY0GT14", now)).toMatchObject({ price: 47, source: "Xetra" });
+    expect(await bestQuote("SPPW.F", undefined, now)).toMatchObject({ price: 47, source: "Xetra" });
+  });
+
+  test("ignora Tradegate se il prezzo è incoerente (ISIN sbagliato)", async () => {
+    const now = Date.parse("2026-11-05T14:47:00Z");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("tradegate") ? new Response(JSON.stringify({ last: 120, close: 119 })) : yahoo(47, now - 15 * 60_000))));
+    expect(await bestQuote("SPPZ.DE", "IE00BFY0GT48", now)).toMatchObject({ price: 47, source: "Xetra" });
   });
 
   test("se Yahoo non ha il titolo usa Tradegate anche di notte", async () => {

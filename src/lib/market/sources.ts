@@ -1,5 +1,5 @@
 import { getFxHistory, getFxLatest } from "./fx";
-import { getTradegate, tradegateTime } from "./tradegate";
+import { getTradegate, tradegateOpen, tradegateTime } from "./tradegate";
 import { romeClock } from "../notify";
 import { getHistory, getIntraday, getQuote, searchYahoo, type Quote } from "./yahoo";
 
@@ -21,30 +21,42 @@ export function parseEntries(v: string | null): { ticker: string; isin?: string 
 const EXCHANGE: Record<string, string> = { XETRA: "Xetra", Milan: "Borsa Italiana", Swiss: "Zurigo", Frankfurt: "Francoforte", Munich: "Monaco", LSE: "Londra", Amsterdam: "Amsterdam", Paris: "Parigi" };
 
 /** Il prezzo regolamentato è "vecchio" se ha più di 20 minuti (borsa chiusa o in pausa). */
-const STALE_MS = 20 * 60_000;
 
 /**
- * Prezzo più recente: quello di borsa (Yahoo) di giorno; la sera, o se Yahoo
- * non quota il titolo, l'ultimo scambio su Tradegate (aperta fino alle 22).
- * La variazione di oggi resta riferita alla chiusura ufficiale precedente.
+ * Prezzo più recente, il più vicino possibile al tempo reale:
+ * - dalle 8 alle 22 (giorni feriali) Tradegate, che è in tempo reale: il punto
+ *   medio tra denaro e lettera (o l'ultimo scambio se lo spread è largo).
+ *   Yahoo sulle borse europee arriva con ~15 minuti di ritardo;
+ * - fuori orario il prezzo più recente tra borsa ufficiale e Tradegate.
+ * La variazione di oggi è sempre riferita alla chiusura ufficiale della borsa
+ * del titolo (come fa la banca): quella di ieri, oppure, prima dell'apertura,
+ * l'ultima chiusura disponibile.
  */
 export async function bestQuote(ticker: string, isin?: string, now = Date.now()): Promise<Quote> {
   const y = await getQuote(ticker).catch(() => null);
   const yq = y ? { ...y, source: EXCHANGE[y.source ?? ""] ?? y.source } : null;
-  // Tradegate quando la borsa ufficiale è ferma: la sera e dopo le 22 resta più recente.
-  const wantTg = isin && (!yq || now - yq.time > STALE_MS);
-  const tg = wantTg ? await getTradegate(isin!).catch(() => null) : null;
-  // Se Tradegate non è più recente della borsa ufficiale, resta quest'ultima.
-  if (tg && (!yq || tradegateTime(now) > yq.time + 60_000)) {
-    return {
-      ticker,
-      price: tg.last,
-      previousClose: yq?.previousClose ?? tg.close,
-      currency: "EUR",
-      time: tradegateTime(now),
-      name: yq?.name,
-      source: "Tradegate",
-    };
+  const tg = isin ? await getTradegate(isin).catch(() => null) : null;
+  const open = tradegateOpen(now);
+  const tgTime = tradegateTime(now);
+  if (tg && (!yq || open || tgTime > yq.time + 60_000)) {
+    const spreadOk = tg.bid && tg.ask && tg.ask >= tg.bid && (tg.ask - tg.bid) / tg.ask < 0.01;
+    const price = open && spreadOk ? (tg.bid! + tg.ask!) / 2 : tg.last;
+    // Controllo di coerenza: un ISIN associato al titolo sbagliato darebbe prezzi lontani.
+    const coherent = !yq || Math.abs(price / yq.price - 1) < 0.15;
+    if (coherent) {
+      // Se l'ultima seduta ufficiale è di un giorno precedente (es. alle 8:30, prima di Milano),
+      // il riferimento è la sua chiusura; altrimenti la chiusura del giorno prima.
+      const sameSession = yq && romeClock(new Date(yq.time)).date === romeClock(new Date(tgTime)).date;
+      return {
+        ticker,
+        price,
+        previousClose: yq ? (sameSession ? yq.previousClose : yq.price) : tg.close,
+        currency: "EUR",
+        time: tgTime,
+        name: yq?.name,
+        source: "Tradegate",
+      };
+    }
   }
   if (yq) return yq;
   throw new Error(`Nessuna quotazione per ${ticker}${isin ? ` (${isin})` : ""}`);
