@@ -1,7 +1,6 @@
 # Controllo degli avvisi ogni 15 minuti in orario di borsa (il piano Hobby di
-# Vercel permette i cron solo una volta al giorno). Servono due secret del
-# repository: APP_URL (es. https://basis.vercel.app) e CRON_SECRET (lo stesso
-# valore impostato su Vercel). Senza secret il job non fa nulla.
+# Vercel permette i cron solo una volta al giorno). Il workflow si autentica
+# con il token OIDC di GitHub: nessun secret da configurare.
 name: Notifiche
 
 on:
@@ -9,18 +8,18 @@ on:
     - cron: "*/15 7-20 * * 1-5"
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    env:
+      APP_URL: ${{ vars.APP_URL || 'https://basis-project.vercel.app' }}
     steps:
       - name: Controlla gli avvisi
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "APP_URL o CRON_SECRET non configurati: salto."
-            exit 0
-          fi
-          curl -fsS --max-time 90 -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/notify/run?slot=github"
+          TOKEN=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=basis-notify" | jq -r .value)
+          curl -fsS --max-time 90 -H "Authorization: Bearer $TOKEN" "$APP_URL/api/notify/run?slot=github"

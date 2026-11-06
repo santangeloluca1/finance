@@ -47,12 +47,10 @@ guadagno sul PMC, valore del portafoglio, peso di un titolo), da **Avvisi → �
 - Su iPhone funzionano solo dalla web app aggiunta alla schermata Home (iOS 16.4+).
 - Le chiavi VAPID si generano da sole e restano nel database; in alternativa
   `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (`npx web-push generate-vapid-keys`).
-- Su Vercel imposta `CRON_SECRET` (una stringa casuale): `vercel.json` controlla gli
-  avvisi ogni mattina e ogni sera feriale.
-- Per le regole sui prezzi durante la giornata, il workflow `.github/workflows/notifiche.yml`
-  chiama `/api/notify/run` ogni 15 minuti in orario di borsa: servono i secret del repository
-  `APP_URL` e `CRON_SECRET`. In alternativa un servizio come cron-job.org con l'header
-  `Authorization: Bearer <CRON_SECRET>`.
+- Su Vercel c'è `CRON_SECRET`: `vercel.json` controlla gli avvisi ogni mattina e ogni sera feriale.
+- Durante la giornata il workflow `.github/workflows/notifiche.yml` chiama `/api/notify/run`
+  ogni 15 minuti in orario di borsa, autenticandosi con il token OIDC di GitHub (nessun secret).
+  L'indirizzo è `https://basis-project.vercel.app`, modificabile con la variabile di repository `APP_URL`.
 
 ## Roadmap
 
