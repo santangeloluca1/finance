@@ -54,6 +54,19 @@ export interface PortfolioData {
   alertRules?: AlertRule[];
   /** Interruttori e soglie degli avvisi automatici. */
   notify?: NotifySettings;
+  /** Titoli osservati (non posseduti), dalla ricerca. */
+  watchlist?: WatchItem[];
+}
+
+export interface WatchItem {
+  ticker: string;
+  /** ISIN se noto, altrimenti assente. */
+  isin?: string;
+  name: string;
+  currency: string;
+  /** Tipo Yahoo (EQUITY, ETF, …). */
+  type?: string;
+  addedAt: string;
 }
 
 export interface Reminder {
@@ -347,6 +360,21 @@ export function nextOccurrence(date: string, repeat: "monthly" | "yearly") {
   const nm = repeat === "yearly" ? m : (m % 12) + 1;
   const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
   return `${ny}-${String(nm).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
+
+// ---- titoli osservati ----
+
+/** Aggiunge o toglie un titolo dagli osservati. Funziona anche sul portafoglio di esempio, senza sostituirlo. */
+export function toggleWatch(item: WatchItem) {
+  const base = getData();
+  const list = base.watchlist ?? [];
+  const watchlist = list.some((w) => w.ticker === item.ticker) ? list.filter((w) => w.ticker !== item.ticker) : [...list, item];
+  if (base.isDemo) {
+    current = { ...base, watchlist };
+    listeners.forEach((l) => l());
+    return;
+  }
+  setData({ ...base, watchlist });
 }
 
 // ---- regole e impostazioni delle notifiche ----

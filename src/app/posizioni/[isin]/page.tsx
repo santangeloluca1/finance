@@ -7,8 +7,12 @@ import { usePortfolioView } from "@/components/PortfolioProvider";
 import { type ChartPoint } from "@/components/AreaChart";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { RANGES, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
-import { DayCell, BackLink, RangePicker, BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
-import { ASSET_CLASS_LABEL, cutoffDate, type FxRates, type PositionView } from "@/lib/analytics";
+import { BENCHMARKS, alignSeries } from "@/lib/benchmarks";
+import { twrSeries } from "@/lib/performance";
+import { toggleWatch, usePortfolioData } from "@/lib/store";
+import { Plus, Star } from "lucide-react";
+import { DayCell, BackLink, RangePicker, SelectButton, BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
+import { ASSET_CLASS_LABEL, cutoffDate, type FxRates, type HistoryPoint, type PositionView } from "@/lib/analytics";
 import { simulateSale } from "@/lib/engine/portfolio";
 import { detectPac } from "@/lib/pac";
 import { effectiveRate } from "@/lib/engine/tax";
@@ -28,7 +32,7 @@ export default function PositionDetail() {
   const { isin: rawId } = useParams<{ isin: string }>();
   const id = decodeURIComponent(rawId);
   const search = useSearchParams();
-  const { data, state, views, quotes: ownQuotes, fx, priceSeries: ownSeries, historyReady: ownReady } = usePortfolioView();
+  const { data, state, views, quotes: ownQuotes, fx, priceSeries: ownSeries, historyReady: ownReady, history } = usePortfolioView();
   const [range, setRange] = useState<Range>("1A");
   const [scrub, setScrub] = useState<ChartPoint | null>(null);
   const [bank, setBank] = useState<string>("all");
@@ -57,6 +61,8 @@ export default function PositionDetail() {
   const quotes = watched ? extra.quotes : ownQuotes;
   const priceSeries = watched ? extra.series : ownSeries;
   const historyReady = watched ? extra.ready : ownReady;
+  const [cmp, setCmp] = useState<string>("none");
+  const cmpSeries = useCompareSeries(cmp, ownSeries, history);
   const accounts = useMemo(() => new Map(data.accounts.map((a) => [a.id, a])), [data.accounts]);
   const allRows = views.filter((v) => v.instrument.isin === isin);
   const rows = bank === "all" ? allRows : allRows.filter((r) => r.position.account === bank);
@@ -89,6 +95,8 @@ export default function PositionDetail() {
   // Base della percentuale: chiusura di ieri per "1G", primo prezzo del periodo altrimenti.
   const base = range === "1G" ? intraday?.previousClose || prices[0]?.value : prices[0]?.value;
   const points = useMemo<ChartPoint[]>(() => (base ? prices.map((p) => ({ date: p.date, value: p.value / base - 1 })) : []), [prices, base]);
+  // Confronto: stessa partenza del titolo (0% al primo giorno del periodo). Non in giornata.
+  const compare = useMemo(() => (range === "1G" || cmp === "none" ? undefined : alignSeries(prices.map((p) => p.date), cmpSeries ?? undefined)), [range, cmp, prices, cmpSeries]);
 
   if (!instrument) {
     return (
@@ -110,12 +118,21 @@ export default function PositionDetail() {
   const tax = rows.reduce((a, r) => a + r.taxIfSold, 0);
   const income = state?.positions.filter((p) => p.isin === isin && (bank === "all" || p.account === bank)).reduce((a, p) => a + p.income, 0) ?? 0;
   const name = instrument.shortName ?? instrument.name;
+  const compareOptions = [
+    { value: "none", label: "Nessun confronto" },
+    ...(known || views.length ? [{ value: "portfolio", label: "Il tuo portafoglio" }] : []),
+    ...BENCHMARKS.filter((b) => b.value !== instrument.ticker).map((b) => ({ value: b.value as string, label: b.label })),
+    ...(data.watchlist ?? []).filter((w) => w.ticker !== instrument.ticker).map((w) => ({ value: w.ticker, label: w.name })),
+  ];
   const pmcMarker =
     instrument.currency === "EUR" && qty > 0 && base && range !== "1G" ? { value: cost / qty / base - 1, label: `Il tuo prezzo medio ${fmtEur(cost / qty)}` } : undefined;
 
   return (
     <div>
-      <BackLink href="/posizioni" label="Titoli" />
+      <div className="flex items-center justify-between pr-4">
+        <BackLink href="/posizioni" label="Titoli" />
+        {watched && instrument && <WatchStar instrument={instrument} type={search.get("k") ?? undefined} />}
+      </div>
 
       <div className="flex items-center gap-3.5 px-4 pt-2">
         <Logo isin={instrument.isin} name={name} size={48} />
@@ -155,8 +172,26 @@ export default function PositionDetail() {
         )}
       </div>
 
-      <div className={`pl-4 pr-3 ${points.length > 1 ? "mt-6" : "mt-2"}`}>
+      {range !== "1G" && points.length > 1 && (
+        <div className="mt-5 flex items-center justify-between px-4">
+          <p className="flex items-center gap-3 text-[12px] text-mut">
+            {compare && (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <span className={`h-0.5 w-4 rounded ${points[points.length - 1].value >= 0 ? "bg-up" : "bg-dn"}`} /> {name}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-4 border-t-2 border-dashed border-accent" /> Confronto
+                </span>
+              </>
+            )}
+          </p>
+          <SelectButton label="Confronta con" value={cmp} onChange={setCmp} display={cmp === "none" ? "Confronta" : undefined} options={compareOptions} />
+        </div>
+      )}
+      <div className={`pl-4 pr-3 ${points.length > 1 ? (range !== "1G" ? "mt-3" : "mt-6") : "mt-2"}`}>
         <InteractiveChart
+          compare={compare}
           points={points}
           height={points.length > 1 || (range === "1G" ? !intraday : !historyReady) ? 234 : 72}
           reference={0}
@@ -164,7 +199,7 @@ export default function PositionDetail() {
           loading={range === "1G" ? !intraday : !historyReady}
           format={(v) => fmtSignedPct(v)}
           formatAxis={axisPct}
-          describePoint={(i) => `${fmtPrice(prices[i].value, instrument.currency)} · ${fmtSignedPct(points[i].value)}`}
+          describePoint={(i) => `${fmtPrice(prices[i].value, instrument.currency)} · ${fmtSignedPct(points[i].value)}${compare?.[i] != null ? ` · confronto ${fmtSignedPct(compare[i]!)}` : ""}`}
           describeRange={(i, j) => `${fmtSignedPct(prices[j].value / prices[i].value - 1)} · ${fmtPrice(prices[j].value - prices[i].value, instrument.currency)}`}
           marker={pmcMarker}
           events={
@@ -181,6 +216,17 @@ export default function PositionDetail() {
         />
       </div>
       <RangePicker value={range} onChange={setRange} options={RANGES} />
+
+      {watched && (
+        <div className="px-4 pt-6">
+          <Link
+            href={`/movimenti/nuovo?${new URLSearchParams({ t: instrument.ticker, n: name, c: instrument.currency, k: search.get("k") ?? "", ...(/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(instrument.isin) ? { isin: instrument.isin } : {}), ...(q?.price ? { p: String(q.price) } : {}) })}`}
+            className="press flex h-[50px] items-center justify-center gap-2 rounded-[16px] bg-ink text-[16px] font-semibold text-bg"
+          >
+            <Plus size={18} strokeWidth={2.6} /> Registra un acquisto
+          </Link>
+        </div>
+      )}
 
       {allRows.length > 0 && (
         <>
@@ -317,6 +363,56 @@ function useWatchedData(instrument: Instrument | undefined) {
     };
   }, [key]);
   return state;
+}
+
+/** Serie per il confronto: il portafoglio (rendimento nel tempo) o un indice/titolo. */
+function useCompareSeries(cmp: string, own: Record<string, [string, number][]>, history: HistoryPoint[] | null): [string, number][] | null {
+  const [fetched, setFetched] = useState<Record<string, [string, number][]>>({});
+  const portfolio = useMemo(() => {
+    if (cmp !== "portfolio" || !history?.length) return null;
+    return twrSeries(history.map((h) => ({ ...h, value: h.value - (h.cash ?? 0) }))).map((p) => [p.date, 1 + p.value] as [string, number]);
+  }, [cmp, history]);
+  useEffect(() => {
+    if (cmp === "none" || cmp === "portfolio" || own[cmp] || fetched[cmp]) return;
+    let stop = false;
+    const from = new Date(Date.now() - 10 * 366 * 86400_000).toISOString().slice(0, 10);
+    fetch(`/api/history?from=${from}&t=${encodeURIComponent(cmp)}`)
+      .then((r) => r.json())
+      .then((j: { series: Record<string, [string, number][]> }) => !stop && j.series?.[cmp] && setFetched((f) => ({ ...f, [cmp]: j.series[cmp] })))
+      .catch(() => {});
+    return () => {
+      stop = true;
+    };
+  }, [cmp, own, fetched]);
+  if (cmp === "none") return null;
+  if (cmp === "portfolio") return portfolio;
+  return own[cmp] ?? fetched[cmp] ?? null;
+}
+
+/** Stellina per aggiungere o togliere il titolo dagli osservati. */
+function WatchStar({ instrument, type }: { instrument: Instrument; type?: string }) {
+  const data = usePortfolioData();
+  const on = (data.watchlist ?? []).some((w) => w.ticker === instrument.ticker);
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      aria-label={on ? "Togli dagli osservati" : "Aggiungi agli osservati"}
+      onClick={() =>
+        toggleWatch({
+          ticker: instrument.ticker,
+          isin: /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(instrument.isin) ? instrument.isin : undefined,
+          name: instrument.shortName ?? instrument.name,
+          currency: instrument.currency,
+          type,
+          addedAt: new Date().toISOString(),
+        })
+      }
+      className="press flex h-9 w-9 items-center justify-center rounded-full bg-chip"
+    >
+      <Star size={18} strokeWidth={2.2} className={on ? "fill-warn text-warn" : "text-ink"} />
+    </button>
+  );
 }
 
 function Simulator({

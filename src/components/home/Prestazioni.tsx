@@ -6,6 +6,7 @@ import { InteractiveChart } from "@/components/InteractiveChart";
 import { buildRows, PERIOD_OPTIONS } from "@/components/PositionList";
 import { InfoRow, Logo, Panel, RangePicker, SectionHeader, Segmented, SelectButton } from "@/components/ui";
 import { RANGES, rangeStart, type Range } from "@/lib/range";
+import { BENCHMARKS as BASE_BENCHMARKS } from "@/lib/benchmarks";
 import { BigAmount } from "@/components/BigAmount";
 import { cutoffDate, type FxRates, type HistoryPoint, type Period, type PositionView, type Totals } from "@/lib/analytics";
 import type { Account, PortfolioState, Transaction } from "@/lib/engine/types";
@@ -15,14 +16,7 @@ import { alignIntraday } from "@/lib/intraday";
 import { useIntradaySeries, usePortfolioIntraday } from "@/lib/intraday-client";
 
 
-const BENCHMARKS = [
-  { value: "SWDA.MI", label: "MSCI World" },
-  { value: "VWCE.DE", label: "FTSE All-World" },
-  { value: "CSSPX.MI", label: "S&P 500" },
-  { value: "MEUD.PA", label: "Stoxx Europe 600" },
-  { value: "AGGH.MI", label: "Obbligazioni globali" },
-  { value: "none", label: "Nessun confronto" },
-] as const;
+const BENCHMARKS = [...BASE_BENCHMARKS, { value: "none", label: "Nessun confronto" }] as const;
 type Bench = (typeof BENCHMARKS)[number]["value"];
 
 const MONTHS = ["G", "F", "M", "A", "M", "G", "L", "A", "S", "O", "N", "D"];

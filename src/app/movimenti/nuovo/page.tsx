@@ -59,10 +59,19 @@ function NuovoMovimento() {
   const [kind, setKind] = useState<Kind>((editing?.type as Kind) ?? (params.get("tipo") as Kind) ?? "buy");
   const [account, setAccount] = useState(editing?.account ?? params.get("conto") ?? data.accounts[0]?.id ?? "");
   const [date, setDate] = useState(editing?.date ?? new Date().toISOString().slice(0, 10));
-  const [instrument, setInstrument] = useState<Instrument | null>(() => data.instruments.find((i) => i.isin === editing?.isin) ?? null);
-  const [isNew, setIsNew] = useState(false);
+  // "Registra un acquisto" dalla scheda di un titolo cercato: titolo e prezzo già compilati.
+  const [prefill] = useState(() => {
+    const t = params.get("t");
+    if (!t || editing) return null;
+    const isin = params.get("isin");
+    const existing = data.instruments.find((i) => i.ticker === t || (isin && i.isin === isin));
+    if (existing) return { ins: existing, isNew: false };
+    return { ins: fromResult({ ticker: t, name: params.get("n") ?? t, exchange: "", type: params.get("k") ?? "", isin, currency: params.get("c"), price: null }), isNew: true };
+  });
+  const [instrument, setInstrument] = useState<Instrument | null>(() => prefill?.ins ?? data.instruments.find((i) => i.isin === editing?.isin) ?? null);
+  const [isNew, setIsNew] = useState(prefill?.isNew ?? false);
   const [quantity, setQuantity] = useState(editing?.quantity?.toString().replace(".", ",") ?? "");
-  const [price, setPrice] = useState(editing?.price?.toString().replace(".", ",") ?? "");
+  const [price, setPrice] = useState(editing?.price?.toString().replace(".", ",") ?? params.get("p")?.replace(".", ",") ?? "");
   const [fees, setFees] = useState(editing?.fees?.toString().replace(".", ",") ?? "");
   const [fx, setFx] = useState(editing?.fxRate?.toString().replace(".", ",") ?? "");
   const [amount, setAmount] = useState(editing?.amount?.toString().replace(".", ",") ?? "");

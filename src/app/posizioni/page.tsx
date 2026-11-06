@@ -8,6 +8,7 @@ import { buildRows, PERIOD_OPTIONS, PositionList, type SortKey } from "@/compone
 import { BankDot, LargeTitle, SelectButton, IconButton } from "@/components/ui";
 import type { Period } from "@/lib/analytics";
 import { fmtEur } from "@/lib/format";
+import { Watchlist } from "@/components/Watchlist";
 
 type View = "titolo" | "banca";
 
@@ -91,6 +92,9 @@ export default function Posizioni() {
           </section>
         );
       })}
+
+      {/* Titoli seguiti dalla ricerca (stellina nella scheda). */}
+      <Watchlist items={(data.watchlist ?? []).filter((w) => !views.some((v) => v.instrument.ticker === w.ticker))} />
     </div>
   );
 }
