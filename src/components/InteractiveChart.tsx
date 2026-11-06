@@ -350,12 +350,19 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+/** Le date intraday sono istanti completi ("2026-11-05T08:00:00Z"), le altre solo giorni. */
+const isInstant = (d: string) => d.length > 10;
+const toDate = (d: string) => new Date(isInstant(d) ? d : `${d}T12:00:00`);
+const hhmm = (d: Date) => d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
 function longDate(d: string) {
-  return new Date(`${d}T12:00:00`).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+  if (isInstant(d)) return `${toDate(d).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long" })}, ${hhmm(toDate(d))}`;
+  return toDate(d).toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
 }
 
 function shortDate(d: string) {
-  return new Date(`${d}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "2-digit" });
+  if (isInstant(d)) return hhmm(toDate(d));
+  return toDate(d).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "2-digit" });
 }
 
 const MONTHS = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
@@ -367,6 +374,21 @@ const MONTHS = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "
  */
 function timeTicks(points: SeriesPoint[], x: (i: number) => number) {
   if (points.length < 2) return [];
+  if (isInstant(points[0].date)) {
+    // Intraday: una tacca ogni due ore piene.
+    const out: { i: number; x: number; label: string }[] = [];
+    let lastHour = -1;
+    points.forEach((p, i) => {
+      const d = toDate(p.date);
+      const h = d.getHours();
+      if (h % 2 === 0 && h !== lastHour && d.getMinutes() < 15) {
+        lastHour = h;
+        const px = x(i);
+        if (px >= 18 && (!out.length || px - out[out.length - 1].x >= 44)) out.push({ i, x: px, label: `${h}:00` });
+      }
+    });
+    return out;
+  }
   const first = new Date(`${points[0].date}T12:00:00`);
   const last = new Date(`${points[points.length - 1].date}T12:00:00`);
   const span = (last.getTime() - first.getTime()) / 86400_000;

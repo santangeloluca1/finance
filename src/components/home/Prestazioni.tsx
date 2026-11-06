@@ -116,8 +116,8 @@ export function Prestazioni({
   }, [transactions, totals.value, totals.cash]);
 
   const contributions = useMemo(
-    () => buildRows(views, contribPeriod, priceSeries, fx, true).sort((a, b) => (contribUnit === "eur" ? b.change.abs - a.change.abs : b.change.pct - a.change.pct)),
-    [views, contribPeriod, contribUnit, priceSeries, fx],
+    () => buildRows(views, contribPeriod, priceSeries, fx, true, "valore", transactions).sort((a, b) => (contribUnit === "eur" ? b.change.abs - a.change.abs : b.change.pct - a.change.pct)),
+    [views, contribPeriod, contribUnit, priceSeries, fx, transactions],
   );
   const measure = (c: (typeof contributions)[number]) => (contribUnit === "eur" ? c.change.abs : c.change.pct);
   const maxAbs = Math.max(contribUnit === "eur" ? 1 : 0.0001, ...contributions.map((c) => Math.abs(measure(c))));

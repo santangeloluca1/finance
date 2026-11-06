@@ -135,3 +135,19 @@ export async function resolveTicker(opts: { isin: string; name?: string; currenc
   }
   return null;
 }
+
+/**
+ * Prezzi dell'ultima seduta ogni 5 minuti: istanti ISO e chiusura del giorno prima.
+ */
+export function getIntraday(ticker: string): Promise<{ points: [string, number][]; previousClose: number; currency: string }> {
+  return cached(`i:${ticker}`, 60_000, async () => {
+    const r = await chart(ticker, "range=1d&interval=5m");
+    const closes = r.indicators.quote[0]?.close ?? [];
+    const points: [string, number][] = [];
+    (r.timestamp ?? []).forEach((ts, i) => {
+      const c = closes[i];
+      if (c != null) points.push([new Date(ts * 1000).toISOString(), c]);
+    });
+    return { points, previousClose: r.meta.chartPreviousClose ?? r.meta.previousClose ?? points[0]?.[1] ?? 0, currency: r.meta.currency };
+  });
+}

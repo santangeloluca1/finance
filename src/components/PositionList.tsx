@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { Wallet } from "lucide-react";
 import { BankDot, Change, Logo } from "@/components/ui";
 import { positionChange, type FxRates, type Period, type PositionView } from "@/lib/analytics";
-import type { Account, Instrument } from "@/lib/engine/types";
+import type { Account, Instrument, Transaction } from "@/lib/engine/types";
 import { fmtDate, fmtEur, fmtNum } from "@/lib/format";
 
 export interface PositionRow {
@@ -28,11 +28,13 @@ export function buildRows(
   fx: FxRates,
   groupByInstrument: boolean,
   sort: SortKey = "valore",
+  /** Movimenti: servono per calcolare bene la variazione di un periodo con acquisti nel mezzo. */
+  transactions?: Transaction[],
 ): PositionRow[] {
   const map = new Map<string, PositionRow>();
   for (const v of views) {
     const key = groupByInstrument ? v.instrument.isin : `${v.position.account}|${v.instrument.isin}`;
-    const ch = positionChange(v, period, series, fx);
+    const ch = positionChange(v, period, series, fx, transactions);
     const r = map.get(key) ?? {
       key,
       instrument: v.instrument,

@@ -16,7 +16,7 @@ export default function Posizioni() {
   const [sort, setSort] = useState<SortKey>("valore");
 
   const groups = useMemo(() => {
-    if (view === "titolo") return [{ id: "all", account: null, rows: buildRows(views, period, priceSeries, fx, true, sort) }];
+    if (view === "titolo") return [{ id: "all", account: null, rows: buildRows(views, period, priceSeries, fx, true, sort, data.transactions) }];
     return data.accounts
       .map((account) => ({
         id: account.id,
@@ -28,6 +28,7 @@ export default function Posizioni() {
           fx,
           false,
           sort,
+          data.transactions,
         ),
       }))
       .filter((g) => g.rows.length);

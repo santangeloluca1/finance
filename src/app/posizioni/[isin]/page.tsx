@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { type ChartPoint } from "@/components/AreaChart";
 import { InteractiveChart } from "@/components/InteractiveChart";
@@ -15,9 +15,16 @@ import { effectiveRate } from "@/lib/engine/tax";
 import type { Account, Instrument, PortfolioState } from "@/lib/engine/types";
 import { exchangeName, fmtDate, fmtEur, fmtNum, fmtPct, fmtPrice, fmtSignedEur, fmtSignedPct, fmtWhen } from "@/lib/format";
 
-type Range = "1S" | "1M" | "6M" | "1A" | "MAX";
-const RANGE_DAYS: Record<Range, number> = { "1S": 7, "1M": 31, "6M": 183, "1A": 366, MAX: 99999 };
-const RANGE_LABEL: Record<Range, string> = { "1S": "1 settimana", "1M": "1 mese", "6M": "6 mesi", "1A": "1 anno", MAX: "dall'inizio" };
+type Range = "1G" | "1S" | "1M" | "6M" | "1A" | "MAX";
+const RANGE_DAYS: Record<Range, number> = { "1G": 1, "1S": 7, "1M": 31, "6M": 183, "1A": 366, MAX: 99999 };
+const RANGE_LABEL: Record<Range, string> = { "1G": "oggi", "1S": "1 settimana", "1M": "1 mese", "6M": "6 mesi", "1A": "1 anno", MAX: "dall'inizio" };
+
+/** Etichette dell'asse in percentuale: +4%, −1,5%. */
+function axisPct(v: number) {
+  const n = v * 100;
+  const s = Math.abs(n).toLocaleString("it-IT", { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 });
+  return `${n < -0.0001 ? "−" : n > 0.0001 ? "+" : ""}${s}%`;
+}
 const TX_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola/dividendo", split: "Frazionamento", cash: "Liquidità", deposit: "Versamento", withdrawal: "Prelievo", transfer: "Bonifico" } as const;
 
 export default function PositionDetail() {
@@ -34,12 +41,33 @@ export default function PositionDetail() {
   const rows = bank === "all" ? allRows : allRows.filter((r) => r.position.account === bank);
   const txs = data.transactions.filter((t) => t.isin === isin).sort((a, b) => b.date.localeCompare(a.date));
 
-  const points = useMemo<ChartPoint[]>(() => {
+  // Andamento della giornata (ogni 5 minuti), caricato solo quando serve.
+  const [intraday, setIntraday] = useState<{ points: [string, number][]; previousClose: number } | null>(null);
+  useEffect(() => {
+    if (range !== "1G" || !instrument) return;
+    let stop = false;
+    setIntraday(null);
+    const t = instrument.currency === "EUR" ? `${instrument.ticker}~${instrument.isin}` : instrument.ticker;
+    fetch(`/api/intraday?t=${encodeURIComponent(t)}`)
+      .then((r) => r.json())
+      .then((j) => !stop && setIntraday(j))
+      .catch(() => !stop && setIntraday({ points: [], previousClose: 0 }));
+    return () => {
+      stop = true;
+    };
+  }, [range, instrument]);
+
+  /** Prezzi del periodo (in valuta del titolo). */
+  const prices = useMemo<ChartPoint[]>(() => {
     if (!instrument) return [];
+    if (range === "1G") return (intraday?.points ?? []).map(([date, value]) => ({ date, value }));
     const s = priceSeries[instrument.ticker] ?? [];
     const cutoff = cutoffDate(RANGE_DAYS[range]);
     return s.filter(([d]) => d >= cutoff).map(([date, value]) => ({ date, value }));
-  }, [priceSeries, instrument, range]);
+  }, [priceSeries, instrument, range, intraday]);
+  // Base della percentuale: chiusura di ieri per "1G", primo prezzo del periodo altrimenti.
+  const base = range === "1G" ? intraday?.previousClose || prices[0]?.value : prices[0]?.value;
+  const points = useMemo<ChartPoint[]>(() => (base ? prices.map((p) => ({ date: p.date, value: p.value / base - 1 })) : []), [prices, base]);
 
   if (!instrument) {
     return (
@@ -53,16 +81,16 @@ export default function PositionDetail() {
   }
 
   const q = quotes[instrument.ticker];
-  const price = scrub?.value ?? q?.price ?? points.at(-1)?.value;
-  const first = points[0]?.value;
-  const rangeChange = first && price ? (price - first) / first : 0;
+  const price = scrub?.value ?? q?.price ?? prices.at(-1)?.value;
+  const rangeChange = base && price ? (price - base) / base : 0;
   const qty = rows.reduce((a, r) => a + r.position.quantity, 0);
   const value = rows.reduce((a, r) => a + r.value, 0);
   const cost = rows.reduce((a, r) => a + r.position.totalCost, 0);
   const tax = rows.reduce((a, r) => a + r.taxIfSold, 0);
   const income = state?.positions.filter((p) => p.isin === isin && (bank === "all" || p.account === bank)).reduce((a, p) => a + p.income, 0) ?? 0;
   const name = instrument.shortName ?? instrument.name;
-  const pmcMarker = instrument.currency === "EUR" && qty > 0 ? { value: cost / qty, label: `Il tuo prezzo medio ${fmtEur(cost / qty)}` } : undefined;
+  const pmcMarker =
+    instrument.currency === "EUR" && qty > 0 && base && range !== "1G" ? { value: cost / qty / base - 1, label: `Il tuo prezzo medio ${fmtEur(cost / qty)}` } : undefined;
 
   return (
     <div>
@@ -92,8 +120,8 @@ export default function PositionDetail() {
                 {rangeChange > 0 ? "↗ " : rangeChange < 0 ? "↘ " : ""}
                 {fmtPct(Math.abs(rangeChange))}
               </span>
-              {scrub ? `al ${fmtDate(scrub.date)}` : RANGE_LABEL[range]}
-              {!scrub && q && (
+              {scrub ? (scrub.date.length > 10 ? `alle ${new Date(scrub.date).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : `al ${fmtDate(scrub.date)}`) : range === "1G" && prices.length && new Date(prices[prices.length - 1].date).toDateString() !== new Date().toDateString() ? "ultima seduta" : RANGE_LABEL[range]}
+              {!scrub && q && range !== "1G" && (
                 <>
                   <span className="text-faint">·</span>
                   oggi <Change pct={(q.price - q.previousClose) / q.previousClose} size="sm" />
@@ -113,22 +141,29 @@ export default function PositionDetail() {
       <div className={`pl-4 pr-3 ${points.length > 1 ? "mt-6" : "mt-2"}`}>
         <InteractiveChart
           points={points}
-          height={points.length > 1 || !historyReady ? 234 : 72}
-          onSelect={(sel) => setScrub(sel ? points[sel.b ?? sel.a] : null)}
-          loading={!historyReady}
-          format={(v) => fmtPrice(v, instrument.currency)}
-          formatAxis={(v) => fmtPrice(v, instrument.currency).replace(/,\d+/, "")}
+          height={points.length > 1 || (range === "1G" ? !intraday : !historyReady) ? 234 : 72}
+          reference={0}
+          onSelect={(sel) => setScrub(sel ? prices[sel.b ?? sel.a] : null)}
+          loading={range === "1G" ? !intraday : !historyReady}
+          format={(v) => fmtSignedPct(v)}
+          formatAxis={axisPct}
+          describePoint={(i) => `${fmtPrice(prices[i].value, instrument.currency)} · ${fmtSignedPct(points[i].value)}`}
+          describeRange={(i, j) => `${fmtSignedPct(prices[j].value / prices[i].value - 1)} · ${fmtPrice(prices[j].value - prices[i].value, instrument.currency)}`}
           marker={pmcMarker}
-          events={txs
-            .filter((t) => t.type !== "split")
-            .map((t) => ({
-              date: t.date,
-              kind: t.type as "buy" | "sell" | "dividend",
-              label: t.type === "dividend" ? `+${fmtEur(t.amount ?? 0)}` : `${fmtNum(t.quantity ?? 0)} quote a ${fmtPrice(t.price ?? 0, instrument.currency)}`,
-            }))}
+          events={
+            range === "1G"
+              ? []
+              : txs
+                  .filter((t) => t.type === "buy" || t.type === "sell" || t.type === "dividend")
+                  .map((t) => ({
+                    date: t.date,
+                    kind: t.type as "buy" | "sell" | "dividend",
+                    label: t.type === "dividend" ? `+${fmtEur(t.amount ?? 0)}` : `${fmtNum(t.quantity ?? 0)} quote a ${fmtPrice(t.price ?? 0, instrument.currency)}`,
+                  }))
+          }
         />
       </div>
-      <div role="group" aria-label="Periodo del grafico" className="mt-4 grid grid-cols-5 gap-1 px-3">
+      <div role="group" aria-label="Periodo del grafico" className="mt-4 grid grid-cols-6 gap-1 px-3">
         {(Object.keys(RANGE_DAYS) as Range[]).map((r) => (
           <button
             key={r}

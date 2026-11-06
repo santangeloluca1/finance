@@ -1,6 +1,6 @@
-import { getFxHistory } from "./fx";
+import { getFxHistory, getFxLatest } from "./fx";
 import { getTradegate, tradegateTime } from "./tradegate";
-import { getHistory, getQuote, searchYahoo, type Quote } from "./yahoo";
+import { getHistory, getIntraday, getQuote, searchYahoo, type Quote } from "./yahoo";
 
 /** Richiesta dal client: "SIMBOLO" oppure "SIMBOLO~ISIN" (l'ISIN abilita le fonti alternative). */
 export function parseEntries(v: string | null): { ticker: string; isin?: string }[] {
@@ -74,4 +74,33 @@ export async function bestHistory(ticker: string, isin: string | undefined, from
     });
   }
   return [];
+}
+
+/**
+ * Andamento della giornata in euro: prezzi ogni 5 minuti della borsa (o di
+ * un'altra quotazione dello stesso ISIN, convertita al cambio di oggi), più
+ * l'ultimo prezzo di Tradegate se è più recente.
+ */
+export async function bestIntraday(ticker: string, isin?: string, now = Date.now()) {
+  let data = await getIntraday(ticker).catch(() => null);
+  let rate = 1;
+  if ((!data || !data.points.length) && isin) {
+    for (const h of (await searchYahoo(isin).catch(() => [])).filter((x) => x.symbol !== ticker && !x.symbol.startsWith(isin))) {
+      const alt = await getIntraday(h.symbol).catch(() => null);
+      if (!alt?.points.length) continue;
+      if (alt.currency !== "EUR") {
+        const fx: Record<string, number> = await getFxLatest([alt.currency]).catch(() => ({}));
+        if (!fx[alt.currency]) continue;
+        rate = fx[alt.currency];
+      }
+      data = alt;
+      break;
+    }
+  }
+  const points = (data?.points ?? []).map(([d, p]) => [d, p / rate] as [string, number]);
+  const previousClose = (data?.previousClose ?? 0) / rate;
+  const live = await bestQuote(ticker, isin, now).catch(() => null);
+  const lastTime = points.length ? Date.parse(points[points.length - 1][0]) : 0;
+  if (live && live.time > lastTime + 60_000) points.push([new Date(live.time).toISOString(), live.price]);
+  return { points, previousClose: previousClose || live?.previousClose || points[0]?.[1] || 0, source: live?.source };
 }

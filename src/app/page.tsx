@@ -119,7 +119,10 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
       });
   }, [data, filter]);
 
-  const rows = useMemo(() => buildRows(views, period, priceSeries, fx, filter.account === "all"), [views, period, priceSeries, fx, filter.account]);
+  const rows = useMemo(
+    () => buildRows(views, period, priceSeries, fx, filter.account === "all", "valore", data.transactions),
+    [views, period, priceSeries, fx, filter.account, data.transactions],
+  );
   const pending = useMemo(
     () => pendingOccurrences(data.recurring ?? [], data.transactions, data.recurringSkipped ?? [], new Date().toISOString().slice(0, 10)),
     [data.recurring, data.transactions, data.recurringSkipped],

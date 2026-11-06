@@ -258,6 +258,7 @@ export function positionChange(
   period: Period,
   series: Record<string, [string, number][]>,
   fx: FxRates,
+  transactions?: Transaction[],
 ): { abs: number; pct: number } {
   if (period === "oggi") return { abs: v.dayChange, pct: v.dayChangePct };
   if (period === "totale" || v.price === null) return { abs: v.unrealized, pct: v.unrealizedPct };
@@ -267,5 +268,27 @@ export function positionChange(
   const past = s?.filter(([d]) => d <= from).at(-1)?.[1];
   if (!past) return { abs: v.unrealized, pct: v.unrealizedPct };
   const rate = v.instrument.currency === "EUR" ? 1 : fx[v.instrument.currency] ?? 1;
-  return { abs: (v.position.quantity * (v.price - past)) / rate, pct: (v.price - past) / past };
+  if (!transactions) return { abs: (v.position.quantity * (v.price - past)) / rate, pct: (v.price - past) / past };
+
+  // Guadagno nel periodo: valore di oggi − valore a inizio periodo − acquisti + vendite del periodo.
+  // Le quote comprate durante il periodo contano dal loro prezzo d'acquisto, non da quello di inizio periodo.
+  const own = transactions
+    .filter((t) => t.account === v.position.account && t.isin === v.instrument.isin)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  let qtyStart = 0;
+  let buys = 0;
+  let sells = 0;
+  for (const t of own) {
+    const amount = ((t.quantity ?? 0) * (t.price ?? 0)) / (t.fxRate ?? 1);
+    if (t.date <= from) {
+      if (t.type === "buy") qtyStart += t.quantity ?? 0;
+      else if (t.type === "sell") qtyStart -= t.quantity ?? 0;
+      else if (t.type === "split") qtyStart *= t.splitRatio ?? 1;
+    } else if (t.type === "buy") buys += amount + (t.fees ?? 0);
+    else if (t.type === "sell") sells += amount - (t.fees ?? 0);
+  }
+  const startValue = (Math.max(0, qtyStart) * past) / rate;
+  const abs = v.value + sells - startValue - buys;
+  const base = startValue + buys;
+  return { abs, pct: base > 0 ? abs / base : 0 };
 }
