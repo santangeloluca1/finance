@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { Orb } from "@/components/advisor/Orb";
 
 import { useState } from "react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
@@ -15,8 +15,8 @@ export default function AnalisiPage() {
     <div>
       <div className="flex items-center justify-between pr-4">
         <h1 className={`px-4 py-1 ${PAGE_TITLE}`}>Analisi</h1>
-        <Link href="/consulente" className="press flex h-9 items-center gap-1.5 rounded-full bg-accent/12 px-3.5 text-[14px] font-semibold text-accent">
-          <Sparkles size={16} /> Consulente
+        <Link href="/consulente" className="press flex h-9 items-center gap-2 rounded-full bg-chip pl-1.5 pr-3.5 text-[14px] font-semibold text-ink">
+          <Orb size={24} /> Consulente
         </Link>
       </div>
       <Toolbar filter={filter} setFilter={setFilter} view={view} />

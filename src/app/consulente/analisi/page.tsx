@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { RefreshCw, Trash2 } from "lucide-react";
 import { ReportView } from "@/components/advisor/ReportView";
+import { Orb } from "@/components/advisor/Orb";
 import { ICON } from "@/components/advisor/icons";
 import { BackLink, Logo, Panel } from "@/components/ui";
 import { useAdvisor, type RunResult } from "@/lib/ai/client";
@@ -86,16 +87,12 @@ function Analisi() {
   return (
     <div>
       <BackLink href="/consulente" label="Consulente" />
-      <div className="flex items-start gap-3.5 px-4 pb-2 pt-1">
-        <span className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent">
-          <I size={22} />
-        </span>
-        <div className="min-w-0">
-          <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em]">{meta.title}</h1>
-          <p className="text-[14px] text-mut">
-            {result ? `${result.subject ? `${result.subject} · ` : ""}${fmtWhen(Date.parse(result.date))}` : meta.subtitle}
-          </p>
-        </div>
+      <div className="px-4 pb-2 pt-1">
+        <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em]">{meta.title}</h1>
+        <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
+          <I size={14} className="shrink-0" />
+          {result ? `${result.subject ? `${result.subject} · ` : ""}${fmtWhen(Date.parse(result.date))}` : meta.subtitle}
+        </p>
       </div>
 
       {/* Scelta del titolo o dell'importo prima di partire */}
@@ -140,7 +137,10 @@ function Analisi() {
 
       {/* In corso: passaggi che avanzano, con lo stesso movimento del resto dell'app */}
       {running && (
-        <div className="page-in px-4 pt-6" role="status">
+        <div className="page-in px-4 pt-8" role="status">
+          <div className="flex justify-center pb-8">
+            <Orb size={96} active />
+          </div>
           <ul className="space-y-3">
             {STEPS.map((s, i) => (
               <li key={s} className={`flex items-center gap-3 text-[15px] transition-colors ${i <= step ? "text-ink" : "text-faint"}`}>
@@ -149,11 +149,6 @@ function Analisi() {
               </li>
             ))}
           </ul>
-          <div className="mt-8 space-y-3">
-            {[90, 75, 82, 60].map((w, i) => (
-              <span key={i} className="skeleton block h-3.5" style={{ width: `${w}%` }} />
-            ))}
-          </div>
           <p className="pt-6 text-[13px] text-mut">Di solito ci vogliono 10-30 secondi.</p>
         </div>
       )}

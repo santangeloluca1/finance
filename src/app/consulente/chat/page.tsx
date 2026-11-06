@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowUp, RotateCcw, Sparkles } from "lucide-react";
 import { Markdown } from "@/components/advisor/Markdown";
+import { Orb } from "@/components/advisor/Orb";
 import { BackLink } from "@/components/ui";
 import { useAdvisor } from "@/lib/ai/client";
 import type { ChatTurn } from "@/lib/ai/provider";
@@ -82,7 +83,10 @@ function Chat() {
       <h1 className="px-4 pt-1 text-[26px] font-bold tracking-[-0.03em]">Chiedi a Basis</h1>
 
       {turns.length === 0 && !busy && (
-        <p className="px-4 pt-3 text-[15px] leading-snug text-mut">Fai una domanda sul tuo portafoglio: il consulente vede posizioni, zainetto, rendimenti, cedole, obiettivi e il tuo profilo.</p>
+        <div className="flex flex-col items-center px-6 pt-10 text-center">
+          <Orb size={88} />
+          <p className="mt-5 text-[15px] leading-snug text-mut">Fai una domanda sul tuo portafoglio: vedo posizioni, zainetto, rendimenti, cedole, obiettivi e il tuo profilo.</p>
+        </div>
       )}
 
       <div className="space-y-4 px-4 pt-5">
@@ -93,18 +97,14 @@ function Chat() {
             </div>
           ) : (
             <div key={i} className="page-in flex gap-2.5">
-              <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent">
-                <Sparkles size={14} />
-              </span>
+              <Orb size={26} className="mt-1" />
               <Markdown text={t.text} className="min-w-0 flex-1 text-[16px] leading-relaxed text-ink-2" />
             </div>
           ),
         )}
         {busy && (
           <div className="flex gap-2.5" role="status" aria-label="Il consulente sta scrivendo">
-            <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/12 text-accent">
-              <Sparkles size={14} />
-            </span>
+            <Orb size={26} active className="mt-1" />
             <span className="flex items-center gap-1 pt-2">
               {[0, 1, 2].map((d) => (
                 <span key={d} className="anim-breathe h-2 w-2 rounded-full bg-mut" style={{ animationDelay: `${d * 200}ms` }} />

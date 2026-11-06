@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ShieldAlert } from "lucide-react";
 import type { Report } from "@/lib/ai/prompts";
 import { Markdown } from "./Markdown";
+import { Orb } from "./Orb";
 
 const PRIORITY = {
   alta: "bg-dn/12 text-dn",
@@ -16,7 +17,12 @@ export function ReportView({ report }: { report: Report }) {
   const [showData, setShowData] = useState(false);
   return (
     <div>
-      <p className="page-in px-4 pt-2 text-[19px] font-medium leading-snug tracking-[-0.01em]">{report.summary}</p>
+      <div className="page-in mx-4 mt-3 rounded-[20px] bg-panel p-4">
+        <p className="flex items-center gap-2 text-[13px] font-semibold text-mut">
+          <Orb size={22} /> Il consulente
+        </p>
+        <p className="mt-2.5 text-[19px] font-medium leading-snug tracking-[-0.01em]">{report.summary}</p>
+      </div>
 
       {report.actions.length > 0 && (
         <>

@@ -362,3 +362,68 @@ html[data-splash="off"] .splash {
     transition: none;
   }
 }
+
+/* ---------- Oracolo: sfera luminosa del consulente ---------- */
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+.orb {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  overflow: hidden;
+  isolation: isolate;
+  background: #0b0d12;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.06) inset,
+    0 10px 40px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: orb-breathe 5s ease-in-out infinite;
+}
+/* Colori che girano lentamente, sfumati. */
+.orb::before {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  background: conic-gradient(from 0deg, var(--accent), #22b8cf, #2dd4a7, #9b6bff, #f472b6, var(--accent));
+  filter: blur(calc(var(--orb-size, 120px) * 0.09));
+  opacity: 0.95;
+  animation: orb-spin 14s linear infinite;
+  z-index: -1;
+}
+/* Riflesso in alto a sinistra e ombra interna: dà volume. */
+.orb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 32% 26%, rgb(255 255 255 / 0.75), rgb(255 255 255 / 0) 34%),
+    radial-gradient(circle at 70% 80%, rgb(0 0 0 / 0.28), transparent 55%);
+}
+/* Mentre pensa: gira e respira più in fretta. */
+.orb-active {
+  animation-duration: 1.6s;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.06) inset,
+    0 10px 60px -6px color-mix(in srgb, var(--accent) 75%, transparent);
+}
+.orb-active::before {
+  animation-duration: 2.4s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .orb::before {
+    animation: none;
+  }
+}
