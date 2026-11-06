@@ -11,6 +11,7 @@ import { BENCHMARKS, alignSeries } from "@/lib/benchmarks";
 import { twrSeries } from "@/lib/performance";
 import { toggleWatch, usePortfolioData } from "@/lib/store";
 import { Plus, Star } from "lucide-react";
+import { TitleInsights } from "@/components/TitleInsights";
 import { DayCell, BackLink, RangePicker, SelectButton, BankDot, Change, InfoRow, Logo, Panel, SectionHeader, Segmented } from "@/components/ui";
 import { ASSET_CLASS_LABEL, cutoffDate, type FxRates, type HistoryPoint, type PositionView } from "@/lib/analytics";
 import { simulateSale } from "@/lib/engine/portfolio";
@@ -227,6 +228,8 @@ export default function PositionDetail() {
           </Link>
         </div>
       )}
+
+      <TitleInsights instrument={instrument} price={q?.price ?? prices.at(-1)?.value ?? null} quantity={qty} taxRate={effectiveRate(instrument)} />
 
       {allRows.length > 0 && (
         <>

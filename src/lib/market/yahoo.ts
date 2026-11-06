@@ -151,3 +151,39 @@ export function getIntraday(ticker: string): Promise<{ points: [string, number][
     return { points, previousClose: r.meta.chartPreviousClose ?? r.meta.previousClose ?? points[0]?.[1] ?? 0, currency: r.meta.currency };
   });
 }
+
+/** Dividendi pagati negli ultimi 10 anni: [data YYYY-MM-DD, importo per azione] nella valuta del titolo. */
+export function getDividends(ticker: string): Promise<{ currency: string; dividends: [string, number][] }> {
+  return cached(`d:${ticker}`, 6 * 3600_000, async () => {
+    const res = await fetch(`${BASE}${encodeURIComponent(ticker)}?range=10y&interval=1mo&events=div`, { headers: HEADERS, cache: "no-store" });
+    if (!res.ok) throw new Error(`Yahoo ${ticker}: HTTP ${res.status}`);
+    const json = (await res.json()) as {
+      chart: { result?: Array<{ meta: { currency: string }; events?: { dividends?: Record<string, { amount: number; date: number }> } }> };
+    };
+    const r = json.chart.result?.[0];
+    const dividends = Object.values(r?.events?.dividends ?? {})
+      .map((d) => [new Date(d.date * 1000).toISOString().slice(0, 10), d.amount] as [string, number])
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    return { currency: r?.meta.currency ?? "EUR", dividends };
+  });
+}
+
+export interface NewsItem {
+  title: string;
+  publisher: string;
+  link: string;
+  time: number;
+}
+
+/** Ultime notizie Yahoo su un titolo (in inglese). */
+export function getNews(q: string, count = 8): Promise<NewsItem[]> {
+  return cached(`n:${q}`, 15 * 60_000, async () => {
+    const res = await fetch(`https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=0&newsCount=${count}`, {
+      headers: HEADERS,
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { news?: { title: string; publisher: string; link: string; providerPublishTime: number }[] };
+    return (json.news ?? []).map((n) => ({ title: n.title, publisher: n.publisher, link: n.link, time: n.providerPublishTime * 1000 }));
+  });
+}
