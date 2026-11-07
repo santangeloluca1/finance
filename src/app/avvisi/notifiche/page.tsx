@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { BellOff, BellRing, RefreshCw, Share, Timer } from "lucide-react";
+import { BellOff, BellRing, RefreshCw, Share } from "lucide-react";
 import { usePortfolioData, saveNotifySettings } from "@/lib/store";
 import { BackLink, LargeTitle, Panel, SectionHeader, SelectButton, Switch } from "@/components/ui";
 import { AUTO_KINDS, settingsOf, type AutoKind } from "@/lib/notify";
@@ -78,25 +78,19 @@ export default function NotificheSettings() {
 
       <PushPanel push={push} />
 
-      {push.status === "on" && (
+      {/* Mentre lo stato arriva si tiene già il posto, così la pagina non salta. */}
+      {(push.status === "on" || push.status === null) && (
         <Panel className="mt-3">
-          <button onClick={() => push.testLater(20)} disabled={push.busy} className="flex min-h-[60px] w-full items-center gap-3 border-b border-sep px-4 py-2 text-left active:bg-panel-2 disabled:opacity-50">
-            <Timer size={19} className="shrink-0 text-accent" />
-            <span>
-              <span className="block text-[16px] font-medium text-accent">Prova ad app chiusa</span>
-              <span className="block text-[13px] leading-snug text-mut">Tocca, poi chiudi Basis: arriva tra 20 secondi</span>
-            </span>
-          </button>
-          <button onClick={checkNow} disabled={checking} className="flex min-h-[52px] w-full items-center gap-3 px-4 text-left text-[16px] font-medium text-accent active:bg-panel-2 disabled:opacity-50">
+          <button onClick={checkNow} disabled={checking || push.status !== "on"} className="flex min-h-[52px] w-full items-center gap-3 px-4 text-left text-[16px] font-medium text-accent active:bg-panel-2 disabled:opacity-50">
             <RefreshCw size={19} className={checking ? "animate-spin" : ""} /> Controlla gli avvisi adesso
           </button>
         </Panel>
       )}
       {push.error && <p className="px-8 pt-2 text-[13px] leading-snug text-warn">{push.error}</p>}
       {!push.error && (push.notice || checkMsg) && <p className="px-8 pt-2 text-[13px] leading-snug text-mut">{push.notice ?? checkMsg}</p>}
-      {push.status === "on" && lastRun !== undefined && (
-        <p className="px-8 pt-2 text-[13px] leading-snug text-mut">
-          {lastRun ? (
+      {(push.status === "on" || push.status === null) && (
+        <p className="min-h-[54px] px-8 pt-2 text-[13px] leading-snug text-mut">
+          {lastRun === undefined ? null : lastRun ? (
             <>
               Ultimo controllo automatico {fmtWhen(Date.parse(lastRun.at))}
               {lastRun.error ? <span className="text-warn"> · errore: {lastRun.error}</span> : lastRun.sent ? ` · inviate ${lastRun.sent}` : " · niente di nuovo"}. I controlli girano ogni 15 minuti nei giorni feriali, dalle 8 alle 22.

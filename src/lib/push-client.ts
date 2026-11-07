@@ -81,6 +81,8 @@ export function usePush() {
         if (!stop) setStatus("unsupported");
         return;
       }
+      // Lo stato del telefono si mostra subito; la verifica col server segue in background.
+      if (!stop) setStatus(s);
       // "Attive" solo se anche il server conosce questo dispositivo: altrimenti lo si iscrive di nuovo.
       if (s === "on") {
         try {
@@ -88,11 +90,10 @@ export function usePush() {
           const r = await fetch(`/api/push/subscribe?endpoint=${encodeURIComponent(sub!.endpoint)}`, { cache: "no-store" }).then((x) => (x.ok ? x.json() : null));
           if (r && !r.thisDevice) await send(sub!);
         } catch (e) {
-          s = "off";
+          if (!stop) setStatus("off");
           if (!stop) setError(`Questo dispositivo non risulta iscritto sul server (${e instanceof Error ? e.message : String(e)}). Riattiva le notifiche.`);
         }
       }
-      if (!stop) setStatus(s);
     })();
     return () => {
       stop = true;
@@ -166,23 +167,7 @@ export function usePush() {
     }
   }, []);
 
-  /** Prova ad app chiusa: il server invia la notifica dopo `seconds` secondi. */
-  const testLater = useCallback(async (seconds: number) => {
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const r = await fetch("/api/push/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ delay: seconds }) });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setNotice(`Ora chiudi Basis: la notifica arriva tra circa ${seconds} secondi.`);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  return { status, busy, error, notice, enable, disable, test, testLater };
+  return { status, busy, error, notice, enable, disable, test };
 }
 
 async function send(sub: PushSubscription) {
