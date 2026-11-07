@@ -166,7 +166,23 @@ export function usePush() {
     }
   }, []);
 
-  return { status, busy, error, notice, enable, disable, test };
+  /** Prova ad app chiusa: il server invia la notifica dopo `seconds` secondi. */
+  const testLater = useCallback(async (seconds: number) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const r = await fetch("/api/push/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ delay: seconds }) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setNotice(`Ora chiudi Basis: la notifica arriva tra circa ${seconds} secondi.`);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  return { status, busy, error, notice, enable, disable, test, testLater };
 }
 
 async function send(sub: PushSubscription) {
