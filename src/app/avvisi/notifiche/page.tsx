@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { BellOff, BellRing, RefreshCw, Send, Share } from "lucide-react";
+import { BellOff, BellRing, RefreshCw, Share } from "lucide-react";
 import { usePortfolioData, saveNotifySettings } from "@/lib/store";
 import { BackLink, LargeTitle, Panel, SectionHeader, SelectButton, Switch } from "@/components/ui";
 import { AUTO_KINDS, settingsOf, type AutoKind } from "@/lib/notify";
 import { usePush } from "@/lib/push-client";
 import { fmtWhen, fmtN } from "@/lib/format";
 
-const DROP_OPTIONS = ["0.02", "0.03", "0.05", "0.07", "0.1"].map((v) => ({ value: v, label: `${Number(v) * 100}%` }));
+const DROP_OPTIONS = ["0.02", "0.03", "0.05", "0.07", "0.1"].map((v) => ({ value: v, label: `${fmtN(Number(v) * 100)}%` }));
 const MOVE_OPTIONS = ["0.01", "0.015", "0.02", "0.03", "0.05"].map((v) => ({ value: v, label: `${fmtN((Number(v) * 100))}%` }));
 
 interface LastRun {
@@ -80,9 +80,6 @@ export default function NotificheSettings() {
 
       {push.status === "on" && (
         <Panel className="mt-3">
-          <button onClick={push.test} disabled={push.busy} className="flex min-h-[52px] w-full items-center gap-3 border-b border-sep px-4 text-left text-[16px] font-medium text-accent active:bg-panel-2 disabled:opacity-50">
-            <Send size={19} /> Invia una notifica di prova
-          </button>
           <button onClick={checkNow} disabled={checking} className="flex min-h-[52px] w-full items-center gap-3 px-4 text-left text-[16px] font-medium text-accent active:bg-panel-2 disabled:opacity-50">
             <RefreshCw size={19} className={checking ? "animate-spin" : ""} /> Controlla gli avvisi adesso
           </button>
