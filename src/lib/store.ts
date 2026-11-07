@@ -476,13 +476,11 @@ export function saveTargets(targets: Record<string, number>) {
   setData({ ...base, targets });
 }
 
-/** Sposta un obiettivo di una posizione nell'ordine di priorità (-1 su, +1 giù). */
-export function moveGoal(id: string, dir: -1 | 1) {
+/** Nuovo ordine di priorità degli obiettivi (id dal più importante). */
+export function reorderGoals(ids: string[]) {
   const base = editableBase();
-  const goals = [...(base.goals ?? [])];
-  const i = goals.findIndex((g) => g.id === id);
-  const j = i + dir;
-  if (i < 0 || j < 0 || j >= goals.length) return;
-  [goals[i], goals[j]] = [goals[j], goals[i]];
-  setData({ ...base, goals });
+  const goals = base.goals ?? [];
+  const byId = new Map(goals.map((g) => [g.id, g]));
+  const next = [...ids.map((id) => byId.get(id)).filter((g): g is Goal => !!g), ...goals.filter((g) => !ids.includes(g.id))];
+  setData({ ...base, goals: next });
 }

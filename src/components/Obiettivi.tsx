@@ -1,21 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
+import { Check, GripVertical, Minus, Plus, Trash2, X } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { InteractiveChart } from "@/components/InteractiveChart";
-import { Ribilanciamento } from "@/components/Ribilanciamento";
-import { Chip, InfoRow, LargeTitle, Panel, SectionHeader, Segmented, SelectButton, AddButton } from "@/components/ui";
+import { ComeInvesti, DoveInvestire } from "@/components/Allocazione";
+import { Chip, InfoRow, LargeTitle, Panel, SectionHeader, SelectButton } from "@/components/ui";
 import { fmtDate, fmtEur0, fmtN } from "@/lib/format";
-import { futureValue, planGoals, type GoalPlan } from "@/lib/planning";
-import { deleteGoal, moveGoal, newId, saveGoal, savePlan, type Goal, type Plan } from "@/lib/store";
-
-const RETURNS = [
-  { value: "0.03", label: "Prudente 3%" },
-  { value: "0.05", label: "Bilanciato 5%" },
-  { value: "0.07", label: "Dinamico 7%" },
-];
+import { expectedReturn, fromSaved, groupOf, normalize, toSaved, type Group, type Weights } from "@/lib/allocation";
+import { futureValue, monthsUntil, planGoals, type GoalPlan } from "@/lib/planning";
+import { deleteGoal, newId, reorderGoals, saveGoal, savePlan, saveTargets, type Goal } from "@/lib/store";
 
 const SUGGESTIONS = [
   { name: "Fondo emergenza", target: 10000, years: 1, scope: "liquidita" },
@@ -30,28 +25,66 @@ function inMonths(months: number) {
   return fmtDate(d.toISOString().slice(0, 10), { month: "short", year: "numeric" });
 }
 
+/** "1 anno e 3 mesi", "8 mesi". */
+function span(months: number) {
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  const ys = y ? `${y} ${y === 1 ? "anno" : "anni"}` : "";
+  const ms = m ? `${m} ${m === 1 ? "mese" : "mesi"}` : "";
+  return [ys, ms].filter(Boolean).join(" e ");
+}
+
 /**
- * Obiettivi: in cima il piano (quanto versi e quanto pensi che renda), poi gli
- * obiettivi in ordine di priorità con lo stato rispetto al piano, la proiezione
- * con gli obiettivi segnati e, in fondo, come investire il versamento.
+ * Obiettivi come sequenza di domande:
+ * 1. cosa vuoi raggiungere (gli obiettivi, in ordine di priorità, con una frase di stato ciascuno);
+ * 2. quanto metti da parte al mese;
+ * 3. come investi (da cui si stima il rendimento);
+ * poi la proiezione e dove mettere il versamento di questo mese.
  */
 export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
   const { data, totals, views, state } = usePortfolioView();
   const [editing, setEditing] = useState<Goal | null>(null);
-  const saved: Plan = data.plan ?? { monthly: 500, expectedReturn: 0.05, years: 20 };
 
-  // Il piano si sceglie una volta sola qui e vale per tutta la pagina.
-  const [monthlyText, setMonthlyText] = useState(String(saved.monthly));
-  const [rateText, setRateText] = useState(String(saved.expectedReturn));
-  const [years, setYears] = useState(saved.years);
-  const monthly = parseAmount(monthlyText);
-  const rate = Number(rateText);
+  // Quanto metti da parte: se non l'hai mai scelto, si parte dai PAC attivi.
+  const pacTotal = (data.recurring ?? []).filter((r) => r.active && r.kind === "pac").reduce((a, r) => a + (r.budget ?? 0), 0);
+  const [monthly, setMonthly] = useState(data.plan?.monthly ?? (pacTotal || 500));
+  const [monthlyText, setMonthlyText] = useState(String(monthly));
+  const setBoth = (v: number) => {
+    const n = Math.max(0, Math.round(v));
+    setMonthly(n);
+    setMonthlyText(String(n));
+  };
+
+  // Composizione di oggi e composizione scelta.
+  const now = useMemo<Weights>(() => {
+    const raw: Partial<Record<Group, number>> = { liquidita: totals?.cash ?? 0 };
+    for (const v of views) {
+      const g = groupOf(v.instrument.assetClass);
+      raw[g] = (raw[g] ?? 0) + v.value;
+    }
+    return normalize(raw);
+  }, [views, totals?.cash]);
+  const [weights, setWeights] = useState<Weights | null>(() => fromSaved(data.targets));
+  const chosen = weights ?? now;
+  const rate = expectedReturn(chosen);
+  const [years, setYears] = useState(data.plan?.years ?? 20);
+
+  // Salvataggio con un attimo di ritardo, mentre si tocca.
   useEffect(() => {
     const t = setTimeout(() => {
-      if (monthly !== saved.monthly || rate !== saved.expectedReturn || years !== saved.years) savePlan({ monthly, expectedReturn: rate, years });
+      const p = data.plan;
+      if (!p || p.monthly !== monthly || Math.abs(p.expectedReturn - rate) > 1e-9 || p.years !== years) savePlan({ monthly, expectedReturn: rate, years });
     }, 600);
     return () => clearTimeout(t);
-  }, [monthly, rate, years, saved]);
+  }, [monthly, rate, years, data.plan]);
+  useEffect(() => {
+    if (!weights) return;
+    const t = setTimeout(() => {
+      const next = toSaved(weights);
+      if (JSON.stringify(next) !== JSON.stringify(data.targets ?? {})) saveTargets(next);
+    }, 600);
+    return () => clearTimeout(t);
+  }, [weights, data.targets]);
 
   const goals = useMemo(() => data.goals ?? [], [data.goals]);
   const plans = useMemo(() => {
@@ -73,44 +106,29 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
     <div>
       {embedded ? (
         <div className="px-4 pb-1 pt-6">
-          <h2 className="text-[22px] font-bold tracking-[-0.025em]">Il tuo piano</h2>
+          <h2 className="text-[22px] font-bold tracking-[-0.025em]">Cosa vuoi raggiungere</h2>
         </div>
       ) : (
-        <LargeTitle>Il tuo piano</LargeTitle>
+        <LargeTitle>Cosa vuoi raggiungere</LargeTitle>
       )}
 
-      {/* Sintesi: la risposta alla domanda "ce la faccio?" */}
-      <p className="px-4 text-[16px] leading-snug text-ink-2">
-        {goals.length === 0 ? (
-          <>Aggiungi un obiettivo per vedere se il piano basta.</>
-        ) : (
-          <>
-            Con <b className="num font-semibold text-ink">{fmtEur0(monthly)}</b> al mese raggiungi{" "}
-            <b className={`num font-semibold ${reached === goals.length ? "text-up" : "text-warn"}`}>
-              {reached === goals.length ? (goals.length === 1 ? "il tuo obiettivo" : `tutti i ${goals.length} obiettivi`) : `${reached} obiettivi su ${goals.length}`}
-            </b>
-            .
-          </>
-        )}
-      </p>
-
-      <Panel className="mt-4">
-        <Field label="Versamento mensile (€)">
-          <input inputMode="decimal" value={monthlyText} onChange={(e) => setMonthlyText(e.target.value)} placeholder="500" className={inputCls} />
-        </Field>
-        <div className="px-4 py-3">
-          <span className="text-[12px] font-medium text-mut">Rendimento atteso</span>
-          <div className="mt-2">
-            <Segmented size="sm" value={rateText} onChange={setRateText} options={RETURNS} />
-          </div>
-        </div>
-      </Panel>
-
-      <SectionHeader right={<AddButton label="Nuovo obiettivo" onClick={() => newGoal()} />}>Obiettivi</SectionHeader>
+      {goals.length > 0 && (
+        <p className="px-4 text-[16px] leading-snug text-ink-2">
+          Con <b className="num font-semibold text-ink">{fmtEur0(monthly)}</b> al mese{" "}
+          {reached === goals.length ? (
+            <b className="font-semibold text-up">{goals.length === 1 ? "ci arrivi in tempo" : `li raggiungi tutti e ${goals.length}`}</b>
+          ) : (
+            <>
+              ne raggiungi in tempo <b className="num font-semibold text-warn">{reached} su {goals.length}</b>
+            </>
+          )}
+          .
+        </p>
+      )}
 
       {goals.length === 0 ? (
-        <div className="px-4">
-          <p className="text-[15px] leading-snug text-mut">Nessun obiettivo. Scegline uno per iniziare:</p>
+        <div className="px-4 pt-1">
+          <p className="text-[15px] leading-snug text-mut">Aggiungi un traguardo con importo e data: ti diciamo se ci arrivi e quanto mettere da parte. Parti da uno di questi:</p>
           <div className="-mx-1 mt-2 flex flex-wrap gap-1">
             {SUGGESTIONS.map((s) => (
               <Chip key={s.name} onClick={() => newGoal({ name: s.name, target: s.target, date: `${new Date().getFullYear() + s.years}-12-31`, scope: s.scope })}>
@@ -120,89 +138,226 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
           </div>
         </div>
       ) : (
-        <>
-          {goals.length > 1 && <p className="px-4 pb-1 text-[13px] leading-snug text-mut">In ordine di priorità: il patrimonio e il versamento vanno prima ai primi della lista.</p>}
-          <ul>
-            {goals.map((g, idx) => {
-              const p = plans.get(g.id);
-              if (!p) return null;
-              const progress = g.target > 0 ? Math.min(1, p.allocated / g.target) : 0;
-              const shared = p.status !== "done" && p.pool > p.allocated + 1;
-              return (
-                <li key={g.id}>
-                  <button onClick={() => setEditing(g)} className="block w-full px-4 py-3.5 text-left active:bg-panel-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">
-                          {goals.length > 1 && <span className="num mr-1.5 text-mut">{idx + 1}.</span>}
-                          {g.name}
-                        </p>
-                        <p className="mt-0.5 text-[14px] text-mut">
-                          {scopeLabel(g.scope)} · entro {fmtDate(g.date, { month: "short", year: "numeric" })}
-                        </p>
-                      </div>
-                      <div className="num shrink-0 text-right">
-                        <p className="sensitive text-[17px] font-medium">{fmtEur0(p.allocated)}</p>
-                        <p className="text-[14px] text-mut">di {fmtEur0(g.target)}</p>
-                      </div>
-                    </div>
-                    <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-chip">
-                      <div
-                        className={`h-full rounded-full ${p.status === "done" || p.status === "ok" ? "bg-up" : "bg-warn"}`}
-                        style={{ width: `${Math.max(2, progress * 100)}%` }}
-                      />
-                    </div>
-                    <p className="mt-2 text-[14px] leading-snug text-mut">
-                      <GoalStatus p={p} />
-                    </p>
-                    {shared && <p className="mt-0.5 text-[13px] text-faint">Il resto di {scopeLabel(g.scope).toLowerCase()} va agli obiettivi prima di questo.</p>}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </>
+        <GoalList goals={goals} plans={plans} scopeLabel={scopeLabel} onOpen={setEditing} />
       )}
+
+      {goals.length > 0 && (
+        <button onClick={() => newGoal()} className="mx-4 mt-1 flex min-h-[48px] items-center gap-2 text-[16px] font-semibold text-accent active:opacity-60">
+          <Plus size={19} strokeWidth={2.4} /> Aggiungi obiettivo
+        </button>
+      )}
+
+      {/* Quanto metti da parte */}
+      <SectionHeader>Quanto metti da parte al mese</SectionHeader>
+      <div className="flex items-center justify-between gap-3 px-4">
+        <button aria-label="50 € in meno" onClick={() => setBoth(monthly - 50)} disabled={monthly <= 0} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-chip text-ink-2 active:opacity-60 disabled:opacity-30">
+          <Minus size={20} strokeWidth={2.4} />
+        </button>
+        <label className="flex min-w-0 flex-1 items-baseline justify-center gap-1">
+          <span className="sr-only">Versamento mensile in euro</span>
+          <input
+            inputMode="numeric"
+            value={monthlyText}
+            onChange={(e) => {
+              setMonthlyText(e.target.value);
+              setMonthly(parseAmount(e.target.value));
+            }}
+            onBlur={() => setMonthlyText(String(monthly))}
+            className="num w-full min-w-0 bg-transparent text-right text-[34px] font-bold tracking-[-0.03em] outline-none"
+            style={{ maxWidth: `${Math.max(2, monthlyText.length) + 0.5}ch` }}
+          />
+          <span className="text-[34px] font-bold tracking-[-0.03em]">€</span>
+        </label>
+        <button aria-label="50 € in più" onClick={() => setBoth(monthly + 50)} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-chip text-ink-2 active:opacity-60">
+          <Plus size={20} strokeWidth={2.4} />
+        </button>
+      </div>
+      {pacTotal > 0 && pacTotal !== monthly ? (
+        <button onClick={() => setBoth(pacTotal)} className="mx-auto mt-1 flex min-h-[44px] items-center px-4 text-[14px] text-accent active:opacity-60">
+          I tuoi PAC fanno {fmtEur0(pacTotal)} al mese: usa questo importo
+        </button>
+      ) : (
+        <p className="mt-1 min-h-[44px] px-4 pt-2.5 text-center text-[14px] text-mut">{pacTotal > 0 ? "Come i tuoi PAC attivi" : "Quello che investi o accantoni ogni mese"}</p>
+      )}
+
+      {totals && <ComeInvesti weights={chosen} now={now} rate={rate} onChange={setWeights} />}
 
       {totals && <Proiezione start={totals.value} monthly={monthly} rate={rate} years={years} setYears={setYears} goals={goals} plans={plans} />}
 
-      {totals && <Ribilanciamento views={views} targets={data.targets} monthly={monthly} />}
+      {totals && <DoveInvestire views={views} cash={totals.cash} weights={chosen} monthly={monthly} />}
 
       {editing && (
         <Sheet onClose={() => setEditing(null)} title={goals.some((g) => g.id === editing.id) ? "Modifica obiettivo" : "Nuovo obiettivo"}>
-          <GoalForm
-            key={editing.id}
-            initial={editing}
-            accounts={data.accounts}
-            isNew={!goals.some((g) => g.id === editing.id)}
-            index={goals.findIndex((g) => g.id === editing.id)}
-            count={goals.length}
-            onDone={() => setEditing(null)}
-          />
+          <GoalForm key={editing.id} initial={editing} accounts={data.accounts} isNew={!goals.some((g) => g.id === editing.id)} onDone={() => setEditing(null)} />
         </Sheet>
       )}
     </div>
   );
 }
 
-function GoalStatus({ p }: { p: GoalPlan }) {
-  if (p.status === "done") return <span className="font-semibold text-up">Raggiunto</span>;
-  const pace = p.monthsAtPace != null ? `, oppure ci arrivi a ${inMonths(p.monthsAtPace)}` : "";
+/**
+ * Obiettivi in ordine di priorità: si riordinano trascinando la maniglia.
+ * Patrimonio e versamento vanno prima ai primi della lista.
+ */
+function GoalList({
+  goals,
+  plans,
+  scopeLabel,
+  onOpen,
+}: {
+  goals: Goal[];
+  plans: Map<string, GoalPlan & { pool: number }>;
+  scopeLabel: (s: string) => string;
+  onOpen: (g: Goal) => void;
+}) {
+  const refs = useRef(new Map<string, HTMLLIElement>());
+  const [drag, setDrag] = useState<{ id: string; startY: number; dy: number; rects: { id: string; top: number; h: number }[] } | null>(null);
+
+  // Ordine mentre si trascina: posizione in base al centro dell'elemento spostato.
+  const order = useMemo(() => {
+    if (!drag) return goals.map((g) => g.id);
+    const me = drag.rects.find((r) => r.id === drag.id)!;
+    const center = me.top + me.h / 2 + drag.dy;
+    const others = drag.rects.filter((r) => r.id !== drag.id);
+    const idx = others.filter((r) => r.top + r.h / 2 < center).length;
+    const ids = others.map((r) => r.id);
+    ids.splice(idx, 0, drag.id);
+    return ids;
+  }, [drag, goals]);
+
+  const offset = (id: string) => {
+    if (!drag) return 0;
+    const top0 = drag.rects[0].top;
+    const h = new Map(drag.rects.map((r) => [r.id, r.h]));
+    let slot = top0;
+    for (const o of order) {
+      if (o === id) break;
+      slot += h.get(o)!;
+    }
+    const orig = drag.rects.find((r) => r.id === id)!.top;
+    return id === drag.id ? orig + drag.dy - slot : 0;
+  };
+
+  const start = (id: string, e: RPointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const rects = goals.map((g) => {
+      const r = refs.current.get(g.id)!.getBoundingClientRect();
+      return { id: g.id, top: r.top, h: r.height };
+    });
+    setDrag({ id, startY: e.clientY, dy: 0, rects });
+  };
+  const move = (e: RPointerEvent) => drag && setDrag({ ...drag, dy: e.clientY - drag.startY });
+  const end = () => {
+    if (!drag) return;
+    if (order.join() !== goals.map((g) => g.id).join()) reorderGoals(order);
+    setDrag(null);
+  };
+
+  const byId = new Map(goals.map((g) => [g.id, g]));
+  return (
+    <>
+      {goals.length > 1 && <p className="px-4 pb-1 pt-3 text-[13px] leading-snug text-mut">Si sommano in ordine di priorità: soldi e versamenti vanno prima ai primi. Trascina ⋮⋮ per riordinare.</p>}
+      <ul className="mt-2">
+        {order.map((id, idx) => {
+          const g = byId.get(id)!;
+          const p = plans.get(id);
+          if (!p) return null;
+          const progress = g.target > 0 ? Math.min(1, p.allocated / g.target) : 0;
+          const dragging = drag?.id === id;
+          const good = p.status === "done" || p.status === "ok";
+          return (
+            <li
+              key={id}
+              ref={(el) => {
+                if (el) refs.current.set(id, el);
+                else refs.current.delete(id);
+              }}
+              className={`relative px-4 py-1.5 ${drag ? "select-none " : ""}${dragging ? "z-10" : "transition-transform duration-200"}`}
+              style={{ transform: dragging ? `translateY(${offset(id)}px)` : undefined }}
+            >
+              <div className={`flex items-stretch rounded-[18px] bg-panel ${dragging ? "scale-[1.02] shadow-xl" : ""} transition-[transform,box-shadow]`}>
+                <button onClick={() => onOpen(g)} className="min-w-0 flex-1 rounded-l-[18px] py-3.5 pl-4 pr-1 text-left active:bg-panel-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">
+                        {goals.length > 1 && <span className="num mr-1.5 text-mut">{idx + 1}</span>}
+                        {g.name}
+                      </p>
+                      <p className="mt-0.5 truncate text-[13px] text-mut">
+                        {fmtEur0(g.target)} entro {fmtDate(g.date, { month: "short", year: "numeric" })} · {scopeLabel(g.scope)}
+                      </p>
+                    </div>
+                    <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold ${good ? "bg-up/12 text-up" : "bg-warn/14 text-warn"}`}>
+                      {p.status === "done" ? "Raggiunto" : p.status === "ok" ? "In tempo" : p.status === "late" ? "In ritardo" : "Scaduto"}
+                    </span>
+                  </div>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-chip">
+                    <div className={`h-full rounded-full transition-[width] duration-500 ${good ? "bg-up" : "bg-warn"}`} style={{ width: `${Math.max(2, progress * 100)}%` }} />
+                  </div>
+                  <p className="mt-2.5 text-[15px] leading-snug text-ink-2">
+                    <GoalSentence p={p} target={g.target} date={g.date} />
+                  </p>
+                </button>
+                {goals.length > 1 && (
+                  <button
+                    aria-label={`Trascina per cambiare la priorità di ${g.name}`}
+                    onPointerDown={(e) => start(id, e)}
+                    onPointerMove={move}
+                    onPointerUp={end}
+                    onPointerCancel={end}
+                    className="flex w-10 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded-r-[18px] text-faint active:cursor-grabbing active:text-ink-2"
+                  >
+                    <GripVertical size={20} />
+                  </button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
+}
+
+/** Lo stato dell'obiettivo in una frase: quanto manca e quando ci arrivi. */
+function GoalSentence({ p, target, date }: { p: GoalPlan; target: number; date: string }) {
+  const missing = Math.max(0, target - p.allocated);
+  const m = <b className="num sensitive font-semibold text-ink">{fmtEur0(missing)}</b>;
+  if (p.status === "done") return <>Hai già messo da parte tutta la cifra.</>;
   if (p.status === "expired")
     return (
       <>
-        <span className="font-semibold text-warn">Scadenza passata</span> · sposta la data o rivedi l&apos;importo
+        La data è passata e mancano {m}: spostala o rivedi l&apos;importo.
       </>
     );
   if (p.status === "ok")
-    return (
+    return p.funded > 0 ? (
       <>
-        <span className="font-semibold text-up">In linea</span> · gli vanno <b className="num font-semibold text-ink">{fmtEur0(p.need)}</b> del versamento mensile
+        Mancano {m}. Con <b className="num font-semibold text-ink">{fmtEur0(p.funded)}</b> al mese ci arrivi in tempo.
       </>
+    ) : (
+      <>Mancano {m}, ma ci arriva da solo con il rendimento.</>
     );
+  const delay = p.monthsAtPace != null ? p.monthsAtPace - monthsUntil(date) : null;
   return (
     <>
-      <span className="font-semibold text-warn">In ritardo</span> · servono <b className="num font-semibold text-ink">+{fmtEur0(p.extra)}</b> al mese{pace}
+      Mancano {m}.{" "}
+      {p.monthsAtPace != null ? (
+        <>
+          {p.funded > 0 ? (
+            <>
+              Con <b className="num font-semibold text-ink">{fmtEur0(p.funded)}</b> al mese ci arrivi a {inMonths(p.monthsAtPace)}
+            </>
+          ) : (
+            <>Il versamento va agli obiettivi prima: ci arrivi a {inMonths(p.monthsAtPace)}</>
+          )}
+          {delay != null && delay > 0 && <span className="text-warn"> ({span(delay)} dopo)</span>}.
+        </>
+      ) : (
+        <>{p.funded > 0 ? "Con il versamento di adesso non ci arrivi." : "Il versamento va tutto agli obiettivi prima."}</>
+      )}{" "}
+      Per essere in tempo servono <b className="num font-semibold text-warn">+{fmtEur0(p.extra)}</b> al mese.
     </>
   );
 }
@@ -237,7 +392,7 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-function GoalForm({ initial, accounts, isNew, index, count, onDone }: { initial: Goal; accounts: { id: string; name: string; color: string }[]; isNew: boolean; index: number; count: number; onDone: () => void }) {
+function GoalForm({ initial, accounts, isNew, onDone }: { initial: Goal; accounts: { id: string; name: string; color: string }[]; isNew: boolean; onDone: () => void }) {
   const [name, setName] = useState(initial.name);
   const [target, setTarget] = useState(initial.target ? String(initial.target) : "");
   const [date, setDate] = useState(initial.date);
@@ -270,21 +425,6 @@ function GoalForm({ initial, accounts, isNew, index, count, onDone }: { initial:
             ]}
           />
         </div>
-        {!isNew && count > 1 && (
-          <div className="flex min-h-[56px] items-center justify-between gap-3 border-t border-sep px-4">
-            <span className="text-[16px]">
-              Priorità <span className="num text-mut">· {index + 1}ª di {count}</span>
-            </span>
-            <span className="flex gap-1">
-              <button aria-label="Più importante" disabled={index <= 0} onClick={() => moveGoal(initial.id, -1)} className="flex h-11 w-11 items-center justify-center rounded-full bg-chip text-ink-2 active:opacity-70 disabled:opacity-30">
-                <ChevronUp size={20} />
-              </button>
-              <button aria-label="Meno importante" disabled={index >= count - 1} onClick={() => moveGoal(initial.id, 1)} className="flex h-11 w-11 items-center justify-center rounded-full bg-chip text-ink-2 active:opacity-70 disabled:opacity-30">
-                <ChevronDown size={20} />
-              </button>
-            </span>
-          </div>
-        )}
       </Panel>
       <div className="flex gap-2 px-4 pt-5">
         <button onClick={onDone} className="h-[50px] flex-1 rounded-[16px] bg-chip text-[16px] font-semibold text-ink-2 active:opacity-70">
@@ -356,7 +496,7 @@ function Proiezione({
 
   return (
     <>
-      <SectionHeader>Proiezione</SectionHeader>
+      <SectionHeader>Dove arrivi</SectionHeader>
       <div className="px-4 pt-1">
         <p className="text-[14px] text-mut">
           Tra {years} anni, nel {new Date().getFullYear() + years}
@@ -390,7 +530,7 @@ function Proiezione({
         {goals.length > 0 && (
           <>
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rotate-45 bg-up" /> Obiettivo in linea
+              <span className="h-2 w-2 rotate-45 bg-up" /> Obiettivo in tempo
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rotate-45 border-2 border-warn" /> In ritardo
@@ -415,8 +555,8 @@ function Proiezione({
       </Panel>
 
       <Panel className="mt-3">
-        <InfoRow label={`Se rende il ${fmtN(Math.max(0, rate - 0.02) * 100)}%`} hint="Scenario prudente" value={fmtEur0(low)} />
-        <InfoRow label={`Se rende il ${fmtN((rate + 0.02) * 100)}%`} hint="Scenario ottimista" value={fmtEur0(high)} />
+        <InfoRow label={`Se rende il ${fmtN(Math.max(0, rate - 0.02) * 100, { maximumFractionDigits: 1 })}%`} hint="Scenario prudente" value={fmtEur0(low)} />
+        <InfoRow label={`Se rende il ${fmtN((rate + 0.02) * 100, { maximumFractionDigits: 1 })}%`} hint="Scenario ottimista" value={fmtEur0(high)} />
       </Panel>
       <p className="px-6 pb-2 pt-4 text-center text-[12px] leading-relaxed text-mut">Proiezione al lordo di tasse e inflazione, a rendimento costante.</p>
     </>
