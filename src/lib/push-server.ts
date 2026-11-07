@@ -106,7 +106,8 @@ export async function deliver(userId: string, msg: PushMessage): Promise<Deliver
           vapidDetails: { subject, publicKey, privateKey },
           TTL: 6 * 3600,
           urgency: "high",
-          topic: msg.tag.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32) || undefined,
+          // Niente "topic": Apple (web.push.apple.com) lo rifiuta con 400 BadWebPushTopic.
+          // Le notifiche dello stesso avviso si sostituiscono comunque grazie al "tag" nel service worker.
         });
         sent++;
       } catch (e) {
