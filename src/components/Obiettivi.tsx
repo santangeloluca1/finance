@@ -264,7 +264,7 @@ function GoalList({
                 if (el) refs.current.set(id, el);
                 else refs.current.delete(id);
               }}
-              className={`relative ${drag ? "select-none " : ""}${dragging ? "z-10" : ""}`}
+              className={`relative after:pointer-events-none after:absolute after:bottom-0 after:left-[78px] after:right-0 after:h-px after:bg-sep last:after:hidden ${drag ? "select-none " : ""}${dragging ? "z-10 after:hidden" : ""}`}
               style={{ transform: dragging ? `translateY(${offset(id)}px)` : undefined }}
             >
               <div className={`flex items-center bg-bg transition-shadow ${dragging ? "rounded-[16px] shadow-xl ring-1 ring-sep" : ""}`}>
