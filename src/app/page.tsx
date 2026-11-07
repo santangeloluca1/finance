@@ -39,7 +39,11 @@ export default function Home() {
       // Analisi ora ha una pagina sua nella barra in basso.
       if (window.location.hash === "#analisi") return router.replace("/analisi");
       const h = window.location.hash.slice(1) as Tab;
-      setTab(TABS.some((t) => t.id === h) ? h : "panoramica");
+      const next = TABS.some((t) => t.id === h) ? h : "panoramica";
+      setTab(next);
+      // Un link a "/#obiettivi" (es. da Impostazioni) non riporta in cima da solo:
+      // la scheda si apre sempre dall'inizio.
+      if (next !== "panoramica") requestAnimationFrame(() => window.scrollTo({ top: 0 }));
     };
     sync();
     window.addEventListener("hashchange", sync);
