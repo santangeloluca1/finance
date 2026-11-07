@@ -12,6 +12,14 @@ import { fmtWhen, fmtN } from "@/lib/format";
 const DROP_OPTIONS = ["0.02", "0.03", "0.05", "0.07", "0.1"].map((v) => ({ value: v, label: `${Number(v) * 100}%` }));
 const MOVE_OPTIONS = ["0.01", "0.015", "0.02", "0.03", "0.05"].map((v) => ({ value: v, label: `${fmtN((Number(v) * 100))}%` }));
 
+interface LastRun {
+  at: string;
+  source: string;
+  users: number;
+  sent: number;
+  error: string | null;
+}
+
 interface Sent {
   id: string;
   title: string;
@@ -25,13 +33,17 @@ export default function NotificheSettings() {
   const s = settingsOf(data.notify);
   const push = usePush();
   const [history, setHistory] = useState<Sent[] | null>(null);
+  const [lastRun, setLastRun] = useState<LastRun | null | undefined>(undefined);
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
 
   const loadHistory = useCallback(() => {
     fetch("/api/notifications", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((j: { items: Sent[] }) => setHistory(j.items))
+      .then((r) => (r.ok ? r.json() : { items: [], lastRun: null }))
+      .then((j: { items: Sent[]; lastRun?: LastRun | null }) => {
+        setHistory(j.items);
+        setLastRun(j.lastRun ?? null);
+      })
       .catch(() => setHistory([]));
   }, []);
   useEffect(loadHistory, [loadHistory]);
@@ -76,7 +88,20 @@ export default function NotificheSettings() {
           </button>
         </Panel>
       )}
-      {(push.error || checkMsg) && <p className="px-8 pt-2 text-[13px] leading-snug text-mut">{push.error ?? checkMsg}</p>}
+      {push.error && <p className="px-8 pt-2 text-[13px] leading-snug text-warn">{push.error}</p>}
+      {!push.error && (push.notice || checkMsg) && <p className="px-8 pt-2 text-[13px] leading-snug text-mut">{push.notice ?? checkMsg}</p>}
+      {push.status === "on" && lastRun !== undefined && (
+        <p className="px-8 pt-2 text-[13px] leading-snug text-mut">
+          {lastRun ? (
+            <>
+              Ultimo controllo automatico {fmtWhen(Date.parse(lastRun.at))}
+              {lastRun.error ? <span className="text-warn"> · errore: {lastRun.error}</span> : lastRun.sent ? ` · inviate ${lastRun.sent}` : " · niente di nuovo"}. I controlli girano ogni 15 minuti nei giorni feriali, dalle 8 alle 22.
+            </>
+          ) : (
+            "Nessun controllo automatico registrato finora: il primo arriva entro 15 minuti nei giorni feriali."
+          )}
+        </p>
+      )}
 
       <SectionHeader>Avvisi automatici</SectionHeader>
       <Panel>

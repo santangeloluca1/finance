@@ -1,11 +1,12 @@
 # Controllo degli avvisi ogni 15 minuti in orario di borsa (il piano Hobby di
-# Vercel permette i cron solo una volta al giorno). Il workflow si autentica
-# con il token OIDC di GitHub: nessun secret da configurare.
+# Vercel permette i cron solo una volta al giorno). Minuti "dispari" (4, 19, 34,
+# 49): GitHub salta molte esecuzioni pianificate allo scoccare del quarto d'ora.
+# Il workflow si autentica con il token OIDC di GitHub: nessun secret da configurare.
 name: Notifiche
 
 on:
   schedule:
-    - cron: "*/15 7-20 * * 1-5"
+    - cron: "4,19,34,49 6-20 * * 1-5"
   workflow_dispatch:
 
 permissions:

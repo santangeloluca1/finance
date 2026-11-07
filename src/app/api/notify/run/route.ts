@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runNotifications } from "@/lib/notify-server";
 import { sessionUserId } from "@/lib/session";
+import { logRun } from "@/lib/push-server";
 import { verifyGithubOidc } from "@/lib/github-oidc";
 
 export const runtime = "nodejs";
@@ -17,7 +18,16 @@ export async function GET(req: Request) {
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const allowed = (!!secret && bearer === secret) || (bearer.split(".").length === 3 && (await verifyGithubOidc(bearer).catch(() => false)));
   if (!allowed) return NextResponse.json({ message: "Non autorizzato" }, { status: 401 });
-  const reports = await runNotifications();
+  const source = new URL(req.url).searchParams.get("slot") ?? "cron";
+  let reports;
+  try {
+    reports = await runNotifications();
+  } catch (e) {
+    await logRun(source, 0, 0, String(e)).catch(() => {});
+    throw e;
+  }
+  const errors = reports.map((r) => r.skipped).filter((s) => s && s !== "non disturbare" && s !== "nessun portafoglio");
+  await logRun(source, reports.length, reports.reduce((a, r) => a + r.sent, 0), errors.join("; ").slice(0, 500) || undefined).catch(() => {});
   return NextResponse.json({ ok: true, reports: reports.map((r) => ({ candidates: r.candidates, sent: r.sent, skipped: r.skipped })) });
 }
 
