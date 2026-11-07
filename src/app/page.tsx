@@ -209,7 +209,14 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           lastSession ? "Ultima seduta" : "Oggi"
         ) : (
           <>
-            {RANGE_PHRASE[range].replace(/^./, (c) => c.toUpperCase())}
+            {RANGE_PHRASE[range].replace(/^./, (c) => c.toUpperCase())}{" "}
+            {ready ? (
+              <span className={`num sensitive font-medium ${tint(gain)}`}>{fmtSignedPct(gainPct)}</span>
+            ) : historyReady ? (
+              <span className="num">—</span>
+            ) : (
+              <span className="skeleton inline-block h-3 w-10 align-middle" aria-hidden />
+            )}
             <span className="mx-1.5 text-faint">·</span>
             Oggi <span className={`num sensitive font-medium ${tint(totals.dayChange)}`}>{fmtSignedPct(totals.dayChangePct)}</span>
           </>
