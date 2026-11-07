@@ -24,7 +24,6 @@ export function Ribilanciamento({ views, targets, monthly }: { views: PositionVi
 
   // Pesi in percentuale intera; di default l'allocazione attuale.
   const [pcts, setPcts] = useState<Record<string, string>>({});
-  const [contribution, setContribution] = useState(String(monthly || 500));
   useEffect(() => {
     setPcts(Object.fromEntries(classes.map((k) => [k, String(Math.round(((targets?.[k] ?? (total ? current[k] / total : 0)) * 100)))])));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -32,7 +31,7 @@ export function Ribilanciamento({ views, targets, monthly }: { views: PositionVi
 
   const sum = classes.reduce((a, k) => a + (Number(pcts[k]) || 0), 0);
   const valid = Math.round(sum) === 100;
-  const amount = Number(contribution.replace(/\./g, "").replace(",", ".")) || 0;
+  const amount = monthly;
 
   useEffect(() => {
     if (!valid) return;
@@ -56,7 +55,8 @@ export function Ribilanciamento({ views, targets, monthly }: { views: PositionVi
 
   return (
     <>
-      <SectionHeader>Ribilanciamento</SectionHeader>
+      <SectionHeader>Dove investire il versamento</SectionHeader>
+      <p className="px-4 pb-3 text-[14px] leading-snug text-mut">Scegli i pesi che vuoi avere: ti diciamo come dividere i {fmtEur0(amount)} del piano per avvicinarti.</p>
       <Panel>
         {classes.map((k) => {
           const cur = total ? current[k] / total : 0;
@@ -80,24 +80,12 @@ export function Ribilanciamento({ views, targets, monthly }: { views: PositionVi
             </div>
           );
         })}
-        <label className="flex min-h-[52px] items-center justify-between gap-3 px-4 py-2">
-          <span className="text-[16px] font-medium">Prossimo versamento</span>
-          <span className="flex items-center gap-1">
-            <input
-              inputMode="decimal"
-              value={contribution}
-              onChange={(e) => setContribution(e.target.value)}
-              className="num w-24 bg-transparent text-right text-[17px] font-semibold text-accent outline-none"
-            />
-            <span className="text-[17px] font-semibold text-accent">€</span>
-          </span>
-        </label>
       </Panel>
       {!valid && <p className="px-4 pt-2 text-[14px] text-warn">I pesi devono sommare 100% (ora {sum}%).</p>}
 
       {valid && amount > 0 && (
         <>
-          <p className="px-4 pb-1 pt-6 text-[15px] font-medium text-mut">Come dividere i {fmtEur0(amount)}</p>
+          <p className="px-4 pb-1 pt-6 text-[15px] font-medium text-mut">Questo mese</p>
           <ul>
             {classes
               .filter((k) => (split[k] ?? 0) >= 1)

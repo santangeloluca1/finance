@@ -43,6 +43,8 @@ interface Props {
   trend?: (a: number, b: number) => number;
   /** Seconda serie da confrontare (es. un indice), stessa lunghezza dei punti. */
   compare?: (number | null)[];
+  /** Traguardi da segnare come punti (importo a una data): pieni se raggiunti, vuoti se no. */
+  goals?: { date: string; value: number; met: boolean }[];
 }
 
 /** Altezza dell'asse delle date e larghezza della colonna dei valori a destra. */
@@ -57,7 +59,7 @@ const EVENT_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola" } as 
  * - due dita (o trascinando col mouse) selezionano un intervallo e mostrano la variazione tra le due date;
  * - frecce ← → da tastiera quando il grafico ha il focus.
  */
-export function InteractiveChart({ points, height = 220, format, formatAxis, reference, showInvested, events = [], marker, onSelect, loading, describePoint, describeRange, trend, compare }: Props) {
+export function InteractiveChart({ points, height = 220, format, formatAxis, reference, showInvested, events = [], marker, onSelect, loading, describePoint, describeRange, trend, compare, goals = [] }: Props) {
   const gid = useId().replace(/:/g, "");
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
@@ -86,6 +88,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
     vals.push(base);
     if (marker) vals.push(marker.value);
     compare?.forEach((v) => v !== null && Number.isFinite(v) && vals.push(v));
+    goals.forEach((g) => g.date >= points[0].date && g.date <= points[points.length - 1].date && vals.push(g.value));
     let min = Math.min(...vals);
     let max = Math.max(...vals);
     const pad = (max - min || Math.abs(max) || 1) * 0.1;
@@ -123,7 +126,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
       compareLine,
       grid,
     };
-  }, [points, plotW, H, reference, showInvested, marker, compare]);
+  }, [points, plotW, H, reference, showInvested, marker, compare, goals]);
 
   const eventIdx = useMemo(() => {
     const map = new Map<number, ChartEvent[]>();
@@ -307,6 +310,22 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
             opacity={ranged && (i < start || i > end) ? 0.4 : 1}
           />
         ))}
+
+        {/* Traguardi: un rombo all'importo e alla data dell'obiettivo */}
+        {goals.map((g, k) => {
+          if (g.date < points[0].date || g.date > points[points.length - 1].date) return null;
+          let i = points.findIndex((p) => p.date >= g.date);
+          if (i < 0) i = points.length - 1;
+          const cx = geo.x(i);
+          const cy = geo.y(g.value);
+          const c = g.met ? "var(--up)" : "var(--warn)";
+          return (
+            <g key={k}>
+              <line x1={cx} x2={cx} y1={cy} y2={H} stroke={c} strokeOpacity="0.35" strokeDasharray="2 3" />
+              <rect x={cx - 5} y={cy - 5} width="10" height="10" transform={`rotate(45 ${cx} ${cy})`} fill={g.met ? c : "var(--bg)"} stroke={c} strokeWidth="2" />
+            </g>
+          );
+        })}
 
         {/* Asse X: una tacca per mese, trimestre o anno a seconda del periodo.
             Mentre il dito è sul grafico la data è nella bolla: al posto delle tacche compare la legenda. */}
