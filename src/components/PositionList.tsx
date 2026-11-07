@@ -78,7 +78,7 @@ export function PositionList({
     <ul className="stagger">
       {rows.map((r) => (
         <li key={r.key}>
-          <Link href={`/posizioni/${r.instrument.isin}`} className="flex min-h-[68px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">
+          <Link href={`/posizioni/${r.instrument.isin}`} className="flex min-h-[68px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2 has-[.change-toggle:active]:!bg-transparent">
             <Logo isin={r.instrument.isin} name={r.instrument.shortName ?? r.instrument.name} size={44} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">{r.instrument.shortName ?? r.instrument.name}</p>
@@ -153,7 +153,7 @@ function ChangeToggle({ abs, pct }: { abs: number; pct: number }) {
       aria-label={`Variazione ${unit === "eur" ? fmtSignedEur(abs) : fmtSignedPct(pct)}: tocca per vederla in ${unit === "eur" ? "percentuale" : "euro"}`}
       onClick={flip}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && flip(e)}
-      className={`num -my-2 -mr-2 inline-block rounded-lg py-2 pl-3 pr-2 text-[14px] font-medium active:bg-chip ${cls} ${unit === "eur" ? "sensitive" : ""}`}
+      className={`change-toggle num -my-2 -mr-2 inline-block rounded-lg py-2 pl-3 pr-2 text-[14px] font-medium active:bg-chip ${cls} ${unit === "eur" ? "sensitive" : ""}`}
     >
       {ref > eps ? "↗ " : ref < -eps ? "↘ " : ""}
       {unit === "eur" ? fmtSignedEur(abs) : fmtSignedPct(pct)}
