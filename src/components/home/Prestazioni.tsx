@@ -41,7 +41,6 @@ export function Prestazioni({
   accounts: Account[];
 }) {
   const [range, setRange] = useState<Range>("1A");
-  const [openMonth, setOpenMonth] = useState<string | null>(null);
   const [contribPeriod, setContribPeriod] = useState<Period>("oggi");
   const [contribUnit, setContribUnit] = useState<"eur" | "pct">("eur");
   const [bench, setBench] = useState<Bench>("SWDA.MI");
@@ -191,31 +190,7 @@ export function Prestazioni({
       </Panel>
 
       {/* Rendimenti mensili */}
-      <SectionHeader>Mese per mese</SectionHeader>
-      <Panel className="px-3 py-3">
-        <div className="grid grid-cols-[30px_repeat(12,minmax(0,1fr))_40px] gap-[3px] text-center">
-          <span />
-          {MONTHS.map((m, i) => (
-            <span key={i} className="pb-1 text-[11px] font-semibold text-mut">
-              {m}
-            </span>
-          ))}
-          <span className="pb-1 text-right text-[11px] font-semibold text-mut">Anno</span>
-          {years.map((y) => (
-            <YearRow key={y} year={y} months={months} open={openMonth} setOpen={setOpenMonth} />
-          ))}
-        </div>
-        <p className="num mt-2.5 h-4 px-1 text-[13px] text-mut">
-          {openMonth && months[openMonth] !== undefined ? (
-            <>
-              {MONTH_NAMES[Number(openMonth.slice(5)) - 1]} {openMonth.slice(0, 4)}:{" "}
-              <span className={`font-semibold ${tone(months[openMonth])}`}>{fmtSignedPct(months[openMonth])}</span>
-            </>
-          ) : (
-            "Tocca un mese per il valore esatto"
-          )}
-        </p>
-      </Panel>
+      <MonthBars months={months} years={years} />
 
       {/* Contributo di ogni titolo */}
       <SectionHeader right={<SelectButton label="Periodo del contributo" value={contribPeriod} onChange={setContribPeriod} options={PERIOD_OPTIONS} />}>
@@ -266,46 +241,79 @@ function tone(n: number) {
   return n > 0.0001 ? "text-up" : n < -0.0001 ? "text-dn" : "";
 }
 
-/** Valore nella cella: il colore dice il segno, il numero la misura. */
-function cell(v: number) {
-  const n = Math.abs(v * 100);
-  // Il segno meno sui mesi negativi: il colore da solo non basta a distinguerli.
-  const s = fmtN(n, { maximumFractionDigits: n >= 10 ? 0 : 1, minimumFractionDigits: n >= 10 ? 0 : 1 });
-  return v < 0 && s !== "0,0" ? `−${s}` : s;
-}
 
 const MONTH_NAMES = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
-function YearRow({ year, months, open, setOpen }: { year: string; months: Record<string, number>; open: string | null; setOpen: (k: string | null) => void }) {
+/**
+ * Rendimento mese per mese di un anno alla volta: una barra per mese, verde
+ * sopra lo zero e rossa sotto. Toccando una barra compare il valore esatto.
+ */
+function MonthBars({ months, years }: { months: Record<string, number>; years: string[] }) {
+  const [year, setYear] = useState(years[0] ?? String(new Date().getFullYear()));
+  const [open, setOpen] = useState<number | null>(null);
+  const vals = Array.from({ length: 12 }, (_, i) => months[`${year}-${String(i + 1).padStart(2, "0")}`]);
+  const known = vals.filter((v): v is number => v !== undefined);
+  const total = known.reduce((a, r) => a * (1 + r), 1) - 1;
+  const hi = Math.max(0.005, ...known);
+  const lo = Math.min(-0.005, ...known);
+  const H = 150;
+  const zero = (hi / (hi - lo)) * H;
+  const scale = H / (hi - lo);
+  const sel = open !== null ? vals[open] : undefined;
+
   return (
     <>
-      <span className="num self-center text-left text-[11px] font-semibold text-mut">{year}</span>
-      {Array.from({ length: 12 }, (_, i) => {
-        const key = `${year}-${String(i + 1).padStart(2, "0")}`;
-        const v = months[key];
-        const strength = v === undefined ? 0 : Math.min(1, Math.abs(v) / 0.04);
-        return (
-          <button
-            key={key}
-            onClick={() => setOpen(open === key ? null : key)}
-            aria-label={v === undefined ? `${key}: nessun dato` : `${key}: ${fmtSignedPct(v)}`}
-            className={`num flex h-8 items-center justify-center overflow-hidden rounded-[6px] font-semibold ${v !== undefined && cell(v).length > 3 ? "text-[9.5px] tracking-[-0.06em]" : "text-[11px] tracking-[-0.03em]"} ${open === key ? "ring-2 ring-ink" : ""}`}
-            style={{
-              background:
-                v === undefined ? "var(--chip)" : `color-mix(in srgb, ${v >= 0 ? "var(--up)" : "var(--dn)"} ${15 + strength * 65}%, transparent)`,
-              color: v === undefined ? "transparent" : strength > 0.55 ? "var(--bg)" : "var(--ink)",
-            }}
-          >
-            {v === undefined ? "" : cell(v)}
-          </button>
-        );
-      })}
-      {(() => {
-        const t = Object.entries(months)
-          .filter(([k]) => k.startsWith(year))
-          .reduce((a, [, r]) => a * (1 + r), 1) - 1;
-        return <span className={`num self-center text-right text-[11px] font-bold ${t >= 0 ? "text-up" : "text-dn"}`}>{`${t >= 0 ? "+" : "−"}${Math.abs(t * 100).toFixed(1).replace(".", ",")}%`}</span>;
-      })()}
+      <SectionHeader
+        right={years.length > 1 ? <SelectButton label="Anno" value={year} onChange={(y) => (setYear(y), setOpen(null))} options={years.map((y) => ({ value: y, label: y }))} /> : undefined}
+      >
+        Mese per mese
+      </SectionHeader>
+      <p className="num h-6 px-4 text-[15px] text-mut">
+        {open !== null && sel !== undefined ? (
+          <>
+            {MONTH_NAMES[open].replace(/^./, (c) => c.toUpperCase())} {year} <span className={`font-semibold ${tone(sel)}`}>{fmtSignedPct(sel)}</span>
+          </>
+        ) : known.length ? (
+          <>
+            {year === String(new Date().getFullYear()) ? "Da inizio anno" : `Nel ${year}`} <span className={`font-semibold ${tone(total)}`}>{fmtSignedPct(total)}</span>
+          </>
+        ) : (
+          "Nessun dato per quest'anno"
+        )}
+      </p>
+      <div className="relative mx-4 mt-3" style={{ height: H }}>
+        <div className="absolute inset-x-0 border-t border-dashed border-sep" style={{ top: zero }} aria-hidden />
+        <div className="absolute inset-0 grid grid-cols-12 gap-1.5">
+          {vals.map((v, i) => {
+            const h = v === undefined ? 0 : Math.max(3, Math.abs(v) * scale);
+            const dim = open !== null && open !== i;
+            return (
+              <button
+                key={i}
+                disabled={v === undefined}
+                onClick={() => setOpen(open === i ? null : i)}
+                aria-label={v === undefined ? `${MONTH_NAMES[i]}: nessun dato` : `${MONTH_NAMES[i]}: ${fmtSignedPct(v)}`}
+                aria-pressed={open === i}
+                className="relative h-full"
+              >
+                {v !== undefined && (
+                  <span
+                    className={`grow-y absolute inset-x-0 transition-opacity ${v >= 0 ? "rounded-t-[5px] bg-up" : "rounded-b-[5px] bg-dn"} ${dim ? "opacity-30" : ""}`}
+                    style={v >= 0 ? { bottom: H - zero, height: h, transformOrigin: "bottom" } : { top: zero, height: h, transformOrigin: "top" }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="mx-4 mt-2 grid grid-cols-12 gap-1.5 text-center">
+        {MONTHS.map((m, i) => (
+          <span key={i} className={`text-[12px] font-semibold ${open === i ? "text-ink" : "text-mut"}`}>
+            {m}
+          </span>
+        ))}
+      </div>
     </>
   );
 }
