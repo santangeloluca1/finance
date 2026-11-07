@@ -88,7 +88,7 @@ type View = ReturnType<typeof usePortfolioView>;
 
 function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: (t: Tab) => void }) {
   const { data, state, views, totals, history, priceSeries, fx, fetchedAt, loading, historyReady } = view;
-  const [range, setRange] = useState<Range>("1G");
+  const [range, setRange] = useState<Range>("1A");
   const [sel, setSel] = useState<Selection | null>(null);
   const [period, setPeriod] = useState<Period>("oggi");
 
