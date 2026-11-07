@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore, type KeyboardEvent, type MouseEvent } from "react";
 import { Wallet } from "lucide-react";
-import { BankDot, Change, Logo } from "@/components/ui";
+import { BankDot, Logo } from "@/components/ui";
 import { positionChange, type FxRates, type Period, type PositionView } from "@/lib/analytics";
 import type { Account, Instrument, Transaction } from "@/lib/engine/types";
-import { fmtDate, fmtEur, fmtNum } from "@/lib/format";
+import { fmtDate, fmtEur, fmtNum, fmtSignedEur, fmtSignedPct } from "@/lib/format";
 
 export interface PositionRow {
   key: string;
@@ -92,7 +92,7 @@ export function PositionList({
             </div>
             <div className="shrink-0 text-right">
               <p className="num sensitive text-[17px] font-medium tracking-[-0.01em]">{fmtEur(r.value)}</p>
-              <Change pct={r.change.pct} size="sm" arrow />
+              <ChangeToggle abs={r.change.abs} pct={r.change.pct} />
             </div>
           </Link>
         </li>
@@ -117,6 +117,60 @@ export function PositionList({
         </li>
       ))}
     </ul>
+  );
+}
+
+// Variazione in % o in €: una sola scelta per tutti gli elenchi dei titoli, ricordata sul dispositivo.
+const UNIT_KEY = "finance:change-unit";
+type Unit = "pct" | "eur";
+const unitListeners = new Set<() => void>();
+let unitCache: Unit | null = null;
+function readUnit(): Unit {
+  if (unitCache) return unitCache;
+  try {
+    unitCache = localStorage.getItem(UNIT_KEY) === "eur" ? "eur" : "pct";
+  } catch {
+    unitCache = "pct";
+  }
+  return unitCache;
+}
+function toggleUnit() {
+  unitCache = readUnit() === "pct" ? "eur" : "pct";
+  try {
+    localStorage.setItem(UNIT_KEY, unitCache);
+  } catch {}
+  unitListeners.forEach((l) => l());
+}
+function useUnit() {
+  return useSyncExternalStore(
+    (l) => (unitListeners.add(l), () => unitListeners.delete(l)),
+    readUnit,
+    () => "pct" as Unit,
+  );
+}
+
+/** Variazione della riga: toccandola passa da % a € (e viceversa) in tutti gli elenchi, senza aprire il titolo. */
+function ChangeToggle({ abs, pct }: { abs: number; pct: number }) {
+  const unit = useUnit();
+  const [ref, eps] = unit === "eur" ? [abs, 0.005] : [pct, 0.00005];
+  const cls = ref > eps ? "text-up" : ref < -eps ? "text-dn" : "text-mut";
+  const flip = (e: MouseEvent | KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleUnit();
+  };
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      aria-label={`Variazione ${unit === "eur" ? fmtSignedEur(abs) : fmtSignedPct(pct)}: tocca per vederla in ${unit === "eur" ? "percentuale" : "euro"}`}
+      onClick={flip}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && flip(e)}
+      className={`num -my-2 -mr-2 inline-block rounded-lg py-2 pl-3 pr-2 text-[14px] font-medium active:bg-chip ${cls} ${unit === "eur" ? "sensitive" : ""}`}
+    >
+      {ref > eps ? "↗ " : ref < -eps ? "↘ " : ""}
+      {unit === "eur" ? fmtSignedEur(abs) : fmtSignedPct(pct)}
+    </span>
   );
 }
 
