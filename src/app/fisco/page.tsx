@@ -1,20 +1,27 @@
 "use client";
 
-import { AdvisorCard } from "@/components/advisor/AdvisorCard";
-
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { usePortfolioView } from "@/components/PortfolioProvider";
-import { BankDot, ChipRow, Chip, InfoRow, LargeTitle, Panel, SectionHeader } from "@/components/ui";
+import { Orb } from "@/components/advisor/Orb";
+import { usePortfolioView, ALL } from "@/components/PortfolioProvider";
+import { Toolbar } from "@/components/home/Toolbar";
+import { BankDot, Logo, PAGE_TITLE, SectionHeader, SelectButton } from "@/components/ui";
 import { BigAmount } from "@/components/BigAmount";
 import { isFundLike, TAX_RATE } from "@/lib/engine/tax";
 import { usableLosses } from "@/lib/engine/portfolio";
 import { fmtDate, fmtEur, fmtSignedEur } from "@/lib/format";
 
 const BOLLO_RATE = 0.002;
+const CAPITAL = "#22b8cf";
 
+/**
+ * Fisco: imposte dell'anno e da dove vengono, zainetto delle minusvalenze con
+ * le scadenze e i titoli con cui recuperarle, costi annui stimati.
+ */
 export default function Fisco() {
-  const { state, views, data } = usePortfolioView();
+  const view = usePortfolioView();
+  const { state, views, data } = view;
   const today = new Date().toISOString().slice(0, 10);
   const years = useMemo(() => {
     const ys = new Set([today.slice(0, 4), ...(state?.realized.map((r) => r.date.slice(0, 4)) ?? []), ...Object.keys(state?.incomeByYear ?? {})]);
@@ -22,7 +29,24 @@ export default function Fisco() {
   }, [state, today]);
   const [year, setYear] = useState(years[0]);
 
-  if (!state) return null;
+  const header = (
+    <>
+      <div className="flex items-center justify-between pr-4">
+        <h1 className={`px-4 py-1 ${PAGE_TITLE}`}>Fisco</h1>
+        <Link href="/consulente/analisi?a=fisco" className="press flex h-9 items-center gap-2 rounded-full bg-chip pl-1.5 pr-3.5 text-[14px] font-semibold text-ink">
+          <Orb size={24} /> Minerva
+        </Link>
+      </div>
+      <Toolbar
+        filter={ALL}
+        setFilter={() => {}}
+        view={view}
+        showFilters={false}
+        left={<SelectButton label="Anno" value={year} onChange={setYear} options={years.map((y) => ({ value: y, label: y === today.slice(0, 4) ? `${y} · in corso` : y }))} />}
+      />
+    </>
+  );
+  if (!state) return header;
 
   const yr = state.realized.filter((r) => r.date.startsWith(year));
   const plusDiversi = sum(yr.filter((r) => r.gain > 0 && r.kind === "redditi_diversi").map((r) => r.gain));
@@ -31,6 +55,7 @@ export default function Fisco() {
   const taxes = sum(yr.map((r) => r.tax));
   const income = state.incomeByYear[year] ?? 0;
   const net = plusDiversi + plusCapitale + minus - taxes + income;
+  const gross = plusDiversi + plusCapitale + income;
 
   const nextYearEnd = `${Number(today.slice(0, 4)) + 1}-12-31`;
   const backpack = data.accounts.map((acc) => ({ acc, lots: usableLosses(state.losses, acc.id, today) })).filter((b) => b.lots.length);
@@ -42,133 +67,143 @@ export default function Fisco() {
   const terCost = sum(views.map((v) => (v.value * (v.instrument.ter ?? 0)) / 100));
   const bolloTotal = sum(bollo.map((b) => b.value * BOLLO_RATE));
 
+  const parts = [
+    { key: "diversi", label: "Plusvalenze · redditi diversi", hint: "Azioni, obbligazioni, ETC: si compensano con lo zainetto", value: plusDiversi, color: "var(--accent)" },
+    { key: "capitale", label: "Plusvalenze · redditi di capitale", hint: "ETF e fondi: non si compensano", value: plusCapitale, color: CAPITAL },
+    { key: "cedole", label: "Cedole e dividendi", hint: "Già al netto delle tasse", value: income, color: "var(--up)" },
+  ];
+
   return (
     <div>
-      <LargeTitle>Fisco</LargeTitle>
-      <ChipRow>
-        {years.map((y) => (
-          <Chip key={y} active={y === year} onClick={() => setYear(y)}>
-            {y}
-          </Chip>
-        ))}
-      </ChipRow>
+      {header}
 
-      <div className="px-4 pt-6">
-        <p className="text-[15px] font-medium text-mut">Imposte trattenute nel {year}</p>
-        <BigAmount value={taxes} className="mt-1.5" />
-        <p className="mt-3 text-[15px] text-mut">
-          Risultato netto dell&apos;anno <span className={`num font-semibold ${net >= 0 ? "text-up" : "text-dn"}`}>{fmtSignedEur(net)}</span>
-        </p>
+      {/* Imposte dell'anno, con il risultato netto a destra come il rendimento nelle altre pagine */}
+      <div className="flex items-end justify-between gap-3 px-4 pt-5">
+        <div className="min-w-0">
+          <p className="text-[14px] text-mut">Imposte trattenute{year === today.slice(0, 4) ? " quest'anno" : ` nel ${year}`}</p>
+          <BigAmount value={taxes} className="mt-1" />
+        </div>
+        <div className={`num sensitive shrink-0 pb-1 text-right ${net > 0.005 ? "text-up" : net < -0.005 ? "text-dn" : "text-mut"}`}>
+          <p className="text-[17px] font-semibold">{fmtSignedEur(net)}</p>
+          <p className="text-[13px] font-medium text-mut">netto dell&apos;anno</p>
+        </div>
       </div>
 
-      <Panel className="mt-6">
-        {[plusDiversi, plusCapitale, income].filter((v) => v > 0).length > 1 && (
-          <div className="mx-4 mb-1 mt-4 flex h-2.5 gap-[3px] overflow-hidden rounded-full">
-            <span className="bg-accent" style={{ width: `${(plusDiversi / (plusDiversi + plusCapitale + income)) * 100}%` }} />
-            <span style={{ width: `${(plusCapitale / (plusDiversi + plusCapitale + income)) * 100}%`, background: "#22b8cf" }} />
-            <span className="bg-up" style={{ width: `${(income / (plusDiversi + plusCapitale + income)) * 100}%` }} />
-          </div>
-        )}
-        <InfoRow label={<Dot color="var(--accent)">Plus · redditi diversi</Dot>} hint="azioni, obbligazioni, ETC: compensano lo zainetto" value={fmtSignedEur(plusDiversi)} valueClass={plusDiversi > 0 ? "text-up" : ""} />
-        <InfoRow label={<Dot color="#22b8cf">Plus · redditi di capitale</Dot>} hint="ETF: non compensabili" value={fmtSignedEur(plusCapitale)} valueClass={plusCapitale > 0 ? "text-up" : ""} />
-        <InfoRow label={<Dot color="var(--up)">Cedole e dividendi</Dot>} hint="netti, già tassati" value={fmtSignedEur(income)} valueClass={income > 0 ? "text-up" : ""} />
-        <InfoRow label={<Dot color="var(--faint)">Minusvalenze</Dot>} hint="finiscono nello zainetto" value={fmtSignedEur(minus)} valueClass={minus < 0 ? "text-dn" : "text-mut"} />
-      </Panel>
+      {/* Da dove vengono: barra unica e righe */}
+      <SectionHeader>Da dove vengono</SectionHeader>
+      {gross > 0 && (
+        <div className="mx-4 mb-2 flex h-3 overflow-hidden rounded-full bg-chip" aria-hidden>
+          {parts
+            .filter((p) => p.value > 0)
+            .map((p) => (
+              <span key={p.key} className="h-full [&+&]:ml-0.5" style={{ width: `${(p.value / gross) * 100}%`, background: p.color }} />
+            ))}
+        </div>
+      )}
+      <ul>
+        {parts.map((p) => (
+          <Row key={p.key} color={p.color} label={p.label} hint={p.hint} value={fmtSignedEur(p.value)} valueClass={p.value > 0 ? "text-up" : "text-mut"} />
+        ))}
+        <Row color="var(--faint)" label="Minusvalenze" hint="Finiscono nello zainetto fiscale" value={fmtSignedEur(minus)} valueClass={minus < 0 ? "text-dn" : "text-mut"} />
+      </ul>
 
-      <SectionHeader right={<span className="num text-[17px] font-bold text-warn">{fmtEur(backpackTotal)}</span>}>Zainetto fiscale</SectionHeader>
+      {/* Zainetto */}
+      <SectionHeader right={<span className={`num sensitive text-[17px] font-semibold ${backpackTotal > 0 ? "text-warn" : "text-mut"}`}>{fmtEur(backpackTotal)}</span>}>Zainetto fiscale</SectionHeader>
       {backpack.length === 0 ? (
-        <Panel>
-          <p className="px-4 py-5 text-[15px] text-mut">Nessuna minusvalenza da recuperare.</p>
-        </Panel>
+        <p className="px-4 text-[15px] leading-snug text-mut">Nessuna minusvalenza da recuperare.</p>
       ) : (
-        <div className="space-y-3">
+        <>
+          <p className="px-4 pb-1 text-[14px] leading-snug text-mut">Minusvalenze da compensare entro 4 anni con plus di azioni, obbligazioni o ETC sulla stessa banca.</p>
           {backpack.map(({ acc, lots }) => {
             const available = sum(lots.map((l) => l.remaining));
             const candidates = views.filter((v) => v.position.account === acc.id && !isFundLike(v.instrument) && Math.min(v.unrealized, available) * TAX_RATE >= 0.5);
             const soon = lots.some((l) => l.expires <= nextYearEnd);
             return (
-              <Panel key={acc.id}>
-                <div className="flex items-center justify-between px-4 pb-1 pt-3.5">
-                  <p className="flex items-center gap-2 text-[15px] font-semibold">
-                    <BankDot color={acc.color} size={9} /> {acc.name}
-                  </p>
-                  <p className="num text-[15px] font-semibold">{fmtEur(available)}</p>
-                </div>
-                <ul className="px-4 pb-3">
+              <div key={acc.id} className="pt-4">
+                <p className="flex items-center justify-between px-4 pb-1 text-[13px] font-semibold uppercase tracking-[0.04em] text-mut">
+                  <span className="flex items-center gap-2">
+                    <BankDot color={acc.color} size={8} /> {acc.name}
+                  </span>
+                  <span className="num sensitive normal-case tracking-normal">{fmtEur(available)}</span>
+                </p>
+                <ul>
                   {lots.map((l, i) => {
                     const total = daysBetween(l.date, l.expires);
                     const left = daysBetween(today, l.expires);
                     const expiring = l.expires <= nextYearEnd;
+                    const name = data.instruments.find((x) => x.isin === l.sourceIsin)?.shortName ?? l.sourceIsin;
                     return (
-                      <li key={i} className="pt-2.5">
-                        <div className="flex justify-between text-[13px]">
-                          <span className="text-mut">
-                            {data.instruments.find((x) => x.isin === l.sourceIsin)?.shortName ?? l.sourceIsin} · {fmtDate(l.date, { month: "short", year: "numeric" })}
-                          </span>
-                          <span className={expiring ? "font-semibold text-dn" : "text-mut"}>scade {fmtDate(l.expires, { month: "short", year: "numeric" })}</span>
+                      <li key={i} className="relative px-4 py-3 after:absolute after:bottom-0 after:left-4 after:right-0 after:h-px after:bg-sep last:after:hidden">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="min-w-0 truncate text-[17px] font-semibold">{name}</p>
+                          <p className="num sensitive shrink-0 text-[17px] font-medium">{fmtEur(l.remaining)}</p>
                         </div>
-                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-chip">
-                          <div className={`h-full rounded-full ${expiring ? "bg-dn" : "bg-warn"}`} style={{ width: `${Math.max(3, (left / total) * 100)}%` }} />
-                        </div>
-                        <div className="num mt-1.5 flex justify-between text-[11px] text-mut">
-                          {Array.from({ length: Number(l.expires.slice(0, 4)) - Number(l.date.slice(0, 4)) + 1 }, (_, k) => (
-                            <span key={k}>{Number(l.date.slice(0, 4)) + k}</span>
-                          ))}
+                        <p className="mt-0.5 flex justify-between text-[14px] text-mut">
+                          <span>Da {fmtDate(l.date, { month: "short", year: "numeric" })}</span>
+                          <span className={expiring ? "font-medium text-dn" : ""}>scade {fmtDate(l.expires, { month: "short", year: "numeric" })}</span>
+                        </p>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-chip">
+                          <div className={`h-full rounded-full ${expiring ? "bg-dn" : "bg-warn"}`} style={{ width: `${Math.max(3, Math.min(100, (left / total) * 100))}%` }} />
                         </div>
                       </li>
                     );
                   })}
                 </ul>
-                {candidates.length === 0 && (
-                  <p className="border-t border-sep px-4 py-3 text-[14px] leading-snug text-mut">
-                    Per recuperarle servono plus su azioni, obbligazioni o ETC detenuti su {acc.name}: le plus degli ETF non le compensano.
-                  </p>
-                )}
-                {candidates.length > 0 && (
-                  <div className="border-t border-sep">
-                    <p className={`flex items-center gap-2 px-4 pt-3 text-[15px] font-semibold ${soon ? "text-warn" : ""}`}>
-                      {soon && <AlertTriangle size={16} />}
+                {candidates.length > 0 ? (
+                  <>
+                    <p className={`flex items-center gap-1.5 px-4 pb-1 pt-3 text-[14px] font-medium ${soon ? "text-warn" : "text-mut"}`}>
+                      {soon && <AlertTriangle size={15} />}
                       Recuperale vendendo e ricomprando
                     </p>
-                    {candidates.map((c) => (
-                      <InfoRow
-                        key={c.instrument.isin}
-                        label={c.instrument.shortName ?? c.instrument.name}
-                        value={`risparmi ${fmtEur(Math.min(c.unrealized, available) * TAX_RATE)}`}
-                        valueClass="text-up"
-                      />
-                    ))}
-                  </div>
+                    <ul>
+                      {candidates.map((c) => (
+                        <li key={c.instrument.isin}>
+                          <Link href={`/posizioni/${c.instrument.isin}`} className="flex min-h-[60px] items-center gap-3.5 px-4 py-2 active:bg-panel-2">
+                            <Logo isin={c.instrument.isin} name={c.instrument.shortName ?? c.instrument.name} size={40} />
+                            <p className="min-w-0 flex-1 truncate text-[16px] font-semibold">{c.instrument.shortName ?? c.instrument.name}</p>
+                            <p className="num sensitive shrink-0 text-[15px] font-medium text-up">risparmi {fmtEur(Math.min(c.unrealized, available) * TAX_RATE)}</p>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="px-4 pt-2 text-[13px] leading-snug text-mut">
+                    Su {acc.name} non hai plus compensabili adesso: quelle degli ETF non valgono.
+                  </p>
                 )}
-              </Panel>
+              </div>
             );
           })}
-        </div>
+        </>
       )}
 
-      <SectionHeader id="costi" right={<span className="num text-[17px] font-bold">{fmtEur(terCost + bolloTotal)}</span>}>Costi annui stimati</SectionHeader>
-      <Panel>
+      {/* Costi */}
+      <SectionHeader id="costi" right={<span className="num sensitive text-[17px] font-semibold">{fmtEur(terCost + bolloTotal)}</span>}>
+        Costi annui stimati
+      </SectionHeader>
+      <ul>
         {bollo.map(({ acc, value }) => (
-          <InfoRow
-            key={acc.id}
-            label={
-              <span className="flex items-center gap-2">
-                <BankDot color={acc.color} size={7} /> Bollo {acc.name}
-              </span>
-            }
-            hint="0,2% del valore"
-            value={fmtEur(value * BOLLO_RATE)}
-          />
+          <Row key={acc.id} color={acc.color} label={`Bollo ${acc.name}`} hint="0,2% del valore" value={fmtEur(value * BOLLO_RATE)} valueClass="" />
         ))}
-        <InfoRow label="Costi di gestione degli ETF" hint="TER sul valore attuale" value={fmtEur(terCost)} />
-      </Panel>
+        <Row color="var(--faint)" label="Costi di gestione degli ETF" hint="TER sul valore attuale" value={fmtEur(terCost)} valueClass="" />
+      </ul>
 
-      <AdvisorCard href="/consulente/analisi?a=fisco" title="Ottimizza le tasse con Minerva" subtitle="Quali minus recuperare, con quali titoli e quando" className="mt-8" />
-
-      <p className="px-6 pb-2 pt-8 text-center text-[12px] leading-relaxed text-mut">
-        Stime con il prezzo medio ponderato per banca. Fa fede il calcolo dell&apos;intermediario.
-      </p>
+      <p className="px-6 pb-2 pt-8 text-center text-[12px] leading-relaxed text-mut">Stime con il prezzo medio ponderato per banca. Fa fede il calcolo dell&apos;intermediario.</p>
     </div>
+  );
+}
+
+function Row({ color, label, hint, value, valueClass }: { color: string; label: string; hint: string; value: string; valueClass: string }) {
+  return (
+    <li className="relative flex min-h-[60px] items-center gap-3 px-4 py-2.5 after:absolute after:bottom-0 after:left-[38px] after:right-0 after:h-px after:bg-sep last:after:hidden">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[16px] font-medium">{label}</p>
+        <p className="text-[13px] leading-snug text-mut">{hint}</p>
+      </div>
+      <p className={`num sensitive shrink-0 text-[16px] font-semibold ${valueClass}`}>{value}</p>
+    </li>
   );
 }
 
@@ -178,13 +213,4 @@ function sum(xs: number[]) {
 
 function daysBetween(a: string, b: string) {
   return Math.max(1, (Date.parse(b) - Date.parse(a)) / 86400_000);
-}
-
-function Dot({ color, children }: { color: string; children: React.ReactNode }) {
-  return (
-    <span className="flex items-center gap-2.5">
-      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
-      {children}
-    </span>
-  );
 }

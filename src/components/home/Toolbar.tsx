@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Bell, Eye, EyeOff, Search, Settings } from "lucide-react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
 import { Analisi } from "@/components/home/Analisi";
@@ -14,11 +14,12 @@ import { usePrivacy } from "@/lib/privacy";
 import { computeAlerts, unseenAlerts } from "@/lib/alerts";
 
 /** Riga sotto il titolo: filtri per banca e asset class, privacy, avvisi e impostazioni. */
-export function Toolbar({ filter, setFilter, view, showFilters = true }: { filter: Filter; setFilter: (f: Filter) => void; view: View; showFilters?: boolean }) {
+export function Toolbar({ filter, setFilter, view, showFilters = true, left }: { filter: Filter; setFilter: (f: Filter) => void; view: View; showFilters?: boolean; left?: ReactNode }) {
   const [privacy, togglePrivacy] = usePrivacy();
   return (
     <div className="mt-1 flex min-h-[44px] items-center pr-2">
       {showFilters && <Filters filter={filter} setFilter={setFilter} view={view} />}
+      {left && <div className="pl-4">{left}</div>}
       <div className="ml-auto flex shrink-0">
         <Link href="/cerca" aria-label="Cerca un titolo" className="flex h-11 w-9 items-center justify-center text-mut active:opacity-50">
           <Search size={20} strokeWidth={1.8} />
