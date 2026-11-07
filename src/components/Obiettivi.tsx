@@ -25,15 +25,6 @@ function inMonths(months: number) {
   return fmtDate(d.toISOString().slice(0, 10), { month: "short", year: "numeric" });
 }
 
-/** "1 anno e 3 mesi", "8 mesi". */
-function span(months: number) {
-  const y = Math.floor(months / 12);
-  const m = months % 12;
-  const ys = y ? `${y} ${y === 1 ? "anno" : "anni"}` : "";
-  const ms = m ? `${m} ${m === 1 ? "mese" : "mesi"}` : "";
-  return [ys, ms].filter(Boolean).join(" e ");
-}
-
 /**
  * Obiettivi come sequenza di domande:
  * 1. cosa vuoi raggiungere (gli obiettivi, in ordine di priorità, con una frase di stato ciascuno);
@@ -257,8 +248,8 @@ function GoalList({
   const byId = new Map(goals.map((g) => [g.id, g]));
   return (
     <>
-      {goals.length > 1 && <p className="px-4 pb-1 pt-3 text-[13px] leading-snug text-mut">Si sommano in ordine di priorità: soldi e versamenti vanno prima ai primi. Trascina ⋮⋮ per riordinare.</p>}
-      <ul className="mt-2">
+      {goals.length > 1 && <p className="px-4 pb-1 pt-4 text-[13px] text-mut">In ordine di priorità · trascina per riordinare</p>}
+      <ul className="mt-1">
         {order.map((id, idx) => {
           const g = byId.get(id)!;
           const p = plans.get(id);
@@ -273,31 +264,24 @@ function GoalList({
                 if (el) refs.current.set(id, el);
                 else refs.current.delete(id);
               }}
-              className={`relative px-4 py-1.5 ${drag ? "select-none " : ""}${dragging ? "z-10" : "transition-transform duration-200"}`}
+              className={`relative ${drag ? "select-none " : ""}${dragging ? "z-10" : ""}`}
               style={{ transform: dragging ? `translateY(${offset(id)}px)` : undefined }}
             >
-              <div className={`flex items-stretch rounded-[18px] bg-panel ${dragging ? "scale-[1.02] shadow-xl" : ""} transition-[transform,box-shadow]`}>
-                <button onClick={() => onOpen(g)} className="min-w-0 flex-1 rounded-l-[18px] py-3.5 pl-4 pr-1 text-left active:bg-panel-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+              <div className={`flex items-center bg-bg transition-shadow ${dragging ? "rounded-[16px] shadow-xl ring-1 ring-sep" : ""}`}>
+                <button onClick={() => onOpen(g)} className="flex min-h-[76px] min-w-0 flex-1 items-center gap-3.5 py-3 pl-4 pr-1 text-left active:bg-panel-2">
+                  <Ring value={progress} good={good} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-3">
                       <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">
-                        {goals.length > 1 && <span className="num mr-1.5 text-mut">{idx + 1}</span>}
+                        {goals.length > 1 && <span className="num mr-1.5 font-medium text-faint">{idx + 1}</span>}
                         {g.name}
                       </p>
-                      <p className="mt-0.5 truncate text-[13px] text-mut">
-                        {fmtEur0(g.target)} entro {fmtDate(g.date, { month: "short", year: "numeric" })} · {scopeLabel(g.scope)}
-                      </p>
+                      <p className="num sensitive shrink-0 text-[15px] font-medium text-ink-2">{fmtEur0(g.target)}</p>
                     </div>
-                    <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[12px] font-semibold ${good ? "bg-up/12 text-up" : "bg-warn/14 text-warn"}`}>
-                      {p.status === "done" ? "Raggiunto" : p.status === "ok" ? "In tempo" : p.status === "late" ? "In ritardo" : "Scaduto"}
-                    </span>
+                    <p className="mt-0.5 text-[14px] leading-[1.4] text-mut">
+                      <GoalLine p={p} target={g.target} date={g.date} scope={g.scope === "tutto" ? null : scopeLabel(g.scope)} />
+                    </p>
                   </div>
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-chip">
-                    <div className={`h-full rounded-full transition-[width] duration-500 ${good ? "bg-up" : "bg-warn"}`} style={{ width: `${Math.max(2, progress * 100)}%` }} />
-                  </div>
-                  <p className="mt-2.5 text-[15px] leading-snug text-ink-2">
-                    <GoalSentence p={p} target={g.target} date={g.date} />
-                  </p>
                 </button>
                 {goals.length > 1 && (
                   <button
@@ -306,9 +290,9 @@ function GoalList({
                     onPointerMove={move}
                     onPointerUp={end}
                     onPointerCancel={end}
-                    className="flex w-10 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded-r-[18px] text-faint active:cursor-grabbing active:text-ink-2"
+                    className="flex h-[76px] w-11 shrink-0 cursor-grab touch-none select-none items-center justify-center text-faint active:cursor-grabbing active:text-ink-2"
                   >
-                    <GripVertical size={20} />
+                    <GripVertical size={18} />
                   </button>
                 )}
               </div>
@@ -320,44 +304,85 @@ function GoalList({
   );
 }
 
-/** Lo stato dell'obiettivo in una frase: quanto manca e quando ci arrivi. */
-function GoalSentence({ p, target, date }: { p: GoalPlan; target: number; date: string }) {
-  const missing = Math.max(0, target - p.allocated);
-  const m = <b className="num sensitive font-semibold text-ink">{fmtEur0(missing)}</b>;
-  if (p.status === "done") return <>Hai già messo da parte tutta la cifra.</>;
+/** Anello di avanzamento con la percentuale al centro. */
+function Ring({ value, good }: { value: number; good: boolean }) {
+  const r = 19;
+  const c = 2 * Math.PI * r;
+  return (
+    <span className="relative flex h-12 w-12 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 48 48" className="absolute inset-0 -rotate-90" aria-hidden>
+        <circle cx="24" cy="24" r={r} fill="none" stroke="var(--chip)" strokeWidth="4" />
+        <circle
+          cx="24"
+          cy="24"
+          r={r}
+          fill="none"
+          stroke={good ? "var(--up)" : "var(--warn)"}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={`${Math.max(0.02, value) * c} ${c}`}
+          className="transition-[stroke-dasharray] duration-500"
+        />
+      </svg>
+      {value >= 1 ? <Check size={18} strokeWidth={3} className="text-up" /> : <span className="num text-[11px] font-semibold text-ink-2">{Math.round(value * 100)}%</span>}
+    </span>
+  );
+}
+
+/** Ritardo breve: "8 mesi", "~2 anni". */
+function lateBy(months: number) {
+  if (months < 12) return `${months} ${months === 1 ? "mese" : "mesi"}`;
+  const y = Math.round(months / 12);
+  return `${months % 12 ? "~" : ""}${y} ${y === 1 ? "anno" : "anni"}`;
+}
+
+/** Stato in due righe brevi: com'è messo e cosa serve. */
+function GoalLine({ p, target, date, scope }: { p: GoalPlan; target: number; date: string; scope: string | null }) {
+  const when = fmtDate(date, { month: "short", year: "numeric" });
+  const tail = scope ? <span className="text-faint"> · {scope}</span> : null;
+  if (p.status === "done")
+    return (
+      <span className="block">
+        <span className="font-medium text-up">Raggiunto</span>
+        {tail}
+      </span>
+    );
   if (p.status === "expired")
     return (
       <>
-        La data è passata e mancano {m}: spostala o rivedi l&apos;importo.
+        <span className="block">
+          <span className="font-medium text-warn">Scaduto</span> · era {when}
+          {tail}
+        </span>
+        <span className="block">
+          Mancano <span className="num sensitive">{fmtEur0(target - p.allocated)}</span>
+        </span>
       </>
     );
   if (p.status === "ok")
-    return p.funded > 0 ? (
+    return (
       <>
-        Mancano {m}. Con <b className="num font-semibold text-ink">{fmtEur0(p.funded)}</b> al mese ci arrivi in tempo.
+        <span className="block">
+          <span className="font-medium text-up">In tempo</span> · {when}
+          {tail}
+        </span>
+        {p.funded > 0 && (
+          <span className="block">
+            <span className="num">{fmtEur0(p.funded)}</span> al mese del tuo versamento
+          </span>
+        )}
       </>
-    ) : (
-      <>Mancano {m}, ma ci arriva da solo con il rendimento.</>
     );
   const delay = p.monthsAtPace != null ? p.monthsAtPace - monthsUntil(date) : null;
   return (
     <>
-      Mancano {m}.{" "}
-      {p.monthsAtPace != null ? (
-        <>
-          {p.funded > 0 ? (
-            <>
-              Con <b className="num font-semibold text-ink">{fmtEur0(p.funded)}</b> al mese ci arrivi a {inMonths(p.monthsAtPace)}
-            </>
-          ) : (
-            <>Il versamento va agli obiettivi prima: ci arrivi a {inMonths(p.monthsAtPace)}</>
-          )}
-          {delay != null && delay > 0 && <span className="text-warn"> ({span(delay)} dopo)</span>}.
-        </>
-      ) : (
-        <>{p.funded > 0 ? "Con il versamento di adesso non ci arrivi." : "Il versamento va tutto agli obiettivi prima."}</>
-      )}{" "}
-      Per essere in tempo servono <b className="num font-semibold text-warn">+{fmtEur0(p.extra)}</b> al mese.
+      <span className="block">
+        <span className="font-medium text-warn">{delay != null && delay > 0 ? `${lateBy(delay)} in ritardo` : "In ritardo"}</span> · {when}
+        {tail}
+      </span>
+      <span className="block">
+        Servono <span className="num font-medium text-ink-2">+{fmtEur0(p.extra)}</span> al mese in più
+      </span>
     </>
   );
 }
