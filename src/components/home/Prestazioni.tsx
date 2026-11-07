@@ -40,9 +40,9 @@ export function Prestazioni({
   fx: FxRates;
   accounts: Account[];
 }) {
-  const [range, setRange] = useState<Range>("1A");
+  const [range, setRange] = useState<Range>("1G");
   const [openMonth, setOpenMonth] = useState<string | null>(null);
-  const [contribPeriod, setContribPeriod] = useState<Period>("1A");
+  const [contribPeriod, setContribPeriod] = useState<Period>("oggi");
   const [contribUnit, setContribUnit] = useState<"eur" | "pct">("eur");
   const [bench, setBench] = useState<Bench>("SWDA.MI");
   const [benchSeries, setBenchSeries] = useState<[string, number][] | null>(null);

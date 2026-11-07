@@ -15,7 +15,7 @@ type View = "titolo" | "banca";
 export default function Posizioni() {
   const { views, data, priceSeries, fx, totals } = usePortfolioView();
   const [view, setView] = useState<View>("titolo");
-  const [period, setPeriod] = useState<Period>("totale");
+  const [period, setPeriod] = useState<Period>("oggi");
   const [sort, setSort] = useState<SortKey>("valore");
 
   const groups = useMemo(() => {

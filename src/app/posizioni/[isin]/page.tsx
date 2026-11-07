@@ -35,7 +35,7 @@ export default function PositionDetail() {
   const id = decodeURIComponent(rawId);
   const search = useSearchParams();
   const { data, state, views, quotes: ownQuotes, fx, priceSeries: ownSeries, historyReady: ownReady, history } = usePortfolioView();
-  const [range, setRange] = useState<Range>("1A");
+  const [range, setRange] = useState<Range>("1G");
   const [scrub, setScrub] = useState<ChartPoint | null>(null);
   const [bank, setBank] = useState<string>("all");
   const [allTx, setAllTx] = useState(false);
