@@ -120,31 +120,18 @@ export function PositionList({
   );
 }
 
-// Variazione in % o in €: una sola scelta per tutti gli elenchi dei titoli, ricordata sul dispositivo.
-const UNIT_KEY = "finance:change-unit";
+// Variazione in % o in €: una sola scelta per tutti gli elenchi dei titoli, solo finché l'app resta aperta.
 type Unit = "pct" | "eur";
 const unitListeners = new Set<() => void>();
-let unitCache: Unit | null = null;
-function readUnit(): Unit {
-  if (unitCache) return unitCache;
-  try {
-    unitCache = localStorage.getItem(UNIT_KEY) === "eur" ? "eur" : "pct";
-  } catch {
-    unitCache = "pct";
-  }
-  return unitCache;
-}
+let unit: Unit = "pct";
 function toggleUnit() {
-  unitCache = readUnit() === "pct" ? "eur" : "pct";
-  try {
-    localStorage.setItem(UNIT_KEY, unitCache);
-  } catch {}
+  unit = unit === "pct" ? "eur" : "pct";
   unitListeners.forEach((l) => l());
 }
 function useUnit() {
   return useSyncExternalStore(
     (l) => (unitListeners.add(l), () => unitListeners.delete(l)),
-    readUnit,
+    () => unit,
     () => "pct" as Unit,
   );
 }
