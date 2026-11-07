@@ -15,7 +15,7 @@ import { PAGE_TITLE, RangePicker, SectionHeader, SelectButton } from "@/componen
 import { RANGES, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
 import { cutoffDate, type Period } from "@/lib/analytics";
 import { usableLosses } from "@/lib/engine/portfolio";
-import { fmtDate, fmtEur, fmtNum, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime, fmtN } from "@/lib/format";
+import { fmtDate, fmtEur, fmtEur0, fmtNum, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime, fmtN } from "@/lib/format";
 import { twrSeries } from "@/lib/performance";
 import { usePortfolioIntraday } from "@/lib/intraday-client";
 import { pendingOccurrences } from "@/lib/recurring";
@@ -273,6 +273,8 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         <p className="px-4 py-8 text-center text-[15px] text-mut">Nessun titolo con questi filtri.</p>
       )}
 
+      {filter.account === "all" && <Banche views={views} cash={state.cash} accounts={data.accounts} />}
+
       <SectionHeader>In sintesi</SectionHeader>
       <ul>
         <SummaryRow
@@ -388,4 +390,49 @@ function tint(n: number) {
 
 function pill(n: number) {
   return n > 0.005 ? "bg-up/12 text-up" : n < -0.005 ? "bg-dn/12 text-dn" : "bg-chip text-mut";
+}
+
+/** Quanto hai su ogni banca: titoli più liquidità, con la quota sul totale. */
+function Banche({ views, cash, accounts }: { views: View["views"]; cash: Record<string, { amount: number }>; accounts: View["data"]["accounts"] }) {
+  const rows = accounts
+    .map((a) => {
+      const titoli = views.filter((v) => v.position.account === a.id).reduce((s, v) => s + v.value, 0);
+      const liquidita = cash[a.id]?.amount ?? 0;
+      return { a, titoli, liquidita, total: titoli + liquidita };
+    })
+    .filter((r) => Math.abs(r.total) > 0.005)
+    .sort((x, y) => y.total - x.total);
+  const all = rows.reduce((s, r) => s + Math.max(0, r.total), 0);
+  if (rows.length < 2 || all <= 0) return null;
+  return (
+    <>
+      <SectionHeader>Le tue banche</SectionHeader>
+      <div className="mx-4 mb-2 flex h-3 overflow-hidden rounded-full bg-chip" aria-hidden>
+        {rows.map((r) => (
+          <span key={r.a.id} className="h-full [&+&]:ml-0.5" style={{ width: `${(Math.max(0, r.total) / all) * 100}%`, background: r.a.color }} />
+        ))}
+      </div>
+      <ul>
+        {rows.map((r) => (
+          <li key={r.a.id} className="relative flex min-h-[64px] items-center gap-3.5 px-4 py-2.5 after:absolute after:bottom-0 after:left-[74px] after:right-0 after:h-px after:bg-sep last:after:hidden">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[17px] font-bold text-white" style={{ background: r.a.color }}>
+              {r.a.name.slice(0, 1)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">
+                  {r.a.name} <span className="num ml-1 text-[15px] font-medium text-mut">{Math.round((Math.max(0, r.total) / all) * 100)}%</span>
+                </p>
+                <p className="num sensitive shrink-0 text-[17px] font-medium tracking-[-0.01em]">{fmtEur(r.total)}</p>
+              </div>
+              <div className="num sensitive mt-0.5 flex justify-between gap-3 text-[14px] text-mut">
+                <span>{r.titoli > 0 ? `Titoli ${fmtEur0(r.titoli)}` : "Solo liquidità"}</span>
+                {r.titoli > 0 && Math.abs(r.liquidita) >= 1 && <span>Liquidi {fmtEur0(r.liquidita)}</span>}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
 }

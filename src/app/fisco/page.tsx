@@ -68,9 +68,9 @@ export default function Fisco() {
   const bolloTotal = sum(bollo.map((b) => b.value * BOLLO_RATE));
 
   const parts = [
-    { key: "diversi", label: "Plusvalenze · redditi diversi", hint: "Azioni, obbligazioni, ETC: si compensano con lo zainetto", value: plusDiversi, color: "var(--accent)" },
-    { key: "capitale", label: "Plusvalenze · redditi di capitale", hint: "ETF e fondi: non si compensano", value: plusCapitale, color: CAPITAL },
-    { key: "cedole", label: "Cedole e dividendi", hint: "Già al netto delle tasse", value: income, color: "var(--up)" },
+    { key: "diversi", label: "Plus su azioni e obbligazioni", value: plusDiversi, color: "var(--accent)" },
+    { key: "capitale", label: "Plus su ETF e fondi", value: plusCapitale, color: CAPITAL },
+    { key: "cedole", label: "Cedole e dividendi", value: income, color: "var(--up)" },
   ];
 
   return (
@@ -88,24 +88,9 @@ export default function Fisco() {
           <p className="text-[13px] font-medium text-mut">guadagno netto</p>
         </div>
       </div>
-      <p className="num sensitive mt-3 px-4 text-[14px] leading-relaxed text-mut">
-        Plusvalenze <span className="text-ink-2">{fmtEur(plusDiversi + plusCapitale)}</span>
-        {income > 0 && (
-          <>
-            {" "}+ cedole <span className="text-ink-2">{fmtEur(income)}</span>
-          </>
-        )}
-        {minus < 0 && (
-          <>
-            {" "}− minus <span className="text-ink-2">{fmtEur(-minus)}</span>
-          </>
-        )}{" "}
-        − tasse <span className="text-ink-2">{fmtEur(taxes)}</span> = <span className="font-semibold text-ink">{fmtEur(net)}</span>
-        <span className="block text-[13px]">Le tasse le trattiene la banca quando vendi in guadagno; sulle cedole sono già tolte.</span>
-      </p>
 
       {/* Da dove vengono: barra unica e righe */}
-      <Section title="Da dove vengono" desc={`Cosa hai incassato nel ${year}, vendendo e con le cedole.`}>
+      <Section title="Da dove vengono">
       {gross > 0 && (
         <div className="mx-4 mb-2 flex h-3 overflow-hidden rounded-full bg-chip" aria-hidden>
           {parts
@@ -117,9 +102,9 @@ export default function Fisco() {
       )}
       <ul>
         {parts.map((p) => (
-          <Row key={p.key} color={p.color} label={p.label} hint={p.hint} value={fmtSignedEur(p.value)} valueClass={p.value > 0 ? "text-up" : "text-mut"} />
+          <Row key={p.key} color={p.color} label={p.label} value={fmtSignedEur(p.value)} valueClass={p.value > 0 ? "text-up" : "text-mut"} />
         ))}
-        <Row color="var(--faint)" label="Minusvalenze" hint="Finiscono nello zainetto fiscale" value={fmtSignedEur(minus)} valueClass={minus < 0 ? "text-dn" : "text-mut"} />
+        <Row color="var(--faint)" label="Minusvalenze" value={fmtSignedEur(minus)} valueClass={minus < 0 ? "text-dn" : "text-mut"} />
       </ul>
       </Section>
 
@@ -127,7 +112,6 @@ export default function Fisco() {
       <Section
         title="Zainetto fiscale"
         right={<span className={`num sensitive text-[17px] font-semibold ${backpackTotal > 0 ? "text-warn" : "text-mut"}`}>{fmtEur(backpackTotal)}</span>}
-        desc={backpack.length ? "Minusvalenze da recuperare entro 4 anni con plus di azioni, obbligazioni o ETC sulla stessa banca." : "Nessuna minusvalenza da recuperare."}
       >
       {backpack.length > 0 && (
         <>
@@ -184,11 +168,7 @@ export default function Fisco() {
                       ))}
                     </ul>
                   </>
-                ) : (
-                  <p className="px-4 pt-2 text-[13px] leading-snug text-mut">
-                    Su {acc.name} non hai plus compensabili adesso: quelle degli ETF non valgono.
-                  </p>
-                )}
+                ) : null}
               </div>
             );
           })}
@@ -198,12 +178,12 @@ export default function Fisco() {
       </Section>
 
       {/* Costi */}
-      <Section id="costi" title="Costi annui stimati" right={<span className="num sensitive text-[17px] font-semibold">{fmtEur(terCost + bolloTotal)}</span>} desc="Quanto ti costa all'anno tenere il portafoglio, ai valori di oggi.">
+      <Section id="costi" title="Costi annui stimati" right={<span className="num sensitive text-[17px] font-semibold">{fmtEur(terCost + bolloTotal)}</span>}>
       <ul>
         {bollo.map(({ acc, value }) => (
-          <Row key={acc.id} color={acc.color} label={`Bollo ${acc.name}`} hint="0,2% del valore" value={fmtEur(value * BOLLO_RATE)} valueClass="" />
+          <Row key={acc.id} color={acc.color} label={`Bollo ${acc.name}`} value={fmtEur(value * BOLLO_RATE)} valueClass="" />
         ))}
-        <Row color="var(--faint)" label="Costi di gestione degli ETF" hint="TER sul valore attuale" value={fmtEur(terCost)} valueClass="" />
+        <Row color="var(--faint)" label="Costi di gestione degli ETF" value={fmtEur(terCost)} valueClass="" />
       </ul>
 
       </Section>
@@ -213,30 +193,27 @@ export default function Fisco() {
   );
 }
 
-/** Sezione separata da una fascia: titolo, totale a destra e una riga che dice cosa contiene. */
-function Section({ id, title, right, desc, children }: { id?: string; title: string; right?: ReactNode; desc?: string; children: ReactNode }) {
+/** Sezione: titolo con l'eventuale totale a destra; il respiro viene dallo spazio sopra. */
+function Section({ id, title, right, children }: { id?: string; title: string; right?: ReactNode; children: ReactNode }) {
   return (
-    <section className="mt-8">
-      <div className="h-2 bg-panel" aria-hidden />
-      <div className="flex items-center justify-between px-4 pb-1 pt-7">
+    <section>
+      <div className="flex items-center justify-between px-4 pb-2 pt-10">
         <h2 id={id} className="text-[22px] font-bold tracking-[-0.025em]">
           {title}
         </h2>
         {right}
       </div>
-      {desc && <p className="px-4 pb-2 text-[14px] leading-snug text-mut">{desc}</p>}
       {children}
     </section>
   );
 }
 
-function Row({ color, label, hint, value, valueClass }: { color: string; label: string; hint: string; value: string; valueClass: string }) {
+function Row({ color, label, value, valueClass }: { color: string; label: string; value: string; valueClass: string }) {
   return (
-    <li className="relative flex min-h-[60px] items-center gap-3 px-4 py-2.5 after:absolute after:bottom-0 after:left-[38px] after:right-0 after:h-px after:bg-sep last:after:hidden">
+    <li className="relative flex min-h-[54px] items-center gap-3 px-4 py-2.5 after:absolute after:bottom-0 after:left-[38px] after:right-0 after:h-px after:bg-sep last:after:hidden">
       <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
       <div className="min-w-0 flex-1">
         <p className="text-[16px] font-medium">{label}</p>
-        <p className="text-[13px] leading-snug text-mut">{hint}</p>
       </div>
       <p className={`num sensitive shrink-0 text-[16px] font-semibold ${valueClass}`}>{value}</p>
     </li>
