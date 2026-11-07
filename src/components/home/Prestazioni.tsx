@@ -254,11 +254,22 @@ function MonthBars({ months, years }: { months: Record<string, number>; years: s
   const vals = Array.from({ length: 12 }, (_, i) => months[`${year}-${String(i + 1).padStart(2, "0")}`]);
   const known = vals.filter((v): v is number => v !== undefined);
   const total = known.reduce((a, r) => a * (1 + r), 1) - 1;
-  const hi = Math.max(0.005, ...known);
-  const lo = Math.min(-0.005, ...known);
-  const H = 150;
+  // Scala dell'asse: da sotto il mese peggiore a sopra il migliore, a passi "tondi" (circa 4 righe).
+  const rawHi = Math.max(0.001, ...known);
+  const rawLo = Math.min(-0.001, ...known);
+  const step = [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5].find((st) => (rawHi - rawLo) / st <= 4) ?? 1;
+  const hi = Math.ceil(rawHi / step - 1e-9) * step;
+  const lo = Math.floor(rawLo / step + 1e-9) * step;
+  const ticks = Array.from({ length: Math.round((hi - lo) / step) + 1 }, (_, k) => hi - k * step);
+  const H = 160;
   const zero = (hi / (hi - lo)) * H;
   const scale = H / (hi - lo);
+  const y = (v: number) => (hi - v) * scale;
+  const axis = (v: number) => {
+    const n = Math.abs(v * 100);
+    const d = step < 0.01 ? 1 : 0;
+    return Math.abs(v) < 1e-9 ? "0%" : `${v > 0 ? "+" : "−"}${fmtN(n, { maximumFractionDigits: d, minimumFractionDigits: d })}%`;
+  };
   const sel = open !== null ? vals[open] : undefined;
 
   return (
@@ -281,9 +292,19 @@ function MonthBars({ months, years }: { months: Record<string, number>; years: s
           "Nessun dato per quest'anno"
         )}
       </p>
-      <div className="relative mx-4 mt-3" style={{ height: H }}>
-        <div className="absolute inset-x-0 border-t border-dashed border-sep" style={{ top: zero }} aria-hidden />
-        <div className="absolute inset-0 grid grid-cols-12 gap-1.5">
+      <div className="relative ml-4 mr-3 mt-3" style={{ height: H }}>
+        {/* Asse a destra con poche righe: lo zero tratteggiato, le altre appena accennate */}
+        {ticks.map((t) => (
+          <div key={t} className="pointer-events-none absolute left-0 right-[44px]" style={{ top: y(t) }} aria-hidden>
+            <div className={Math.abs(t) < 1e-9 ? "border-t border-dashed border-faint/60" : "border-t border-sep/70"} />
+          </div>
+        ))}
+        {ticks.map((t) => (
+          <span key={`l${t}`} className="num pointer-events-none absolute right-0 w-[40px] -translate-y-1/2 text-right text-[11px] text-mut" style={{ top: y(t) }}>
+            {axis(t)}
+          </span>
+        ))}
+        <div className="absolute inset-y-0 left-0 right-[44px] grid grid-cols-12 gap-1.5">
           {vals.map((v, i) => {
             const h = v === undefined ? 0 : Math.max(3, Math.abs(v) * scale);
             const dim = open !== null && open !== i;
@@ -307,7 +328,7 @@ function MonthBars({ months, years }: { months: Record<string, number>; years: s
           })}
         </div>
       </div>
-      <div className="mx-4 mt-2 grid grid-cols-12 gap-1.5 text-center">
+      <div className="ml-4 mr-[56px] mt-2 grid grid-cols-12 gap-1.5 text-center">
         {MONTHS.map((m, i) => (
           <span key={i} className={`text-[12px] font-semibold ${open === i ? "text-ink" : "text-mut"}`}>
             {m}
