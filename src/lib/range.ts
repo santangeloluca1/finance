@@ -6,6 +6,17 @@ export const RANGES: Range[] = ["1G", "1S", "1M", "6M", "YTD", "1A", "MAX"];
 
 const DAYS: Record<Exclude<Range, "YTD" | "MAX">, number> = { "1G": 1, "1S": 7, "1M": 31, "6M": 183, "1A": 366 };
 
+/** Nome per esteso, per i menu. */
+export const RANGE_LABEL: Record<Range, string> = {
+  "1G": "Oggi",
+  "1S": "1 settimana",
+  "1M": "1 mese",
+  "6M": "6 mesi",
+  YTD: "Da inizio anno",
+  "1A": "1 anno",
+  MAX: "Dall'inizio",
+};
+
 /** "nell'ultimo mese", per le frasi sotto i totali. */
 export const RANGE_PHRASE: Record<Range, string> = {
   "1G": "oggi",

@@ -87,6 +87,7 @@ export function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
           transactions={txs}
           views={view.views}
           priceSeries={view.priceSeries}
+          fxSeries={view.fxSeries}
           fx={view.fx}
           accounts={view.data.accounts}
           instruments={view.data.instruments}

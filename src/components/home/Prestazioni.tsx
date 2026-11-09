@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { EventLegend, InteractiveChart, type ChartEvent } from "@/components/InteractiveChart";
 import { MonthRecap } from "@/components/MonthRecap";
-import { buildRows, PERIOD_OPTIONS } from "@/components/PositionList";
+import { contributions, type Contribution } from "@/lib/contributions";
 import { InfoRow, Logo, Panel, RangePicker, SectionHeader, Segmented, SelectButton } from "@/components/ui";
-import { RANGES, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
+import { RANGES, RANGE_LABEL, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
 import { BENCHMARKS as BASE_BENCHMARKS } from "@/lib/benchmarks";
 import { BigAmount } from "@/components/BigAmount";
-import { cutoffDate, type FxRates, type HistoryPoint, type Period, type PositionView, type Totals } from "@/lib/analytics";
+import type { FxRates, HistoryPoint, PositionView, Totals } from "@/lib/analytics";
 import type { Account, Instrument, PortfolioState, Transaction } from "@/lib/engine/types";
 import { fmtEur, fmtSignedEur, fmtSignedPct, fmtN } from "@/lib/format";
 import { annualize, cashFlows, monthlyReturns, twrSeries, xirr } from "@/lib/performance";
@@ -29,6 +29,7 @@ export function Prestazioni({
   transactions,
   views,
   priceSeries,
+  fxSeries,
   fx,
   accounts,
   instruments,
@@ -39,12 +40,12 @@ export function Prestazioni({
   transactions: Transaction[];
   views: PositionView[];
   priceSeries: Record<string, [string, number][]>;
+  fxSeries: Record<string, [string, number][]>;
   fx: FxRates;
   accounts: Account[];
   instruments: Instrument[];
 }) {
   const [range, setRange] = useState<Range>("1A");
-  const [contribPeriod, setContribPeriod] = useState<Period>("oggi");
   const [contribUnit, setContribUnit] = useState<"eur" | "pct">("pct");
   const [bench, setBench] = useState<Bench>("SWDA.MI");
   const [benchSeries, setBenchSeries] = useState<[string, number][] | null>(null);
@@ -133,15 +134,14 @@ export function Prestazioni({
     return xirr([...flows, { date: new Date().toISOString().slice(0, 10), amount: totals.value - totals.cash }]);
   }, [transactions, totals.value, totals.cash]);
 
-  // Contributo in %: quanto ogni titolo ha mosso il portafoglio (guadagno sul valore di inizio periodo),
-  // così l'ordine coincide con quello in euro. Sotto resta la variazione del singolo titolo.
-  const contributions = useMemo(() => {
-    const rows = buildRows(views, contribPeriod, priceSeries, fx, true, "valore", transactions);
-    const base = rows.reduce((a, r) => a + r.value - r.change.abs, 0);
-    return rows.map((r) => ({ ...r, share: base > 0 ? r.change.abs / base : 0 })).sort((a, b) => b.change.abs - a.change.abs);
-  }, [views, contribPeriod, priceSeries, fx, transactions]);
-  const measure = (c: (typeof contributions)[number]) => (contribUnit === "eur" ? c.change.abs : c.share);
-  const maxAbs = Math.max(contribUnit === "eur" ? 1 : 0.0001, ...contributions.map((c) => Math.abs(measure(c))));
+  // Cosa ha mosso il rendimento, nello stesso periodo del grafico (titoli venduti compresi).
+  // In %: quanto ogni titolo ha mosso il portafoglio, così l'ordine coincide con quello in euro.
+  const movers = useMemo(
+    () => contributions(day ? "oggi" : rangeStart(range), views, transactions, instruments, priceSeries, fxSeries),
+    [day, range, views, transactions, instruments, priceSeries, fxSeries],
+  );
+  const measure = (c: Contribution) => (contribUnit === "eur" ? c.change : c.share);
+  const maxAbs = Math.max(contribUnit === "eur" ? 1 : 0.0001, ...movers.map((c) => Math.abs(measure(c))));
 
   const years = [...new Set(Object.keys(months).map((m) => m.slice(0, 4)))].sort().reverse();
 
@@ -216,8 +216,9 @@ export function Prestazioni({
       </Panel>
 
       {/* Contributo di ogni titolo */}
-      <SectionHeader right={<SelectButton label="Periodo del contributo" value={contribPeriod} onChange={setContribPeriod} options={PERIOD_OPTIONS} />}>
-        Chi ha contribuito
+      {/* Stesso periodo del grafico: cambiando uno cambia anche l'altro. */}
+      <SectionHeader right={<SelectButton label="Periodo" value={range} onChange={setRange} options={RANGES.map((r) => ({ value: r, label: RANGE_LABEL[r] }))} />}>
+        Cosa ha mosso il rendimento
       </SectionHeader>
       <div className="flex items-center gap-3 px-4 pb-2">
         <div className="w-[120px] shrink-0">
@@ -234,19 +235,22 @@ export function Prestazioni({
         <p className="text-[13px] leading-snug text-mut">{contribUnit === "pct" ? "Quanto ha mosso il portafoglio" : "Guadagno o perdita in euro"}</p>
       </div>
       <ul className="stagger">
-        {contributions.map((c) => (
-          <li key={c.key}>
+        {movers.map((c) => (
+          <li key={c.isin}>
           <Link href={`/posizioni/${c.instrument.isin}`} className="flex min-h-[64px] items-center gap-3.5 px-4 py-2.5 active:bg-panel-2">
             <Logo isin={c.instrument.isin} name={c.instrument.shortName ?? c.instrument.name} size={40} />
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
-                <p className="truncate text-[17px] font-semibold">{c.instrument.shortName ?? c.instrument.name}</p>
-                <p className={`num sensitive shrink-0 text-[17px] font-medium ${c.change.abs > 0.005 ? "text-up" : c.change.abs < -0.005 ? "text-dn" : "text-mut"}`}>
-                  {contribUnit === "eur" ? fmtSignedEur(c.change.abs) : fmtSignedPct(c.share)}
+                <p className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-[17px] font-semibold">{c.instrument.shortName ?? c.instrument.name}</span>
+                  {c.sold && <span className="shrink-0 rounded-full bg-chip px-2 py-0.5 text-[12px] font-semibold text-mut">venduto</span>}
+                </p>
+                <p className={`num sensitive shrink-0 text-[17px] font-medium ${c.change > 0.005 ? "text-up" : c.change < -0.005 ? "text-dn" : "text-mut"}`}>
+                  {contribUnit === "eur" ? fmtSignedEur(c.change) : fmtSignedPct(c.share)}
                 </p>
               </div>
               <p className="num sensitive text-[14px] text-mut">
-                {contribUnit === "eur" ? `Titolo ${fmtSignedPct(c.change.pct)}` : `${fmtSignedEur(c.change.abs)} · titolo ${fmtSignedPct(c.change.pct)}`}
+                {contribUnit === "eur" ? `Titolo ${fmtSignedPct(c.pct)}` : `${fmtSignedEur(c.change)} · titolo ${fmtSignedPct(c.pct)}`}
               </p>
               <div className="mt-1.5 h-1 overflow-hidden rounded-full">
                 <div
