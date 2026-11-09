@@ -38,7 +38,7 @@ export default function Consulente() {
       {/* L'oracolo: la sfera si anima di più mentre scrivi la domanda. */}
       <div className="flex flex-col items-center px-6 pb-2 pt-4 text-center">
         <Orb size={112} active={focused && q.length > 0} />
-        <p className="mt-7 text-[22px] font-bold leading-tight tracking-[-0.025em]">La tua consulente finanziaria</p>
+        <p className="mt-7 text-[22px] font-bold leading-tight tracking-[-0.025em]">Consulenza finanziaria personale</p>
         <p className="mt-1.5 text-[14px] leading-snug text-mut">Conosco posizioni, zainetto, rendimenti, obiettivi e il tuo profilo. Mai nome ed email.</p>
       </div>
 
@@ -94,7 +94,7 @@ export default function Consulente() {
       </Link>
 
       <SettingsSection title="Conversazioni">
-        <SettingsRow icon={SquarePen} title="Nuova conversazione" subtitle={`Parla con ${ASSISTANT} come con la tua consulente`} href="/consulente/chat" />
+        <SettingsRow icon={SquarePen} title="Nuova conversazione" subtitle={`Fai domande su portafoglio, tasse e obiettivi`} href="/consulente/chat" />
         {threads.slice(0, 5).map((t) => (
           <SettingsRow
             key={t.id}

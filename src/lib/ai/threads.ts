@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-/** Conversazioni con Minerva, salvate su questo dispositivo. */
+/** Conversazioni con Basis AI, salvate su questo dispositivo. */
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
   /** Messaggio citato quando si risponde a una risposta. */
   replyTo?: { id: string; excerpt: string };
-  /** Domande di seguito proposte da Minerva. */
+  /** Domande di seguito proposte da Basis AI. */
   followUps?: string[];
   at: string;
 }

@@ -34,7 +34,7 @@ export default function Fisco() {
       <div className="flex items-center justify-between pr-4">
         <h1 className={`px-4 py-1 ${PAGE_TITLE}`}>Fisco</h1>
         <Link href="/consulente/analisi?a=fisco" className="press flex h-9 items-center gap-2 rounded-full bg-chip pl-1.5 pr-3.5 text-[14px] font-semibold text-ink">
-          <Orb size={24} /> Minerva
+          <Orb size={24} /> Basis AI
         </Link>
       </div>
       <Toolbar
@@ -69,7 +69,7 @@ export default function Fisco() {
 
   const parts = [
     { key: "diversi", label: "Plus su azioni e obbligazioni", value: plusDiversi, color: "var(--accent)" },
-    { key: "capitale", label: "Plus su ETF e fondi", value: plusCapitale, color: CAPITAL },
+    { key: "capitale", label: "Plus su ETF", value: plusCapitale, color: CAPITAL },
     { key: "cedole", label: "Cedole e dividendi", value: income, color: "var(--up)" },
   ];
 
@@ -90,7 +90,7 @@ export default function Fisco() {
       </div>
 
       {/* Da dove vengono: barra unica e righe */}
-      <Section title="Da dove vengono">
+      <Section title="Da dove vengono i guadagni">
       {gross > 0 && (
         <div className="mx-4 mb-2 flex h-3 overflow-hidden rounded-full bg-chip" aria-hidden>
           {parts

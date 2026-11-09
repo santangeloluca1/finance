@@ -9,17 +9,18 @@ import type { Instrument } from "./engine/types";
  */
 
 /** Categorie di avvisi automatici. */
-export type AutoKind = "minus" | "calo" | "portafoglio" | "cedole" | "ricorrenti" | "promemoria" | "obiettivi" | "quotazioni";
+export type AutoKind = "minus" | "calo" | "portafoglio" | "cedole" | "ricorrenti" | "promemoria" | "obiettivi" | "quotazioni" | "dati";
 
 export const AUTO_KINDS: { kind: AutoKind; label: string; hint: string }[] = [
   { kind: "calo", label: "Cali forti di un titolo", hint: "Quando un tuo titolo perde più della soglia in un giorno" },
   { kind: "portafoglio", label: "Movimenti del portafoglio", hint: "Quando l'intero portafoglio sale o scende più della soglia" },
   { kind: "minus", label: "Minus in scadenza", hint: "Minusvalenze che scadono entro la fine dell'anno prossimo" },
   { kind: "cedole", label: "Cedole in arrivo", hint: "Stacchi previsti nei prossimi 30 giorni" },
-  { kind: "ricorrenti", label: "Rate da confermare", hint: "Versamenti e PAC ricorrenti da registrare" },
+  { kind: "ricorrenti", label: "Operazioni ricorrenti", hint: "Stipendio, bonifici e PAC da confermare, o bloccati per liquidità insufficiente" },
   { kind: "promemoria", label: "Promemoria", hint: "I tuoi promemoria, la mattina del giorno" },
   { kind: "obiettivi", label: "Obiettivi raggiunti", hint: "Quando superi il traguardo di un obiettivo" },
   { kind: "quotazioni", label: "Quotazioni mancanti", hint: "Titoli senza prezzo aggiornato" },
+  { kind: "dati", label: "Dati da sistemare", hint: "Conti con saldo negativo: mancano dei versamenti" },
 ];
 
 export interface NotifySettings {

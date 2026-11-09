@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { buildRows, PERIOD_OPTIONS } from "@/components/PositionList";
 import { InfoRow, Logo, Panel, RangePicker, SectionHeader, Segmented, SelectButton } from "@/components/ui";
-import { RANGES, rangeStart, type Range } from "@/lib/range";
+import { RANGES, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
 import { BENCHMARKS as BASE_BENCHMARKS } from "@/lib/benchmarks";
 import { BigAmount } from "@/components/BigAmount";
 import { cutoffDate, type FxRates, type HistoryPoint, type Period, type PositionView, type Totals } from "@/lib/analytics";
@@ -118,11 +118,14 @@ export function Prestazioni({
     return xirr([...flows, { date: new Date().toISOString().slice(0, 10), amount: totals.value - totals.cash }]);
   }, [transactions, totals.value, totals.cash]);
 
-  const contributions = useMemo(
-    () => buildRows(views, contribPeriod, priceSeries, fx, true, "valore", transactions).sort((a, b) => (contribUnit === "eur" ? b.change.abs - a.change.abs : b.change.pct - a.change.pct)),
-    [views, contribPeriod, contribUnit, priceSeries, fx, transactions],
-  );
-  const measure = (c: (typeof contributions)[number]) => (contribUnit === "eur" ? c.change.abs : c.change.pct);
+  // Contributo in %: quanto ogni titolo ha mosso il portafoglio (guadagno sul valore di inizio periodo),
+  // così l'ordine coincide con quello in euro. Sotto resta la variazione del singolo titolo.
+  const contributions = useMemo(() => {
+    const rows = buildRows(views, contribPeriod, priceSeries, fx, true, "valore", transactions);
+    const base = rows.reduce((a, r) => a + r.value - r.change.abs, 0);
+    return rows.map((r) => ({ ...r, share: base > 0 ? r.change.abs / base : 0 })).sort((a, b) => b.change.abs - a.change.abs);
+  }, [views, contribPeriod, priceSeries, fx, transactions]);
+  const measure = (c: (typeof contributions)[number]) => (contribUnit === "eur" ? c.change.abs : c.share);
   const maxAbs = Math.max(contribUnit === "eur" ? 1 : 0.0001, ...contributions.map((c) => Math.abs(measure(c))));
 
   const years = [...new Set(Object.keys(months).map((m) => m.slice(0, 4)))].sort().reverse();
@@ -150,7 +153,7 @@ export function Prestazioni({
       <div className="mt-6 flex items-center justify-between px-4">
         <p className="flex items-center gap-3 text-[12px] text-mut">
           <span className="flex items-center gap-1.5">
-            <span className="h-0.5 w-4 rounded bg-up" /> Basis
+            <span className="h-0.5 w-4 rounded bg-up" /> Il tuo portafoglio
           </span>
           {bench !== "none" && (
             <span className="flex items-center gap-1.5">
@@ -182,19 +185,23 @@ export function Prestazioni({
       <Panel className="mt-6">
         <InfoRow
           label={BENCHMARKS.find((b) => b.value === bench)?.label ?? "Indice"}
-          hint={benchTotal !== null ? `${total - benchTotal >= 0 ? "Fai meglio" : "Fai peggio"} di ${fmtN(Math.abs((total - benchTotal) * 100), { maximumFractionDigits: 1 })} punti` : "Nessun confronto"}
+          hint={
+            benchTotal !== null
+              ? `${RANGE_PHRASE[range].replace(/^./, (c) => c.toUpperCase())} ${total - benchTotal >= 0 ? "fai meglio" : "fai peggio"} di ${fmtN(Math.abs((total - benchTotal) * 100), { maximumFractionDigits: 1 })} punti percentuali`
+              : "Nessun confronto"
+          }
           value={benchTotal !== null ? fmtSignedPct(benchTotal) : "—"}
           valueClass={tone(benchTotal ?? 0)}
         />
-        <InfoRow label="Rendimento sui tuoi versamenti" hint="XIRR annuo dall'inizio" value={irr !== null ? fmtSignedPct(irr) : "—"} valueClass={tone(irr ?? 0)} />
+        <InfoRow label="Rendimento annuo dei tuoi soldi" hint="Dal primo versamento, tiene conto di quando hai investito" value={irr !== null ? fmtSignedPct(irr) : "—"} valueClass={tone(irr ?? 0)} />
       </Panel>
 
       {/* Contributo di ogni titolo */}
       <SectionHeader right={<SelectButton label="Periodo del contributo" value={contribPeriod} onChange={setContribPeriod} options={PERIOD_OPTIONS} />}>
         Chi ha contribuito
       </SectionHeader>
-      <div className="px-4 pb-2">
-        <div className="w-[120px]">
+      <div className="flex items-center gap-3 px-4 pb-2">
+        <div className="w-[120px] shrink-0">
           <Segmented
             size="sm"
             value={contribUnit}
@@ -205,6 +212,7 @@ export function Prestazioni({
             ]}
           />
         </div>
+        <p className="text-[13px] leading-snug text-mut">{contribUnit === "pct" ? "Quanto ha mosso il portafoglio" : "Guadagno o perdita in euro"}</p>
       </div>
       <ul className="stagger">
         {contributions.map((c) => (
@@ -215,10 +223,12 @@ export function Prestazioni({
               <div className="flex items-baseline justify-between gap-2">
                 <p className="truncate text-[17px] font-semibold">{c.instrument.shortName ?? c.instrument.name}</p>
                 <p className={`num sensitive shrink-0 text-[17px] font-medium ${c.change.abs > 0.005 ? "text-up" : c.change.abs < -0.005 ? "text-dn" : "text-mut"}`}>
-                  {contribUnit === "eur" ? fmtSignedEur(c.change.abs) : fmtSignedPct(c.change.pct)}
+                  {contribUnit === "eur" ? fmtSignedEur(c.change.abs) : fmtSignedPct(c.share)}
                 </p>
               </div>
-              <p className="num sensitive text-[14px] text-mut">{contribUnit === "eur" ? fmtSignedPct(c.change.pct) : fmtSignedEur(c.change.abs)}</p>
+              <p className="num sensitive text-[14px] text-mut">
+                {contribUnit === "eur" ? `Titolo ${fmtSignedPct(c.change.pct)}` : `${fmtSignedEur(c.change.abs)} · titolo ${fmtSignedPct(c.change.pct)}`}
+              </p>
               <div className="mt-1.5 h-1 overflow-hidden rounded-full">
                 <div
                   className={`grow-x h-full rounded-full ${measure(c) >= 0 ? "bg-up" : "bg-dn"}`}

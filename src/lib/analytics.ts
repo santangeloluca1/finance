@@ -34,6 +34,10 @@ export interface Totals {
   /** Solo investimenti. */
   invested: number;
   cash: number;
+  /** Liquidità disponibile: solo i saldi positivi (un saldo negativo indica movimenti mancanti). */
+  cashAvailable: number;
+  /** Conti con saldo negativo. */
+  negativeCash: { account: string; amount: number }[];
   cost: number;
   unrealized: number;
   unrealizedPct: number;
@@ -102,6 +106,10 @@ export function totals(views: PositionView[], state: PortfolioState): Totals {
     value,
     invested: investedValue,
     cash,
+    cashAvailable: sum(Object.values(state.cash).map((c) => Math.max(0, c.amount))),
+    negativeCash: Object.entries(state.cash)
+      .filter(([, c]) => c.amount < -0.005)
+      .map(([account, c]) => ({ account, amount: c.amount })),
     cost,
     unrealized: investedValue - cost,
     unrealizedPct: cost ? (investedValue - cost) / cost : 0,

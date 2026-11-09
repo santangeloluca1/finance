@@ -48,13 +48,13 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
 
   // Composizione di oggi e composizione scelta.
   const now = useMemo<Weights>(() => {
-    const raw: Partial<Record<Group, number>> = { liquidita: totals?.cash ?? 0 };
+    const raw: Partial<Record<Group, number>> = { liquidita: totals?.cashAvailable ?? 0 };
     for (const v of views) {
       const g = groupOf(v.instrument.assetClass);
       raw[g] = (raw[g] ?? 0) + v.value;
     }
     return normalize(raw);
-  }, [views, totals?.cash]);
+  }, [views, totals?.cashAvailable]);
   const [weights, setWeights] = useState<Weights | null>(() => fromSaved(data.targets));
   const chosen = weights ?? now;
   const rate = expectedReturn(chosen);
@@ -82,7 +82,7 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
     if (!totals) return new Map<string, GoalPlan & { pool: number }>();
     const pool = (scope: string) => {
       if (scope === "tutto") return totals.value;
-      if (scope === "liquidita") return totals.cash;
+      if (scope === "liquidita") return totals.cashAvailable;
       return views.filter((v) => v.position.account === scope).reduce((a, v) => a + v.value, 0) + (state?.cash[scope]?.amount ?? 0);
     };
     return new Map(planGoals(goals, pool, monthly, rate).map((p, i) => [p.id, { ...p, pool: pool(goals[i].scope) }]));
@@ -175,7 +175,7 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
 
       {totals && <Proiezione start={totals.value} monthly={monthly} rate={rate} years={years} setYears={setYears} goals={goals} plans={plans} />}
 
-      {totals && <DoveInvestire views={views} cash={totals.cash} weights={chosen} monthly={monthly} />}
+      {totals && <DoveInvestire views={views} cash={totals.cashAvailable} weights={chosen} monthly={monthly} />}
 
       {editing && (
         <Sheet onClose={() => setEditing(null)} title={goals.some((g) => g.id === editing.id) ? "Modifica obiettivo" : "Nuovo obiettivo"}>
@@ -528,7 +528,8 @@ function Proiezione({
         </p>
         <p className="hero-number num mt-1">{fmtEur0(end)}</p>
         <p className="mt-2 text-[14px] text-mut">
-          di cui <span className="num font-semibold text-ink-2">{fmtEur0(paid)}</span> versati e{" "}
+          <span className="num font-semibold text-ink-2">{fmtEur0(start)}</span> di oggi,{" "}
+          <span className="num font-semibold text-ink-2">{fmtEur0(paid - start)}</span> di nuovi versamenti e{" "}
           <span className="num font-semibold text-up">{fmtEur0(end - paid)}</span> di crescita
         </p>
       </div>
@@ -541,7 +542,7 @@ function Proiezione({
           goals={marks}
           format={fmtEur0}
           formatAxis={(v) => (v >= 1_000_000 ? `${fmtN(v / 1_000_000, { maximumFractionDigits: 1 })}M €` : `${Math.round(v / 1000)}k €`)}
-          describePoint={(i) => `${fmtEur0(points[i].value)} · versati ${fmtEur0(contributed[i])}`}
+          describePoint={(i) => `${fmtEur0(points[i].value)} · senza crescita ${fmtEur0(contributed[i])}`}
           describeRange={(a, b) => `+${fmtEur0(points[b].value - points[a].value)}`}
         />
       </div>
@@ -550,7 +551,7 @@ function Proiezione({
           <span className="h-0.5 w-4 rounded bg-up" /> Valore atteso
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-4 border-t-2 border-dashed border-accent" /> Versato
+          <span className="w-4 border-t-2 border-dashed border-accent" /> Oggi + versamenti
         </span>
         {goals.length > 0 && (
           <>

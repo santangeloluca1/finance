@@ -18,7 +18,7 @@ export default function ChatPage() {
 
 const STARTERS = ["Il mio portafoglio è troppo rischioso per me?", "Conviene recuperare le minus quest'anno?", "Cosa compro con i prossimi 1.000 €?", "Quanto incasserò di cedole il prossimo anno?"];
 
-/** Conversazione con Minerva: risposte che si scrivono, citazioni, domande di seguito. */
+/** Conversazione con Basis AI: risposte che si scrivono, citazioni, domande di seguito. */
 function Chat() {
   const params = useSearchParams();
   const router = useRouter();
@@ -77,7 +77,7 @@ function Chat() {
     await answer(base);
   };
 
-  /** Fa rispondere Minerva all'ultima domanda della conversazione (anche per riprovare). */
+  /** Fa rispondere Basis AI all'ultima domanda della conversazione (anche per riprovare). */
   const answer = async (base: Thread) => {
     setError(null);
     setLive("");
@@ -89,7 +89,7 @@ function Chat() {
         const done: Thread = { ...base, updatedAt: new Date().toISOString(), messages: [...base.messages, { id: msgId(), role: "assistant", text: answer, followUps, at: new Date().toISOString() }] };
         setThread(done);
         writeThread(done);
-      } else setError(r.status === "nokey" ? `${ASSISTANT} non è ancora attiva: manca la chiave GEMINI_API_KEY su Vercel.` : r.message);
+      } else setError(r.status === "nokey" ? `${ASSISTANT} non è ancora attivo: manca la chiave GEMINI_API_KEY su Vercel.` : r.message);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -111,7 +111,7 @@ function Chat() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      {/* Intestazione fissa: Minerva e il suo stato */}
+      {/* Intestazione fissa: Basis AI e il suo stato */}
       <header className="sticky top-0 z-30 -mt-[calc(env(safe-area-inset-top)+28px)] flex items-center gap-2 border-b border-sep bg-bg/85 px-2 pb-2.5 pt-[calc(env(safe-area-inset-top)+10px)] backdrop-blur-xl">
         <button onClick={() => router.push("/consulente")} aria-label="Torna al consulente" className="flex h-10 w-10 items-center justify-center text-accent active:opacity-50">
           <ChevronLeft size={26} strokeWidth={2.2} />
@@ -119,7 +119,7 @@ function Chat() {
         <Orb size={36} active={busy} />
         <div className="min-w-0 flex-1 pl-1">
           <p className="text-[17px] font-semibold leading-tight">{ASSISTANT}</p>
-          <p className={`text-[12px] leading-tight ${busy ? "text-accent" : "text-mut"}`}>{busy ? "sta scrivendo…" : configured === false ? "non ancora attiva" : "la tua consulente finanziaria"}</p>
+          <p className={`text-[12px] leading-tight ${busy ? "text-accent" : "text-mut"}`}>{busy ? "sta scrivendo…" : configured === false ? "non ancora attivo" : "consulenza finanziaria personale"}</p>
         </div>
         <button
           onClick={() => {
@@ -263,7 +263,7 @@ function Chat() {
                 void send(text);
               }
             }}
-            placeholder={reply ? "Rispondi a Minerva" : `Scrivi a ${ASSISTANT}`}
+            placeholder={reply ? "Rispondi a Basis AI" : `Scrivi a ${ASSISTANT}`}
             className="max-h-[132px] min-h-[44px] min-w-0 flex-1 resize-none rounded-[22px] bg-chip px-4 py-[11px] text-[16px] leading-[22px] outline-none placeholder:text-faint"
           />
           <button type="submit" aria-label="Invia" disabled={!text.trim() || busy} className="press mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-bg transition-opacity disabled:opacity-25">

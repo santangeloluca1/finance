@@ -77,7 +77,7 @@ export function Salute({ views, totals, state, accounts }: { views: PositionView
           );
         })}
       </ul>
-      <AdvisorCard href="/consulente/analisi?a=checkup" title="Approfondisci con Minerva" subtitle="Un check-up ragionato sui tuoi numeri e sul tuo profilo" className="mt-6" />
+      <AdvisorCard href="/consulente/analisi?a=checkup" title="Approfondisci con Basis AI" subtitle="Un check-up ragionato sui tuoi numeri e sul tuo profilo" className="mt-6" />
       <p className="px-6 pb-2 pt-6 text-center text-[12px] leading-relaxed text-mut">Indicazioni automatiche, non consulenza finanziaria.</p>
     </div>
   );

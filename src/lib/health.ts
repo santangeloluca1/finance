@@ -34,7 +34,7 @@ const eur = (n: number) => `${fmtN(Math.round(n))} €`;
 
 export function portfolioHealth(views: PositionView[], totals: Totals, state: PortfolioState, accounts: Account[], today = new Date().toISOString().slice(0, 10)): Health {
   const invested = totals.invested || 1;
-  const total = totals.value || 1;
+  const total = totals.invested + totals.cashAvailable || 1;
 
   // --- Diversificazione ---
   const byInstrument = new Map<string, { name: string; value: number; fund: boolean }>();
@@ -119,15 +119,24 @@ export function portfolioHealth(views: PositionView[], totals: Totals, state: Po
   // --- Liquidità ---
   const liq: Check[] = [];
   let liqScore = 25;
-  const cashShare = totals.cash / total;
-  if (totals.cash <= 0) {
+  const cashShare = totals.cashAvailable / total;
+  const names = new Map(accounts.map((a) => [a.id, a.name]));
+  for (const n of totals.negativeCash) {
+    liq.push({
+      title: `Saldo negativo su ${names.get(n.account) ?? n.account}: ${eur(n.amount)}`,
+      detail: "Mancano dei versamenti: gli acquisti superano la liquidità registrata. Aggiungi i versamenti o un saldo aggiornato.",
+      level: "critico",
+    });
+    liqScore -= 10;
+  }
+  if (totals.cashAvailable <= 0) {
     liq.push({ title: "Nessuna liquidità registrata", detail: "Se hai un fondo per le emergenze su un conto, aggiungilo come saldo di liquidità per vederlo nel patrimonio.", level: "attenzione" });
     liqScore -= 8;
   } else if (cashShare > 0.4) {
     liq.push({ title: `Liquidità al ${pct(cashShare)} del patrimonio`, detail: "Oltre il fondo emergenza, la liquidità ferma perde potere d'acquisto con l'inflazione.", level: "attenzione" });
     liqScore -= 8;
   } else {
-    liq.push({ title: `Liquidità al ${pct(cashShare)} del patrimonio`, detail: `${eur(totals.cash)} disponibili per emergenze e nuove opportunità.`, level: "ok" });
+    liq.push({ title: `Liquidità al ${pct(cashShare)} del patrimonio`, detail: `${eur(totals.cashAvailable)} disponibili per emergenze e nuove opportunità.`, level: "ok" });
   }
   const stale = views.filter((v) => v.stale).length;
   if (stale) {

@@ -274,6 +274,7 @@ function NuovoMovimento() {
       {(kind === "buy" || kind === "withdrawal" || kind === "transfer") && available !== undefined && (
         <p className={`px-5 pt-2 text-[14px] ${valid && total > available + 0.005 ? "font-semibold text-dn" : "text-mut"}`}>
           Liquidità disponibile su {data.accounts.find((a) => a.id === account)?.name}: <span className="num">{fmtEur(available)}</span>
+          {available < 0 && <span className="block font-semibold text-dn">Il saldo è negativo: registra prima i versamenti mancanti.</span>}
         </p>
       )}
 

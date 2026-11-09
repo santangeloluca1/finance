@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Check, Repeat, Trash2 } from "lucide-react";
+import { ArrowRight, CalendarClock, Check, Trash2 } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BackLink, BankDot, InfoRow, LargeTitle, Logo, Panel, SectionHeader, Segmented, SelectButton, AddButton } from "@/components/ui";
 import type { Instrument, Transaction } from "@/lib/engine/types";
@@ -85,7 +85,7 @@ function Ricorrenti() {
             // Pagina vuota: solo il messaggio e un'azione, senza intestazioni.
             <div className="flex flex-col items-center px-8 pt-16 text-center">
               <span className="flex h-14 w-14 items-center justify-center rounded-full bg-chip text-ink-2">
-                <Repeat size={24} />
+                <CalendarClock size={24} />
               </span>
               <p className="mt-4 text-[17px] font-semibold">Nessuna operazione ricorrente</p>
               <p className="mt-1 text-[15px] leading-snug text-mut">
@@ -108,7 +108,7 @@ function Ricorrenti() {
                         <Logo isin={ins.isin} name={ins.shortName ?? ins.name} size={44} />
                       ) : (
                         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-chip text-ink-2">
-                          {p.kind === "transfer" ? <ArrowRight size={19} /> : <Repeat size={19} />}
+                          {p.kind === "transfer" ? <ArrowRight size={19} /> : <CalendarClock size={19} />}
                         </span>
                       )}
                       <div className="min-w-0 flex-1">

@@ -10,7 +10,7 @@ import { lookThrough, topCompanies, useCompositions } from "@/lib/xray-client";
 import { isFundLike } from "@/lib/engine/tax";
 import { ASSET_CLASS_COLOR, ASSET_CLASS_LABEL, groupBy, type PositionView, type Slice, type Totals } from "@/lib/analytics";
 import type { Account } from "@/lib/engine/types";
-import { fmtEur, fmtEur0, fmtN, fmtPct, fmtSignedPct } from "@/lib/format";
+import { fmtEur, fmtEur0, fmtN, fmtPct, fmtSignedEur, fmtSignedPct } from "@/lib/format";
 
 type By = "asset" | "banca" | "paese" | "settore" | "valuta" | "titolo";
 const PALETTE = ["#5468ff", "#22b8cf", "#9b6bff", "#2dd4a7", "#f5a524", "#f472b6", "#ff7a45", "#94a3b8"];
@@ -59,7 +59,7 @@ export function Analisi({
       const vs = views.filter((v) => v.position.account === a.id);
       const value = vs.reduce((s, v) => s + v.value, 0);
       const cost = vs.reduce((s, v) => s + v.position.totalCost, 0);
-      return { a, value, pct: cost ? (value - cost) / cost : 0 };
+      return { a, value, gain: value - cost, pct: cost ? (value - cost) / cost : 0 };
     })
     .filter((b) => b.value > 0);
 
@@ -137,16 +137,20 @@ export function Analisi({
         </>
       )}
 
-      <SectionHeader>Rendimento per banca</SectionHeader>
+      <SectionHeader>Guadagno per banca</SectionHeader>
+      <p className="-mt-1 px-4 pb-1 text-[14px] text-mut">Titoli che hai ora, rispetto al prezzo medio di carico.</p>
       <ul className="stagger">
-        {banks.map(({ a, value, pct }) => (
+        {banks.map(({ a, value, gain, pct }) => (
           <li key={a.id} className="flex min-h-[60px] items-center gap-3 px-4 py-2.5">
             <BankDot color={a.color} size={9} />
             <div className="flex-1">
               <p className="text-[17px] font-semibold">{a.name}</p>
-              <p className="num sensitive text-[14px] text-mut">{fmtEur(value)}</p>
+              <p className="num sensitive text-[14px] text-mut">Valore {fmtEur(value)}</p>
             </div>
-            <p className={`num text-[17px] font-medium ${pct > 0.00005 ? "text-up" : pct < -0.00005 ? "text-dn" : "text-mut"}`}>{fmtSignedPct(pct)}</p>
+            <div className="text-right">
+              <p className={`num text-[17px] font-medium ${pct > 0.00005 ? "text-up" : pct < -0.00005 ? "text-dn" : "text-mut"}`}>{fmtSignedPct(pct)}</p>
+              <p className="num sensitive text-[14px] text-mut">{fmtSignedEur(gain)}</p>
+            </div>
           </li>
         ))}
       </ul>

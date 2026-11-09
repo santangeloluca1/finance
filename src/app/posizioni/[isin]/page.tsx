@@ -117,7 +117,6 @@ export default function PositionDetail() {
   const qty = rows.reduce((a, r) => a + r.position.quantity, 0);
   const value = rows.reduce((a, r) => a + r.value, 0);
   const cost = rows.reduce((a, r) => a + r.position.totalCost, 0);
-  const tax = rows.reduce((a, r) => a + r.taxIfSold, 0);
   const income = state?.positions.filter((p) => p.isin === isin && (bank === "all" || p.account === bank)).reduce((a, p) => a + p.income, 0) ?? 0;
   const name = instrument.shortName ?? instrument.name;
   const compareOptions = [
@@ -235,7 +234,7 @@ export default function PositionDetail() {
       <AdvisorCard
         className="mt-8"
         href={`/consulente/analisi?${new URLSearchParams({ a: qty > 0 ? "vendere" : "titolo", isin: instrument.isin, t: instrument.ticker, n: name, c: instrument.currency })}`}
-        title={qty > 0 ? "Devo venderlo? Chiedi a Minerva" : "Chiedi a Minerva"}
+        title={qty > 0 ? "Devo venderlo? Chiedi a Basis AI" : "Chiedi a Basis AI"}
         subtitle={qty > 0 ? "Tasse, minus, ruolo nel portafoglio e alternative" : "Ha senso per il tuo portafoglio? Quanto pesarlo?"}
       />
 
@@ -281,8 +280,6 @@ export default function PositionDetail() {
                 />
               );
             })}
-            <InfoRow label="Tasse se vendi oggi" value={fmtEur(tax)} />
-            <InfoRow label="Netto se vendi oggi" value={<span className="sensitive">{fmtEur(value - tax)}</span>} />
           </Panel>
 
           {state && (
@@ -322,13 +319,13 @@ export default function PositionDetail() {
               <p className="num mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
                 <BankDot color={accounts.get(t.account)?.color ?? "#888"} size={7} />
                 {t.type === "buy" || t.type === "sell"
-                  ? `${fmtNum(t.quantity ?? 0)} a ${fmtPrice(t.price ?? 0, instrument.currency)}`
+                  ? `${fmtNum(t.quantity ?? 0)} × ${fmtPrice(t.price ?? 0, instrument.currency)}`
                   : t.type === "split"
                     ? `Rapporto ${t.splitRatio}:1`
                     : fmtDate(t.date, { year: "numeric" })}
               </p>
             </div>
-            <p className={`num sensitive shrink-0 text-[17px] font-medium ${t.type === "dividend" || t.type === "sell" ? "text-up" : ""}`}>
+            <p className={`num sensitive shrink-0 text-[17px] font-medium ${t.type === "dividend" ? "text-up" : ""}`}>
               {t.type === "dividend"
                 ? `+${fmtEur(t.amount ?? 0)}`
                 : t.type === "split"

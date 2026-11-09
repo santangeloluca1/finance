@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Repeat } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
 import { BankDot, LargeTitle, SelectButton, AddButton, DayCell, IconButton } from "@/components/ui";
 import { fmtDate, fmtEur, fmtNum, fmtPrice } from "@/lib/format";
 import type { Transaction } from "@/lib/engine/types";
 
 const META = {
-  buy: { verb: "Acquistato" },
-  sell: { verb: "Venduto" },
+  buy: { verb: "Acquisto" },
+  sell: { verb: "Vendita" },
   dividend: { verb: "Cedola o dividendo" },
   split: { verb: "Frazionamento" },
   cash: { verb: "Saldo del conto" },
@@ -44,7 +44,7 @@ export default function Movimenti() {
         right={
           <>
             <IconButton href="/ricorrenti" label="Operazioni ricorrenti">
-              <Repeat size={18} strokeWidth={2.2} />
+              <CalendarClock size={18} strokeWidth={2.2} />
             </IconButton>
             <AddButton href="/movimenti/nuovo" label="Aggiungi movimento" />
           </>
@@ -94,7 +94,7 @@ export default function Movimenti() {
               const name = t.type === "transfer" ? "Bonifico" : t.type === "deposit" ? "Versamento" : t.type === "withdrawal" ? "Prelievo" : t.type === "cash" ? "Liquidità" : ins?.shortName ?? ins?.name ?? t.isin;
               const detail =
                 t.type === "buy" || t.type === "sell"
-                  ? `${m.verb} ${fmtNum(t.quantity ?? 0)} a ${fmtPrice(t.price ?? 0, ins?.currency ?? "EUR")}`
+                  ? `${m.verb} ${fmtNum(t.quantity ?? 0)} × ${fmtPrice(t.price ?? 0, ins?.currency ?? "EUR")}`
                   : t.type === "split"
                     ? `Frazionamento ${t.splitRatio}:1`
                     : t.type === "transfer"
@@ -114,7 +114,7 @@ export default function Movimenti() {
                         <span className="num truncate">{detail}</span>
                       </p>
                     </div>
-                    <p className={`num sensitive shrink-0 text-[17px] font-medium ${t.type === "dividend" || t.type === "sell" || t.type === "deposit" ? "text-up" : ""}`}>
+                    <p className={`num sensitive shrink-0 text-[17px] font-medium ${t.type === "dividend" ? "text-up" : ""}`}>
                       {t.type === "split" ? "" : t.type === "cash" || t.type === "transfer" ? fmtEur(total) : `${t.type === "buy" || t.type === "withdrawal" ? "−" : "+"}${fmtEur(total)}`}
                     </p>
                   </Link>
