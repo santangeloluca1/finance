@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { InteractiveChart } from "@/components/InteractiveChart";
+import { EventLegend, InteractiveChart, type ChartEvent } from "@/components/InteractiveChart";
+import { MonthRecap } from "@/components/MonthRecap";
 import { buildRows, PERIOD_OPTIONS } from "@/components/PositionList";
 import { InfoRow, Logo, Panel, RangePicker, SectionHeader, Segmented, SelectButton } from "@/components/ui";
 import { RANGES, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
 import { BENCHMARKS as BASE_BENCHMARKS } from "@/lib/benchmarks";
 import { BigAmount } from "@/components/BigAmount";
 import { cutoffDate, type FxRates, type HistoryPoint, type Period, type PositionView, type Totals } from "@/lib/analytics";
-import type { Account, PortfolioState, Transaction } from "@/lib/engine/types";
-import { fmtSignedEur, fmtSignedPct, fmtN } from "@/lib/format";
+import type { Account, Instrument, PortfolioState, Transaction } from "@/lib/engine/types";
+import { fmtEur, fmtSignedEur, fmtSignedPct, fmtN } from "@/lib/format";
 import { annualize, cashFlows, monthlyReturns, twrSeries, xirr } from "@/lib/performance";
 import { alignIntraday } from "@/lib/intraday";
 import { useIntradaySeries, usePortfolioIntraday } from "@/lib/intraday-client";
@@ -30,6 +31,7 @@ export function Prestazioni({
   priceSeries,
   fx,
   accounts,
+  instruments,
 }: {
   history: HistoryPoint[] | null;
   state: PortfolioState;
@@ -39,6 +41,7 @@ export function Prestazioni({
   priceSeries: Record<string, [string, number][]>;
   fx: FxRates;
   accounts: Account[];
+  instruments: Instrument[];
 }) {
   const [range, setRange] = useState<Range>("1A");
   const [contribPeriod, setContribPeriod] = useState<Period>("oggi");
@@ -75,6 +78,18 @@ export function Prestazioni({
     ]);
   }, [history, totals, state]);
   const months = useMemo(() => monthlyReturns(twrAll), [twrAll]);
+
+  // Vendite e cedole sulla linea del tempo (gli acquisti ricorrenti la affollerebbero).
+  const events = useMemo<ChartEvent[]>(() => {
+    const ins = new Map(instruments.map((i) => [i.isin, i]));
+    return transactions
+      .filter((t) => t.type === "sell" || t.type === "dividend")
+      .map((t) => {
+        const name = ins.get(t.isin)?.shortName ?? t.isin;
+        const label = t.type === "dividend" ? `${name} +${fmtEur(t.amount ?? 0)}` : `${name} · ${fmtN(t.quantity ?? 0)} quote`;
+        return { date: t.date, kind: t.type as ChartEvent["kind"], label };
+      });
+  }, [transactions, instruments]);
 
   const start = day ? undefined : series[0]?.date;
   useEffect(() => {
@@ -170,6 +185,7 @@ export function Prestazioni({
           loading={day && !intraday}
           reference={0}
           compare={compare}
+          events={day || !history ? [] : events}
           format={(v) => fmtSignedPct(v)}
           formatAxis={(v) => {
             const n = v * 100;
@@ -180,7 +196,10 @@ export function Prestazioni({
           trend={(a, b) => twr[b].value - twr[a].value}
         />
       </div>
+      {!day && <EventLegend events={events} from={twr[0]?.date} />}
       <RangePicker value={range} onChange={setRange} options={RANGES} />
+
+      <MonthRecap />
 
       <Panel className="mt-6">
         <InfoRow

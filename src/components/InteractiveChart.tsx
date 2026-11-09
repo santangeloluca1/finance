@@ -50,8 +50,8 @@ interface Props {
 /** Altezza dell'asse delle date e larghezza della colonna dei valori a destra. */
 const AXIS_H = 34;
 const GUTTER = 50;
-const EVENT_COLOR = { buy: "var(--accent)", sell: "var(--warn)", dividend: "var(--up)" } as const;
-const EVENT_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola" } as const;
+export const EVENT_COLOR = { buy: "var(--accent)", sell: "var(--warn)", dividend: "var(--income)" } as const;
+export const EVENT_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola" } as const;
 
 /**
  * Grafico navigabile:
@@ -546,4 +546,20 @@ function signed(v: number, f: (v: number) => string) {
 
 function pct(n: number) {
   return (n >= 0 ? "+" : "−") + Math.abs(n * 100).toLocaleString("it-IT", { maximumFractionDigits: 2, minimumFractionDigits: 2 }) + "%";
+}
+
+/** Legenda dei pallini: solo i tipi di operazione presenti dal giorno indicato. */
+export function EventLegend({ events, from }: { events: ChartEvent[]; from?: string }) {
+  const kinds = (["buy", "sell", "dividend"] as const).filter((k) => events.some((e) => e.kind === k && (!from || e.date >= from)));
+  if (!kinds.length) return null;
+  return (
+    <p className="flex justify-center gap-4 px-4 pt-1 text-[12px] text-mut">
+      {kinds.map((k) => (
+        <span key={k} className="flex items-center gap-1.5">
+          <span className="h-[9px] w-[9px] rounded-full border-2" style={{ borderColor: EVENT_COLOR[k] }} />
+          {EVENT_LABEL[k]}
+        </span>
+      ))}
+    </p>
+  );
 }
