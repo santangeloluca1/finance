@@ -42,7 +42,7 @@ export function Prestazioni({
 }) {
   const [range, setRange] = useState<Range>("1A");
   const [contribPeriod, setContribPeriod] = useState<Period>("oggi");
-  const [contribUnit, setContribUnit] = useState<"eur" | "pct">("eur");
+  const [contribUnit, setContribUnit] = useState<"eur" | "pct">("pct");
   const [bench, setBench] = useState<Bench>("SWDA.MI");
   const [benchSeries, setBenchSeries] = useState<[string, number][] | null>(null);
 
@@ -189,9 +189,6 @@ export function Prestazioni({
         <InfoRow label="Rendimento sui tuoi versamenti" hint="XIRR annuo dall'inizio" value={irr !== null ? fmtSignedPct(irr) : "—"} valueClass={tone(irr ?? 0)} />
       </Panel>
 
-      {/* Rendimenti mensili */}
-      <MonthBars months={months} years={years} />
-
       {/* Contributo di ogni titolo */}
       <SectionHeader right={<SelectButton label="Periodo del contributo" value={contribPeriod} onChange={setContribPeriod} options={PERIOD_OPTIONS} />}>
         Chi ha contribuito
@@ -203,8 +200,8 @@ export function Prestazioni({
             value={contribUnit}
             onChange={setContribUnit}
             options={[
-              { value: "eur", label: "€" },
               { value: "pct", label: "%" },
+              { value: "eur", label: "€" },
             ]}
           />
         </div>
@@ -233,6 +230,9 @@ export function Prestazioni({
           </li>
         ))}
       </ul>
+
+      {/* Rendimenti mensili */}
+      <MonthBars months={months} years={years} />
     </div>
   );
 }
