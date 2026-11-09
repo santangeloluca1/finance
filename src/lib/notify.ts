@@ -200,29 +200,21 @@ export function ruleAlert(rule: AlertRule, reading: RuleReading, instruments: In
   return {
     id: rule.repeat === "once" ? `regola-${rule.id}` : `regola-${rule.id}-${today}`,
     title: `${name} ${verb[rule.kind]}`,
-    detail: rule.note?.trim() || `Regola: ${describeRule(rule, instruments)}.`,
+    detail: rule.note?.trim() || `Avviso: ${describeRule(rule, instruments)}.`,
     href: rule.target === "portfolio" ? "/" : `/posizioni/${rule.target}`,
   };
 }
 
-/** Riepilogo della giornata: variazione totale, migliore e peggiore. */
+/** Riepilogo della giornata: com'è andata in euro, poi percentuale e valore. */
 export function dailySummary(views: PositionView[], totals: Totals, today: string) {
-  const live = views.filter((v) => !v.stale);
-  if (!live.length) return null;
-  // Più righe dello stesso titolo (banche diverse) contano una volta.
-  const byIsin = new Map<string, PositionView>();
-  for (const v of live) if (!byIsin.has(v.instrument.isin)) byIsin.set(v.instrument.isin, v);
-  const sorted = [...byIsin.values()].sort((a, b) => b.dayChangePct - a.dayChangePct);
-  const best = sorted[0];
-  const worst = sorted[sorted.length - 1];
-  const name = (v: PositionView) => v.instrument.shortName ?? v.instrument.name;
-  const sign = totals.dayChange >= 0 ? "+" : "−";
-  const parts = [`Meglio ${name(best)} ${pct(best.dayChangePct, true)}`];
-  if (worst !== best) parts.push(`peggio ${name(worst)} ${pct(worst.dayChangePct, true)}`);
+  if (!views.some((v) => !v.stale)) return null;
+  const flat = Math.abs(totals.dayChangePct) < 0.001;
+  const up = totals.dayChange >= 0;
+  const money = `${up ? "+" : "−"}${eur(Math.abs(totals.dayChange))}`;
   return {
     id: `riepilogo-${today}`,
-    title: `Oggi ${pct(totals.dayChangePct, true)} · ${sign}${eur(Math.abs(totals.dayChange))}`,
-    detail: `${parts.join(", ")}. Valore ${eur(totals.value)}.`,
+    title: `${flat ? "Giornata tranquilla" : up ? "Giornata positiva" : "Giornata in calo"}: ${money}`,
+    detail: `${pct(totals.dayChangePct, true)}, ora vale ${eur(totals.value)}.`,
     href: "/",
   };
 }

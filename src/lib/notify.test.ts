@@ -94,10 +94,10 @@ describe("avvisi e notifiche push", () => {
     expect(push.some((a) => a.id === "regola-b-2026-11-06")).toBe(true);
   });
 
-  it("riepilogo: migliore e peggiore della giornata", () => {
+  it("riepilogo: risultato in euro, percentuale e valore", () => {
     const s = dailySummary(views, totals, "2026-11-06")!;
-    expect(s.detail).toContain("Meglio Apple");
-    expect(s.detail).toContain("peggio VWCE");
+    expect(s.title).toMatch(/^Giornata in calo: −\d/);
+    expect(s.detail).toBe("−1,56%, ora vale 2.509 €.");
   });
 });
 
