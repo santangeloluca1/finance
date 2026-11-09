@@ -139,3 +139,30 @@ describe("andamento di oggi del portafoglio", () => {
     expect(r.values.at(-1)).toBeCloseTo(invested, 6);
   });
 });
+
+describe("rate automatiche senza liquidità", () => {
+  const plan = { id: "bon", kind: "transfer" as const, label: "Bonifico", day: 5, holiday: "same" as const, account: "f", toAccount: "g", amount: 400, since: "2026-11-01", active: true, mode: "auto" as const };
+  const base: PortfolioData = {
+    accounts: [
+      { id: "f", name: "Fineco", color: "#000" },
+      { id: "g", name: "Isybank", color: "#111" },
+    ],
+    instruments: [ins],
+    transactions: [{ id: "c", date: "2026-10-01", account: "f", type: "cash", isin: "", amount: 300 }],
+    isDemo: false,
+  };
+  const ids = (d: PortfolioData) => {
+    const st = buildPortfolio(d.transactions, d.instruments);
+    return computeAlerts(d, st, [], totals, {}, "2026-11-06").map((a) => a.id);
+  };
+
+  it("avvisa se il bonifico automatico supera la liquidità del conto", () => {
+    expect(ids({ ...base, recurring: [plan] })).toContain("liquidita-bon:2026-11");
+  });
+
+  it("tiene conto dello stipendio automatico che arriva prima, e tace sui piani da confermare", () => {
+    const salary = { ...plan, id: "sal", kind: "deposit" as const, label: "Stipendio", day: 1, toAccount: undefined, amount: 200 };
+    expect(ids({ ...base, recurring: [salary, plan] })).not.toContain("liquidita-bon:2026-11");
+    expect(ids({ ...base, recurring: [{ ...plan, mode: "confirm" }] })).not.toContain("liquidita-bon:2026-11");
+  });
+});

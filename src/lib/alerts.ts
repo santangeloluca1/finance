@@ -4,7 +4,7 @@ import { dividendsForYear } from "./dividends";
 import { usableLosses } from "./engine/portfolio";
 import type { PortfolioState } from "./engine/types";
 import type { PortfolioData } from "./store";
-import { pendingOccurrences } from "./recurring";
+import { isAuto, lastAmount, pacQuantity, pendingOccurrences, type Occurrence } from "./recurring";
 import { readRule, ruleAlert, settingsOf, type AutoKind } from "./notify";
 
 export interface Alert {
@@ -107,16 +107,65 @@ export function computeAlerts(
     }
   }
 
-  const pending = pendingOccurrences(data.recurring ?? [], data.transactions, data.recurringSkipped ?? [], today);
+  // I piani automatici si registrano da soli all'apertura dell'app: niente richiesta di conferma.
+  const pending = pendingOccurrences(data.recurring ?? [], data.transactions, data.recurringSkipped ?? [], today).filter((o) => !isAuto(o.plan));
   if (pending.length) {
+    const estimate = (o: Occurrence) => {
+      const p = o.plan;
+      const v = p.kind === "pac" ? p.budget : p.kind === "deposit" ? lastAmount(p, data.transactions) : p.amount;
+      return v ? `${p.kind === "pac" ? "fino a " : p.kind === "deposit" ? "circa " : ""}${eur(v)}` : "";
+    };
+    const one = pending.length === 1 ? pending[0] : null;
     out.push({
       id: `ricorrenti-${pending[pending.length - 1].id}-${pending.length}`,
       kind: "ricorrenti",
       level: "attenzione",
-      title: pending.length === 1 ? `${pending[0].plan.label} da confermare` : `${pending.length} rate ricorrenti da confermare`,
-      detail: pending.map((o) => o.plan.label).join(", "),
+      title: one ? `${one.plan.label}: conferma o aggiorna` : `${pending.length} rate ricorrenti da confermare`,
+      detail: one
+        ? `${estimate(one) ? `Previsto ${estimate(one)}. ` : ""}${one.plan.kind === "pac" ? "Controlla quote e prezzo con quelli della banca." : "Conferma l'importo o correggilo se è cambiato."}`
+        : pending.map((o) => `${o.plan.label}${estimate(o) ? ` ${estimate(o)}` : ""}`).join(" · "),
       href: "/ricorrenti",
     });
+  }
+
+  // Rate automatiche che non partiranno perché sul conto manca liquidità: si simulano
+  // in ordine di data sul saldo di oggi (le rate non ancora registrate non ci sono).
+  const autoDue = pendingOccurrences(data.recurring ?? [], data.transactions, data.recurringSkipped ?? [], today).filter((o) => isAuto(o.plan));
+  if (autoDue.length) {
+    const cash = new Map(Object.entries(state.cash).map(([a, c]) => [a, c.amount]));
+    const avail = (a: string) => cash.get(a) ?? 0;
+    for (const o of autoDue) {
+      const p = o.plan;
+      let need = 0;
+      if (p.kind === "deposit") {
+        cash.set(p.account, avail(p.account) + (p.amount ?? 0));
+        continue;
+      }
+      if (p.kind === "transfer") need = p.amount ?? 0;
+      else {
+        // Gli acquisti toccano la liquidità solo sui conti di cui è noto il saldo.
+        if (!cash.has(p.account)) continue;
+        // Prezzo in euro dalla posizione aperta; senza, si usa il budget intero.
+        const v = views.find((x) => x.instrument.isin === p.isin && x.position.quantity > 0 && x.value > 0);
+        const priceEur = v ? v.value / v.position.quantity : 0;
+        need = priceEur ? pacQuantity(p.budget ?? 0, priceEur) * priceEur : (p.budget ?? 0);
+      }
+      if (need <= 0) continue;
+      if (need > avail(p.account) + 0.005) {
+        const name = data.accounts.find((a) => a.id === p.account)?.name ?? p.account;
+        out.push({
+          id: `liquidita-${o.id}`,
+          kind: "ricorrenti",
+          level: "attenzione",
+          title: `Liquidità insufficiente per ${p.label}`,
+          detail: `Su ${name} ci sono ${eur(Math.max(0, avail(p.account)))}, ne servono ${p.kind === "pac" ? "circa " : ""}${eur(need)}. Fai un versamento, poi conferma la rata.`,
+          href: "/ricorrenti",
+        });
+        continue;
+      }
+      cash.set(p.account, avail(p.account) - need);
+      if (p.kind === "transfer" && p.toAccount) cash.set(p.toAccount, avail(p.toAccount) + need);
+    }
   }
 
   for (const r of data.reminders ?? []) {

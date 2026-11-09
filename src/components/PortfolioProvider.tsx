@@ -13,7 +13,8 @@ import {
 } from "@/lib/analytics";
 import { buildPortfolio } from "@/lib/engine/portfolio";
 import type { AssetClass, PortfolioState } from "@/lib/engine/types";
-import { getCurrentData, setData, usePortfolio, useQuotes, type PortfolioData } from "@/lib/store";
+import { getCurrentData, saveTransaction, setData, usePortfolio, useQuotes, type PortfolioData } from "@/lib/store";
+import { autoTransaction, isAuto, pendingOccurrences } from "@/lib/recurring";
 import { usePathname } from "next/navigation";
 import { useCloudSync } from "@/lib/sync";
 
@@ -49,6 +50,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   const { quotes, fx, fetchedAt, loading, error, refresh } = useQuotes(tickers);
   const series = useHistorySeries(data, onLogin);
   useTickerRepair(data, state, quotes, fetchedAt, loading);
+  useAutoRecurring(data, series, onLogin);
 
   return (
     <PortfolioContext.Provider
@@ -100,6 +102,30 @@ function useTickerRepair(data: PortfolioData, state: PortfolioState | null, quot
         .catch(() => {});
     }
   }, [data, state, quotes, fetchedAt, loading]);
+}
+
+/**
+ * Registra le rate scadute dei piani automatici. L'id del movimento deriva
+ * dalla rata, così due dispositivi che la registrano insieme non la doppiano.
+ * Se una rata non si può registrare (es. liquidità insufficiente, prezzo del
+ * PAC non ancora noto) resta tra quelle da confermare.
+ */
+function useAutoRecurring(data: PortfolioData, series: { prices: Series; fx: Series } | null, disabled: boolean) {
+  const failed = useRef(new Set<string>());
+  useEffect(() => {
+    if (disabled || data.isDemo || !data.recurring?.some(isAuto)) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const due = pendingOccurrences(data.recurring, data.transactions, data.recurringSkipped ?? [], today).filter((o) => isAuto(o.plan) && !failed.current.has(o.id));
+    for (const occ of due) {
+      const tx = autoTransaction(occ, today, data.instruments, series?.prices ?? {}, series?.fx ?? {});
+      if (!tx) continue;
+      try {
+        saveTransaction(tx);
+      } catch {
+        failed.current.add(occ.id);
+      }
+    }
+  }, [data, series, disabled]);
 }
 
 export function usePortfolioCtx() {

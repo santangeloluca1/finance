@@ -1,12 +1,16 @@
-import type { AccountId, Transaction } from "./engine/types";
+import type { AccountId, Instrument, Transaction } from "./engine/types";
 
 /**
- * Operazioni ricorrenti (stipendio, bonifici, PAC). Non registrano mai nulla
- * da sole: a ogni scadenza preparano una rata "da confermare", precompilata
- * con una stima che l'utente conferma, corregge o salta.
+ * Operazioni ricorrenti (stipendio, bonifici, PAC). A ogni scadenza un piano
+ * "da confermare" prepara una rata precompilata con una stima, che l'utente
+ * conferma, corregge o salta (e arriva una notifica); un piano "automatico"
+ * registra la rata da solo con l'importo indicato.
  */
 
 export type RecurringKind = "deposit" | "transfer" | "pac";
+
+/** Alla scadenza: chiedere conferma (importi che cambiano) o registrare da soli (importi fissi). */
+export type RecurringMode = "confirm" | "auto";
 
 /** Cosa fare se il giorno cade di sabato, domenica o festivo di Borsa. */
 export type HolidayRule = "same" | "next" | "previous";
@@ -31,6 +35,8 @@ export interface RecurringPlan {
   /** Prima scadenza da proporre (YYYY-MM-DD): i mesi precedenti sono già registrati. */
   since: string;
   active: boolean;
+  /** Assente nei piani creati prima della scelta: valgono come "confirm". */
+  mode?: RecurringMode;
 }
 
 export interface Occurrence {
@@ -132,6 +138,44 @@ export function pendingOccurrences(plans: RecurringPlan[], transactions: Transac
 /** A parità di data: prima entrano i soldi, poi si spostano, poi si investono. */
 function kindOrder(k: RecurringKind) {
   return k === "deposit" ? 0 : k === "transfer" ? 1 : 2;
+}
+
+export const isAuto = (plan: Pick<RecurringPlan, "mode">) => plan.mode === "auto";
+
+/** Modalità proposta per un piano nuovo: il bonifico è di solito fisso, stipendio e PAC cambiano. */
+export const defaultMode = (kind: RecurringKind): RecurringMode => (kind === "transfer" ? "auto" : "confirm");
+
+/**
+ * Movimento con cui un piano automatico registra la rata. Il PAC usa le quote
+ * intere nel budget alla chiusura del giorno: finché quella chiusura non è
+ * nota (giornata in corso o storico non ancora arrivato) restituisce null.
+ */
+export function autoTransaction(
+  occ: Occurrence,
+  today: string,
+  instruments: Instrument[],
+  priceSeries: Record<string, [string, number][]>,
+  fxSeries: Record<string, [string, number][]>,
+): Transaction | null {
+  const { plan } = occ;
+  const id = `auto-${occ.id}`;
+  if (plan.kind === "deposit" || plan.kind === "transfer") {
+    if (!plan.amount || plan.amount <= 0) return null;
+    return plan.kind === "transfer"
+      ? { id, date: occ.date, account: plan.account, toAccount: plan.toAccount, type: "transfer", isin: "", amount: plan.amount, note: plan.label, plan: occ.id }
+      : { id, date: occ.date, account: plan.account, type: "deposit", isin: "", amount: plan.amount, note: plan.label, plan: occ.id };
+  }
+  const ins = instruments.find((i) => i.isin === plan.isin);
+  const series = ins ? priceSeries[ins.ticker] : undefined;
+  if (!ins || !plan.budget || occ.date >= today || !series?.length || series[series.length - 1][0] < occ.date) return null;
+  const price = priceOn(series, occ.date);
+  const fxRate = ins.currency === "EUR" ? undefined : priceOn(fxSeries[ins.currency], occ.date);
+  if (!price || (ins.currency !== "EUR" && !fxRate)) return null;
+  // Il budget è in euro: in valuta si confronta col prezzo convertito.
+  const quantity = pacQuantity(plan.budget, price / (fxRate ?? 1));
+  if (quantity <= 0) return null;
+  const rounded = Math.round(price * 10000) / 10000;
+  return { id, date: occ.date, account: plan.account, type: "buy", isin: ins.isin, quantity, price: rounded, ...(fxRate ? { fxRate } : {}), plan: occ.id };
 }
 
 /** Quote intere che stanno nel budget al prezzo indicato. */

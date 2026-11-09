@@ -7,10 +7,11 @@ import { BackLink, BankDot, InfoRow, LargeTitle, Logo, Panel, SectionHeader, Seg
 import type { Instrument, Transaction } from "@/lib/engine/types";
 import { fmtDate, fmtEur } from "@/lib/format";
 import { detectPac } from "@/lib/pac";
-import { lastAmount, pacQuantity, pendingOccurrences, priceOn, type HolidayRule, type Occurrence, type RecurringKind, type RecurringPlan } from "@/lib/recurring";
+import { defaultMode, isAuto, lastAmount, pacQuantity, pendingOccurrences, priceOn, type HolidayRule, type Occurrence, type RecurringKind, type RecurringMode, type RecurringPlan } from "@/lib/recurring";
 import { deleteRecurring, newId, SaveError, saveRecurring, saveTransaction, skipOccurrence } from "@/lib/store";
 
 const KIND_LABEL: Record<RecurringKind, string> = { deposit: "Versamento", transfer: "Bonifico tra conti", pac: "PAC" };
+const MODE_LABEL: Record<RecurringMode, string> = { confirm: "Chiedi conferma", auto: "Registra da solo" };
 const HOLIDAY_LABEL: Record<HolidayRule, string> = { same: "Sempre quel giorno", next: "Primo giorno di Borsa dopo", previous: "Ultimo giorno di Borsa prima" };
 
 export default function RicorrentiPage() {
@@ -47,6 +48,7 @@ function Ricorrenti() {
     toAccount: kind === "transfer" ? data.accounts[1]?.id : undefined,
     since: today,
     active: true,
+    mode: defaultMode(kind),
   });
 
   return (
@@ -87,7 +89,7 @@ function Ricorrenti() {
               </span>
               <p className="mt-4 text-[17px] font-semibold">Nessuna operazione ricorrente</p>
               <p className="mt-1 text-[15px] leading-snug text-mut">
-                Aggiungi lo stipendio, un bonifico ricorrente o un PAC: a ogni scadenza l&apos;app prepara la rata e tu la confermi.
+                Aggiungi lo stipendio, un bonifico ricorrente o un PAC: a ogni scadenza l&apos;app registra la rata da sola o ti chiede di confermarla, come preferisci.
               </p>
               <button onClick={() => setEditing(blank("deposit"))} className="mt-5 h-11 rounded-full bg-ink px-5 text-[15px] font-semibold text-bg active:opacity-80">
                 Crea il primo piano
@@ -114,7 +116,7 @@ function Ricorrenti() {
                         <p className="mt-0.5 flex items-center gap-1.5 truncate text-[14px] text-mut">
                           <BankDot color={accounts.get(p.account)?.color ?? "#888"} size={7} />
                           {p.kind === "transfer" ? `${accounts.get(p.account)?.name} → ${accounts.get(p.toAccount ?? "")?.name}` : accounts.get(p.account)?.name} · il {p.day}
-                          {p.active ? "" : " · in pausa"}
+                          {p.active ? (isAuto(p) ? " · automatico" : "") : " · in pausa"}
                         </p>
                       </div>
                       <p className="num shrink-0 text-[17px] font-medium">
@@ -297,7 +299,8 @@ function PlanForm({ initial, isNew, onDone }: { initial: RecurringPlan; isNew: b
     plan.day <= 31 &&
     plan.account &&
     /^\d{4}-\d{2}-\d{2}$/.test(plan.since) &&
-    (plan.kind === "pac" ? plan.isin && num(budget) > 0 : plan.kind === "transfer" ? plan.toAccount && plan.toAccount !== plan.account && num(amount) > 0 : true);
+    (plan.kind === "pac" ? plan.isin && num(budget) > 0 : plan.kind === "transfer" ? plan.toAccount && plan.toAccount !== plan.account && num(amount) > 0 : !isAuto(plan) || num(amount) > 0);
+  const auto = isAuto(plan);
 
   return (
     <div className="pb-4">
@@ -311,6 +314,7 @@ function PlanForm({ initial, isNew, onDone }: { initial: RecurringPlan; isNew: b
                 label: kind === "deposit" ? "Stipendio" : kind === "transfer" ? "Bonifico" : "PAC",
                 day: kind === "pac" ? 15 : 10,
                 holiday: kind === "pac" ? "next" : "same",
+                mode: defaultMode(kind),
                 toAccount: kind === "transfer" ? data.accounts.find((a) => a.id !== plan.account)?.id : undefined,
               })
             }
@@ -341,14 +345,28 @@ function PlanForm({ initial, isNew, onDone }: { initial: RecurringPlan; isNew: b
           </Row>
         )}
         {plan.kind === "pac" ? (
-          <Field label="Importo massimo per rata (€)" hint="Ogni rata propone le quote intere che ci stanno">
+          <Field
+            label="Importo massimo per rata (€)"
+            hint={auto ? "Ogni rata compra le quote intere che ci stanno, al prezzo di chiusura del giorno" : "Ogni rata propone le quote intere che ci stanno"}
+          >
             <input inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="300" className={inputCls} />
           </Field>
         ) : (
-          <Field label={plan.kind === "deposit" ? "Importo indicativo (€)" : "Importo (€)"} hint={plan.kind === "deposit" ? "Lo correggi a ogni rata se cambia" : undefined}>
+          <Field
+            label={plan.kind === "deposit" && !auto ? "Importo indicativo (€)" : "Importo (€)"}
+            hint={auto ? "Registrato ogni mese così com'è" : "Alla scadenza ti arriva una notifica per confermarlo o aggiornarlo"}
+          >
             <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" className={inputCls} />
           </Field>
         )}
+        <Row label="Alla scadenza">
+          <SelectButton
+            label="Cosa fare alla scadenza"
+            value={plan.mode ?? "confirm"}
+            onChange={(mode) => set({ mode })}
+            options={(Object.keys(MODE_LABEL) as RecurringMode[]).map((k) => ({ value: k, label: MODE_LABEL[k] }))}
+          />
+        </Row>
         <Field label="Giorno del mese">
           <input inputMode="numeric" value={plan.day || ""} onChange={(e) => set({ day: Number(e.target.value.replace(/\D/g, "").slice(0, 2)) })} className={inputCls} />
         </Field>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueDate, isBusinessDay, lastAmount, occurrences, pacQuantity, pendingOccurrences, type RecurringPlan } from "./recurring";
+import { autoTransaction, dueDate, isBusinessDay, lastAmount, occurrences, pacQuantity, pendingOccurrences, type RecurringPlan } from "./recurring";
 
 const pac: RecurringPlan = { id: "pac", kind: "pac", label: "PAC", day: 15, holiday: "next", account: "fineco", isin: "X", budget: 300, since: "2026-01-01", active: true };
 const salary: RecurringPlan = { id: "sal", kind: "deposit", label: "Stipendio", day: 10, holiday: "same", account: "isybank", amount: 1800, since: "2026-01-01", active: true };
@@ -42,5 +42,22 @@ describe("rate da confermare", () => {
     expect(pacQuantity(300, 47.61)).toBe(6);
     expect(pacQuantity(300, 50)).toBe(6);
     expect(pacQuantity(45, 17.31)).toBe(2);
+  });
+});
+
+describe("piani automatici", () => {
+  const ins = [{ isin: "X", ticker: "X.MI", name: "X", currency: "EUR" }] as never[];
+  const prices = { "X.MI": [["2026-03-13", 98], ["2026-03-16", 100], ["2026-03-17", 101]] as [string, number][] };
+
+  it("registra lo stipendio fisso con l'importo indicato e un id legato alla rata", () => {
+    const [occ] = occurrences({ ...salary, mode: "auto" }, "2026-01-10");
+    expect(autoTransaction(occ, "2026-01-10", [], {}, {})).toMatchObject({ id: "auto-sal:2026-01", type: "deposit", amount: 1800, date: "2026-01-10", plan: "sal:2026-01" });
+  });
+
+  it("compra le quote intere del PAC alla chiusura del giorno, solo quando è nota", () => {
+    const occ = occurrences({ ...pac, mode: "auto" }, "2026-03-20").find((o) => o.id === "pac:2026-03")!;
+    expect(autoTransaction(occ, "2026-03-16", ins, prices, {})).toBeNull(); // giornata in corso
+    expect(autoTransaction(occ, "2026-03-20", ins, { "X.MI": prices["X.MI"].slice(0, 1) }, {})).toBeNull(); // storico indietro
+    expect(autoTransaction(occ, "2026-03-20", ins, prices, {})).toMatchObject({ type: "buy", quantity: 3, price: 100, date: "2026-03-16" });
   });
 });
