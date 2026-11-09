@@ -523,3 +523,37 @@ html[data-splash="off"] .splash {
     animation: none !important;
   }
 }
+
+/* ---------- Riepilogo del mese a schermate ---------- */
+@keyframes wrap-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.wrap-bar {
+  transform-origin: left;
+  animation-name: wrap-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes wrap-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.wrap-in {
+  animation: wrap-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wrap-in {
+    animation: none;
+  }
+}
