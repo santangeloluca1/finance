@@ -206,7 +206,9 @@ export function Prestazioni({
           label={BENCHMARKS.find((b) => b.value === bench)?.label ?? "Indice"}
           hint={
             benchTotal !== null
-              ? `${RANGE_PHRASE[range].replace(/^./, (c) => c.toUpperCase())} ${total - benchTotal >= 0 ? "fai meglio" : "fai peggio"} di ${fmtN(Math.abs((total - benchTotal) * 100), { maximumFractionDigits: 1 })} punti percentuali`
+              ? Math.abs(total - benchTotal) < 0.0005
+                ? `${RANGE_PHRASE[range].replace(/^./, (c) => c.toUpperCase())} sei in linea con l'indice`
+                : `${RANGE_PHRASE[range].replace(/^./, (c) => c.toUpperCase())} ${total - benchTotal >= 0 ? "fai meglio" : "fai peggio"} di ${fmtN(Math.abs((total - benchTotal) * 100), { maximumFractionDigits: 1 })} punti percentuali`
               : "Nessun confronto"
           }
           value={benchTotal !== null ? fmtSignedPct(benchTotal) : "—"}
@@ -218,7 +220,7 @@ export function Prestazioni({
       {/* Contributo di ogni titolo */}
       {/* Stesso periodo del grafico: cambiando uno cambia anche l'altro. */}
       <SectionHeader right={<SelectButton label="Periodo" value={range} onChange={setRange} options={RANGES.map((r) => ({ value: r, label: RANGE_LABEL[r] }))} />}>
-        Cosa ha mosso il rendimento
+        Rendimento titoli
       </SectionHeader>
       <div className="flex items-center gap-3 px-4 pb-2">
         <div className="w-[120px] shrink-0">
