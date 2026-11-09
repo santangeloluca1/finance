@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, X } from "lucide-react";
-import { MONTHS, MonthStory } from "@/components/MonthStory";
+import { Play, X } from "lucide-react";
+import { COVER, MONTHS, MonthStory } from "@/components/MonthStory";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { BENCHMARKS } from "@/lib/benchmarks";
 import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
@@ -60,34 +60,39 @@ export function MonthRecap() {
 
   if (!wrap) return null;
   const month = MONTHS[Number(key.slice(5, 7)) - 1];
-  const up = wrap.ret >= 0;
+  const rank = wrap.rank ? (wrap.rank.pos === 1 ? `il mese migliore del ${key.slice(0, 4)}` : `${wrap.rank.pos}° mese su ${wrap.rank.of}`) : null;
   return (
     <>
-      <div className="relative mx-4 mb-2 mt-6 overflow-hidden rounded-[18px] bg-panel">
-        <button onClick={() => setOpen(true)} className="flex min-h-[104px] w-full items-center gap-4 px-5 py-4 pr-24 text-left active:opacity-80">
-          <div className="min-w-0">
-            <p className="text-[17px] font-bold">{month.replace(/^./, (c) => c.toUpperCase())} in breve</p>
-            <p className="mt-1 text-[15px] leading-snug text-mut">
-              Il portafoglio ha fatto <span className={`num sensitive font-semibold ${up ? "text-up" : "text-dn"}`}>{fmtSignedPct(wrap.ret)}</span>,{" "}
-              <span className="num sensitive">{fmtSignedEur(wrap.gain)}</span>.
-            </p>
-            <p className="mt-2 flex items-center gap-0.5 text-[15px] font-semibold text-accent">
-              Guarda il tuo {month} <ChevronRight size={16} strokeWidth={2.6} />
-            </p>
-          </div>
+      {/* Anteprima del racconto: stesso sfondo della copertina e le barre delle storie. */}
+      <div className="relative mx-4 mb-2 mt-6 overflow-hidden rounded-[22px] text-white" style={{ background: COVER }}>
+        <button onClick={() => setOpen(true)} className="block w-full px-5 pb-5 pt-4 text-left active:opacity-90">
+          <span className="flex gap-1 pr-12" aria-hidden>
+            {Array.from({ length: 6 }, (_, i) => (
+              <span key={i} className={`h-[3px] flex-1 rounded-full ${i === 0 ? "bg-white" : "bg-white/30"}`} />
+            ))}
+          </span>
+          <span className="mt-4 block text-[13px] font-semibold uppercase tracking-[0.14em] text-white/70">Il tuo {month}</span>
+          <span className="num sensitive mt-1 block text-[46px] font-extrabold leading-none tracking-[-0.04em]">{fmtSignedPct(wrap.ret)}</span>
+          <span className="num sensitive mt-2 block text-[15px] text-white/80">
+            {fmtSignedEur(wrap.gain)}
+            {rank ? ` · ${rank}` : ""}
+          </span>
+          <span className="mt-4 inline-flex h-10 items-center gap-2 rounded-full bg-white pl-3.5 pr-4 text-[15px] font-bold text-[#1e1145]">
+            <Play size={14} fill="currentColor" strokeWidth={0} /> Guarda il riepilogo
+          </span>
         </button>
-        {/* Decorazione: tre barre, in grande e tagliate dal bordo. */}
-        <svg aria-hidden viewBox="0 0 100 100" className="pointer-events-none absolute -bottom-3 -right-2 h-[96px] w-[96px]">
-          <rect x="14" y="52" width="18" height="48" rx="5" fill="var(--chip)" className="grow-y" />
-          <rect x="41" y="24" width="18" height="76" rx="5" fill={up ? "var(--up)" : "var(--dn)"} opacity="0.85" className="grow-y" style={{ animationDelay: "80ms" }} />
-          <rect x="68" y="40" width="18" height="60" rx="5" fill="var(--chip)" className="grow-y" style={{ animationDelay: "160ms" }} />
+        {/* Decorazione: tre barre grandi, tagliate dal bordo. */}
+        <svg aria-hidden viewBox="0 0 100 100" className="pointer-events-none absolute -bottom-4 -right-3 h-[120px] w-[120px]">
+          <rect x="14" y="52" width="18" height="48" rx="5" fill="rgb(255 255 255 / 0.14)" className="grow-y" />
+          <rect x="41" y="24" width="18" height="76" rx="5" fill="rgb(255 255 255 / 0.32)" className="grow-y" style={{ animationDelay: "80ms" }} />
+          <rect x="68" y="40" width="18" height="60" rx="5" fill="rgb(255 255 255 / 0.14)" className="grow-y" style={{ animationDelay: "160ms" }} />
         </svg>
         <button
           aria-label="Chiudi il riepilogo del mese"
           onClick={() => dismissAlert(id)}
-          className="absolute right-1.5 top-1.5 flex h-9 w-9 items-center justify-center text-mut active:opacity-50"
+          className="absolute right-1.5 top-1.5 flex h-10 w-10 items-center justify-center text-white/80 active:opacity-50"
         >
-          <X size={18} />
+          <X size={19} />
         </button>
       </div>
       {open && <MonthStory wrap={wrap} bench={bench} instruments={data.instruments} onClose={close} />}

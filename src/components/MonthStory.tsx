@@ -2,11 +2,37 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Share, X } from "lucide-react";
 import { Logo } from "@/components/ui";
 import type { Instrument } from "@/lib/engine/types";
 import { fmtDate, fmtEur0, fmtN, fmtSignedPct } from "@/lib/format";
 import type { MonthWrap } from "@/lib/wrap";
+import { drawWrapImage, shareImage, shareRows } from "@/lib/wrap-image";
+
+/** Crea l'immagine in formato storia e apre la condivisione del telefono. */
+function ShareButton({ wrap, bench, month, year, nameOf }: { wrap: MonthWrap; bench: { label: string; ret: number } | null; month: string; year: string; nameOf: (isin: string) => string }) {
+  const [state, setState] = useState<"idle" | "busy" | "saved" | "error">("idle");
+  const share = async () => {
+    setState("busy");
+    try {
+      const blob = await drawWrapImage({ month, year, ret: wrap.ret, rows: shareRows(wrap, bench, nameOf) });
+      const res = await shareImage(blob, `basis-${month}-${year}.png`, `Il mio ${month} ${year}`);
+      setState(res === "downloaded" ? "saved" : "idle");
+    } catch {
+      setState("error");
+    }
+  };
+  return (
+    <button
+      onClick={share}
+      disabled={state === "busy"}
+      className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-[17px] font-bold text-[#0b0b12] active:opacity-80 disabled:opacity-60"
+    >
+      <Share size={19} strokeWidth={2.4} />
+      {state === "busy" ? "Preparo l'immagine…" : state === "saved" ? "Immagine salvata" : state === "error" ? "Riprova" : "Condividi"}
+    </button>
+  );
+}
 
 export const MONTHS = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
@@ -18,8 +44,11 @@ const signedEur = (n: number) => `${n >= 0 ? "+" : "−"}${fmtEur0(Math.abs(n))}
 /** "A ottobre" ma "Ad aprile". */
 const inMonth = (m: string) => `${/^[aeiou]/.test(m) ? "Ad" : "A"} ${m}`;
 
+/** Sfondo della copertina, usato anche dall'anteprima in Analisi. */
+export const COVER = "radial-gradient(120% 80% at 10% 0%, #8b5cf6 0%, transparent 60%), radial-gradient(100% 70% at 100% 100%, #ec4899 0%, transparent 55%), #1e1145";
+
 const BG = {
-  cover: "radial-gradient(120% 80% at 10% 0%, #8b5cf6 0%, transparent 60%), radial-gradient(100% 70% at 100% 100%, #ec4899 0%, transparent 55%), #1e1145",
+  cover: COVER,
   up: "radial-gradient(110% 70% at 0% 0%, #34d399 0%, transparent 60%), radial-gradient(90% 60% at 100% 100%, #0ea5e9 0%, transparent 60%), #052e22",
   down: "radial-gradient(110% 70% at 0% 0%, #fb7185 0%, transparent 60%), radial-gradient(90% 60% at 100% 100%, #f59e0b 0%, transparent 60%), #3b0a14",
   bench: "radial-gradient(110% 70% at 100% 0%, #6366f1 0%, transparent 60%), radial-gradient(90% 60% at 0% 100%, #22d3ee 0%, transparent 60%), #0b1440",
@@ -244,19 +273,21 @@ export function MonthStory({ wrap, bench, instruments, onClose }: { wrap: MonthW
       body: (
         <>
           <In><Kicker>{cap(month)} {year}</Kicker></In>
-          <In i={1} className="mt-2"><p className="text-[40px] font-extrabold leading-tight tracking-[-0.03em]">In una schermata</p></In>
-          <In i={2} className="mt-8 overflow-hidden rounded-[20px] bg-white/10">
+          <In i={1} className="mt-1"><p className="text-[34px] font-extrabold leading-tight tracking-[-0.03em]">In una schermata</p></In>
+          <In i={2} className="mt-6 overflow-hidden rounded-[20px] bg-white/10">
             {stats.map(([k, v]) => (
-              <div key={k} className="flex items-baseline justify-between gap-4 border-b border-white/10 px-5 py-3.5 last:border-0">
+              <div key={k} className="flex items-baseline justify-between gap-4 border-b border-white/10 px-5 py-3 last:border-0">
                 <span className="text-[16px] text-white/70">{k}</span>
                 <span className="num sensitive truncate text-[19px] font-bold">{v}</span>
               </div>
             ))}
           </In>
-          <In i={4} className="mt-8">
-            <button onClick={onClose} className="h-12 w-full rounded-full bg-white text-[17px] font-bold text-[#0b0b12] active:opacity-80">
+          <In i={4} className="mt-6 space-y-2.5">
+            <ShareButton wrap={wrap} bench={bench} month={month} year={year} nameOf={nameOf} />
+            <button onClick={onClose} className="h-12 w-full rounded-full bg-white/15 text-[17px] font-bold text-white active:opacity-70">
               Chiudi
             </button>
+            <p className="pt-1 text-center text-[13px] text-white/60">L&apos;immagine da condividere mostra solo percentuali, nessun importo.</p>
           </In>
         </>
       ),
@@ -336,7 +367,7 @@ export function MonthStory({ wrap, bench, instruments, onClose }: { wrap: MonthW
         aria-hidden
       />
 
-      <div key={slide.id} className="relative z-20 mx-auto flex h-full max-w-[480px] flex-col justify-center px-7 pb-16 pt-24 [&_button]:pointer-events-auto" style={{ pointerEvents: "none" }}>
+      <div key={slide.id} className={`relative z-20 mx-auto flex h-full max-w-[480px] flex-col justify-center px-7 [&>*]:shrink-0 [&_button]:pointer-events-auto ${slide.id === "end" ? "pb-8 pt-16" : "pb-16 pt-24"}`} style={{ pointerEvents: "none" }}>
         {slide.body}
       </div>
 
