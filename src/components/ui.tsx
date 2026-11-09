@@ -78,6 +78,15 @@ const PAGE_NAMES: [RegExp, string][] = [
  * "‹ Pagina precedente": torna da dove sei arrivato (es. Analisi), altrimenti
  * alla pagina indicata. Stile unico per tutte le pagine; i moduli usano "Annulla".
  */
+/**
+ * Torna alla pagina precedente come il tasto indietro del browser, così la
+ * cronologia resta in ordine; senza una pagina precedente apre `fallback`.
+ */
+export function goBack(router: { back: () => void; push: (href: string) => void }, fallback: string) {
+  if (stack.length >= 2) router.back();
+  else router.push(fallback);
+}
+
 export function BackLink({ href, label }: { href: string; label: string }) {
   const router = useRouter();
   const [prev, setPrev] = useState<{ path: string; name: string } | null>(null);
