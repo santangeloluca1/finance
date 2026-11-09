@@ -58,18 +58,19 @@ export default function Posizioni() {
             { value: "banca", label: "Per banca" },
           ]}
         />
-        <SelectButton label="Periodo della variazione" value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
+        <SelectButton
+          label="Ordina per"
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: "valore", label: "Valore" },
+            { value: "variazione", label: "Variazione" },
+            { value: "nome", label: "Nome" },
+          ]}
+        />
+        {/* A destra il periodo, come negli altri filtri temporali dell'app. */}
         <span className="ml-auto">
-          <SelectButton
-            label="Ordina per"
-            value={sort}
-            onChange={setSort}
-            options={[
-              { value: "valore", label: "Valore" },
-              { value: "variazione", label: "Variazione" },
-              { value: "nome", label: "Nome" },
-            ]}
-          />
+          <SelectButton label="Periodo della variazione" value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
         </span>
       </div>
 
