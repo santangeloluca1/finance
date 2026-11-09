@@ -196,7 +196,7 @@ export function computeAlerts(
   for (const g of data.goals ?? []) {
     const current = g.scope === "tutto" ? totalValue : null;
     if (current !== null && current >= g.target) {
-      out.push({ id: `goal-${g.id}`, kind: "obiettivi", level: "positivo", title: `Obiettivo raggiunto: ${g.name}`, detail: `Hai superato ${eur(g.target)}: il patrimonio ora vale ${eur(current)}. Complimenti!`, href: "/#obiettivi" });
+      out.push({ id: `goal-${g.id}`, kind: "obiettivi", level: "positivo", title: `${g.name}: obiettivo raggiunto!`, detail: `Hai superato ${eur(g.target)}: il patrimonio ora vale ${eur(current)}. Complimenti!`, href: "/#obiettivi" });
     }
   }
 
@@ -211,29 +211,6 @@ export function computeAlerts(
 
   const dismissed = new Set(data.alertsDismissed ?? []);
   return out.filter((a) => !dismissed.has(a.id));
-}
-
-/** Emoji davanti al titolo della notifica push, per riconoscerla a colpo d'occhio (nell'app ci sono le icone). */
-export function pushIcon(a: Pick<Alert, "id" | "kind" | "level">): string {
-  if (a.id.startsWith("liquidita-")) return "⚠️";
-  switch (a.kind) {
-    case "calo":
-      return "📉";
-    case "portafoglio":
-      return a.level === "positivo" ? "🚀" : "📉";
-    case "minus":
-      return "⏳";
-    case "cedole":
-      return "💰";
-    case "ricorrenti":
-      return "🗓️";
-    case "obiettivi":
-      return "🎯";
-    case "quotazioni":
-      return "❔";
-    default:
-      return "🔔";
-  }
 }
 
 /** Avvisi da inviare come notifica push secondo le impostazioni. */

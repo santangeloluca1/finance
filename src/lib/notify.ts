@@ -237,7 +237,6 @@ export function dailySummary(views: PositionView[], totals: Totals, today: strin
     title,
     detail: who.length ? `${first} ${who.join(", ")}.` : first,
     href: "/",
-    mood: flat ? ("flat" as const) : up ? ("up" as const) : ("down" as const),
   };
 }
 
