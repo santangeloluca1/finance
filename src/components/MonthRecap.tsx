@@ -10,12 +10,14 @@ import { priceOn } from "@/lib/recurring";
 import { dismissAlert } from "@/lib/store";
 import { monthEnd, monthWrap, previousMonth } from "@/lib/wrap";
 
-/** La scheda resta in cima solo nei primi giorni del mese. */
+/** La scheda resta visibile solo nei primi giorni del mese. */
 const VISIBLE_DAYS = 7;
+/** Eccezioni una tantum: il primo riepilogo (ottobre 2026) resta fino al 10 novembre. */
+const EXTRA_DAYS: Record<string, number> = { "2026-10": 10 };
 const BENCH = BENCHMARKS[0];
 
 /**
- * Riquadro in cima ad Analisi nella prima settimana del mese: com'è andato il
+ * Riquadro sotto il grafico di Analisi nella prima settimana del mese: com'è andato il
  * mese appena chiuso. Toccandolo si apre il racconto a schermate; con la X
  * sparisce per quel mese, su tutti i dispositivi.
  */
@@ -27,7 +29,7 @@ export function MonthRecap() {
   const key = previousMonth(now);
   const id = `recap-${key}`;
   const dismissed = (data.alertsDismissed ?? []).includes(id);
-  const visible = now.getDate() <= VISIBLE_DAYS && !dismissed;
+  const visible = now.getDate() <= (EXTRA_DAYS[key] ?? VISIBLE_DAYS) && !dismissed;
 
   const wrap = useMemo(
     () => (visible && history?.length ? monthWrap(key, history, data.transactions, data.instruments, priceSeries, fxSeries) : null),
@@ -61,7 +63,7 @@ export function MonthRecap() {
   const up = wrap.ret >= 0;
   return (
     <>
-      <div className="relative mx-4 mb-2 mt-4 overflow-hidden rounded-[18px] bg-panel">
+      <div className="relative mx-4 mb-2 mt-6 overflow-hidden rounded-[18px] bg-panel">
         <button onClick={() => setOpen(true)} className="flex min-h-[104px] w-full items-center gap-4 px-5 py-4 pr-24 text-left active:opacity-80">
           <div className="min-w-0">
             <p className="text-[17px] font-bold">{month.replace(/^./, (c) => c.toUpperCase())} in breve</p>

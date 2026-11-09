@@ -89,6 +89,7 @@ export function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
           priceSeries={view.priceSeries}
           fx={view.fx}
           accounts={view.data.accounts}
+          instruments={view.data.instruments}
         />
       ) : sub === "allocazione" ? (
         <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} />

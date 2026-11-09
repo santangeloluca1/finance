@@ -7,7 +7,6 @@ import { useState } from "react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
 import { AnalisiTab, Toolbar } from "@/components/home/Toolbar";
 import { PAGE_TITLE } from "@/components/ui";
-import { MonthRecap } from "@/components/MonthRecap";
 
 export default function AnalisiPage() {
   const [filter, setFilter] = useState<Filter>({ account: "all", asset: "all" });
@@ -21,7 +20,6 @@ export default function AnalisiPage() {
         </Link>
       </div>
       <Toolbar filter={filter} setFilter={setFilter} view={view} />
-      <MonthRecap />
       {view.totals && view.state ? <AnalisiTab view={view} filter={filter} /> : null}
     </div>
   );

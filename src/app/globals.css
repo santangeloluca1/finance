@@ -16,6 +16,7 @@
   --up: #077a43;
   --dn: #c4262e;
   --warn: #965800;
+  --income: #b3127f;
   --shadow: 0 1px 2px rgb(11 13 18 / 0.04), 0 8px 24px -12px rgb(11 13 18 / 0.12);
   color-scheme: light;
 }
@@ -37,6 +38,7 @@
     --up: #3bd98a;
     --dn: #ff6262;
     --warn: #ffb547;
+    --income: #f06bc9;
     --shadow: none;
     color-scheme: dark;
   }
@@ -56,6 +58,7 @@
   --up: #3bd98a;
   --dn: #ff6262;
   --warn: #ffb547;
+  --income: #f06bc9;
   --shadow: none;
   color-scheme: dark;
 }

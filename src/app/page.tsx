@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, ChevronRight } from "lucide-react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
-import { InteractiveChart, type ChartEvent, type Selection, type SeriesPoint } from "@/components/InteractiveChart";
+import { InteractiveChart, type Selection, type SeriesPoint } from "@/components/InteractiveChart";
 import { BigAmount } from "@/components/BigAmount";
 import { buildRows, PERIOD_OPTIONS, PositionList } from "@/components/PositionList";
 import { Toolbar } from "@/components/home/Toolbar";
@@ -15,7 +15,7 @@ import { PAGE_TITLE, RangePicker, SectionHeader, SelectButton } from "@/componen
 import { RANGES, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
 import { cutoffDate, type Period } from "@/lib/analytics";
 import { usableLosses } from "@/lib/engine/portfolio";
-import { fmtDate, fmtEur, fmtEur0, fmtNum, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime, fmtN } from "@/lib/format";
+import { fmtDate, fmtEur, fmtEur0, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime, fmtN } from "@/lib/format";
 import { twrSeries } from "@/lib/performance";
 import { usePortfolioIntraday } from "@/lib/intraday-client";
 import { pendingOccurrences } from "@/lib/recurring";
@@ -140,19 +140,6 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   );
   const points = useMemo<SeriesPoint[]>(() => series.map((h, i) => ({ date: h.date, value: twr[i] })), [series, twr]);
 
-  // Operazioni da mostrare sulla linea del tempo.
-  const events = useMemo<ChartEvent[]>(() => {
-    const ins = new Map(data.instruments.map((i) => [i.isin, i]));
-    return data.transactions
-      .filter((t) => (filter.account === "all" || t.account === filter.account) && (filter.asset === "all" || ins.get(t.isin)?.assetClass === filter.asset))
-      // Gli acquisti ricorrenti affollerebbero la linea: si segnano solo vendite e cedole.
-      .filter((t) => t.type === "sell" || t.type === "dividend")
-      .map((t) => {
-        const name = ins.get(t.isin)?.shortName ?? t.isin;
-        const label = t.type === "dividend" ? `${name} +${fmtEur(t.amount ?? 0)}` : `${name} · ${fmtNum(t.quantity ?? 0)} quote`;
-        return { date: t.date, kind: t.type as ChartEvent["kind"], label };
-      });
-  }, [data, filter]);
 
   const rows = useMemo(
     () => buildRows(views, period, priceSeries, fx, filter.account === "all", "valore", data.transactions),
@@ -240,7 +227,6 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           points={points}
           height={240}
           reference={0}
-          events={day || !historyReady ? [] : events}
           onSelect={setSel}
           loading={day ? !intraday : !historyReady}
           format={(v) => fmtSignedPct(v)}
@@ -250,7 +236,6 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           trend={gainBetween}
         />
       </div>
-      {!day && historyReady && <EventLegend events={events} from={series[0]?.date} />}
 
       <RangePicker value={range} onChange={setRange} options={RANGES} />
 
@@ -390,24 +375,6 @@ function compactPlain(v: number) {
   const abs = Math.abs(v);
   const s = abs >= 100_000 ? `${fmtN((abs / 1000), { maximumFractionDigits: 1 })}k` : fmtN(abs, { maximumFractionDigits: 0 });
   return `${v < 0 ? "−" : ""}${s} €`;
-}
-
-/** Legenda dei pallini sul grafico: solo i tipi di operazione presenti nel periodo. */
-function EventLegend({ events, from }: { events: ChartEvent[]; from?: string }) {
-  const kinds = (["buy", "sell", "dividend"] as const).filter((k) => events.some((e) => e.kind === k && (!from || e.date >= from)));
-  if (!kinds.length) return null;
-  const color = { buy: "var(--accent)", sell: "var(--warn)", dividend: "var(--up)" } as const;
-  const label = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola" } as const;
-  return (
-    <p className="flex justify-center gap-4 px-4 pt-1 text-[12px] text-mut">
-      {kinds.map((k) => (
-        <span key={k} className="flex items-center gap-1.5">
-          <span className="h-[9px] w-[9px] rounded-full border-2" style={{ borderColor: color[k] }} />
-          {label[k]}
-        </span>
-      ))}
-    </p>
-  );
 }
 
 function tint(n: number) {
