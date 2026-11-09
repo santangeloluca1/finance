@@ -200,42 +200,21 @@ export function ruleAlert(rule: AlertRule, reading: RuleReading, instruments: In
   return {
     id: rule.repeat === "once" ? `regola-${rule.id}` : `regola-${rule.id}-${today}`,
     title: `${name} ${verb[rule.kind]}`,
-    detail: rule.note?.trim() || `Il tuo avviso "${describeRule(rule, instruments)}" è scattato.`,
+    detail: rule.note?.trim() || `Avviso: ${describeRule(rule, instruments)}.`,
     href: rule.target === "portfolio" ? "/" : `/posizioni/${rule.target}`,
   };
 }
 
-/**
- * Riepilogo della giornata. Il titolo dice com'è andata in euro, il testo la
- * percentuale, il valore e chi ha mosso di più i tuoi soldi (in euro, non in
- * percentuale: un +6% su una posizione piccola conta poco).
- */
+/** Riepilogo della giornata: com'è andata in euro, poi percentuale e valore. */
 export function dailySummary(views: PositionView[], totals: Totals, today: string) {
-  const live = views.filter((v) => !v.stale);
-  if (!live.length) return null;
-  // Più righe dello stesso titolo (banche diverse) si sommano.
-  const byIsin = new Map<string, { name: string; change: number; pct: number }>();
-  for (const v of live) {
-    const cur = byIsin.get(v.instrument.isin);
-    byIsin.set(v.instrument.isin, { name: v.instrument.shortName ?? v.instrument.name, change: (cur?.change ?? 0) + v.dayChange, pct: v.dayChangePct });
-  }
-  const sorted = [...byIsin.values()].sort((a, b) => b.change - a.change);
-  const best = sorted[0];
-  const worst = sorted[sorted.length - 1];
-  const move = totals.dayChangePct;
-  const flat = Math.abs(move) < 0.001;
+  if (!views.some((v) => !v.stale)) return null;
+  const flat = Math.abs(totals.dayChangePct) < 0.001;
   const up = totals.dayChange >= 0;
   const money = `${up ? "+" : "−"}${eur(Math.abs(totals.dayChange))}`;
-
-  const title = flat ? `Giornata tranquilla: ${money}` : up ? `Giornata positiva: ${money}` : `Giornata in calo: ${money}`;
-  const first = `${flat ? "Portafoglio quasi fermo" : "Portafoglio"} ${pct(move, true)}, ora vale ${eur(totals.value)}.`;
-  const who: string[] = [];
-  if (best.change > 0.5) who.push(`Spinge ${best.name} (${pct(best.pct, true)})`);
-  if (worst !== best && worst.change < -0.5) who.push(`${who.length ? "frena" : "Frena"} ${worst.name} (${pct(worst.pct, true)})`);
   return {
     id: `riepilogo-${today}`,
-    title,
-    detail: who.length ? `${first} ${who.join(", ")}.` : first,
+    title: `${flat ? "Giornata tranquilla" : up ? "Giornata positiva" : "Giornata in calo"}: ${money}`,
+    detail: `${pct(totals.dayChangePct, true)}, ora vale ${eur(totals.value)}.`,
     href: "/",
   };
 }
