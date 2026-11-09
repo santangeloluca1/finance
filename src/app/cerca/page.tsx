@@ -146,7 +146,7 @@ export default function Cerca() {
       {empty ? (
         <>
           {/* Maggiori variazioni di oggi tra i titoli più seguiti: schede scorrevoli. */}
-          <p className="px-4 pb-3 pt-7 text-[15px] text-mut">Maggiori variazioni di oggi</p>
+          <p className="px-4 pb-3 pt-7 text-[15px] text-mut">Più mossi oggi tra i popolari</p>
           <div className="no-scrollbar flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-1">
             {movers.length
               ? movers.map((r, i) => (
@@ -192,7 +192,7 @@ export default function Cerca() {
             </>
           )}
 
-          <p className="px-4 pb-1 pt-8 text-[15px] text-mut">I più seguiti</p>
+          <p className="px-4 pb-1 pt-8 text-[15px] text-mut">Titoli popolari</p>
           <ul className="stagger">
             {POPULAR.slice(0, 10).map((p) => (
               <ResultRow key={p.ticker} r={asResult(p)} chip onClick={() => open(asResult(p))} />

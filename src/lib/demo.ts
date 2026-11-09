@@ -54,7 +54,7 @@ const cashRows: Omit<Transaction, "id">[] = [
   { date: "2025-01-02", account: "isybank", type: "cash", isin: "", amount: 9000 },
   { date: "2025-07-01", account: "isybank", type: "cash", isin: "", amount: 11200 },
   { date: "2026-01-02", account: "isybank", type: "cash", isin: "", amount: 12500 },
-  { date: "2025-01-02", account: "fineco", type: "cash", isin: "", amount: 1500 },
+  { date: "2025-01-02", account: "fineco", type: "cash", isin: "", amount: 30000 },
 ];
 
 export const DEMO_TRANSACTIONS: Transaction[] = [

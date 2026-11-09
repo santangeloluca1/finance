@@ -69,8 +69,8 @@ async function callGemini(method: "generateContent" | "streamGenerateContent?alt
     if (Date.now() - started > BUDGET_MS - 5_000) break;
   }
   if (last?.status === 429) throw new BusyError("Hai raggiunto il limite gratuito di richieste per ora: riprova tra qualche minuto.");
-  if (timedOut && !last) throw new BusyError("Minerva ci sta mettendo troppo a rispondere: riprova tra poco.");
-  throw new BusyError("Minerva è molto richiesta in questo momento (i server di Google sono sovraccarichi). Riprova tra poco.");
+  if (timedOut && !last) throw new BusyError("Basis AI ci sta mettendo troppo a rispondere: riprova tra poco.");
+  throw new BusyError("Basis AI ha troppe richieste in questo momento (i server di Google sono sovraccarichi). Riprova tra poco.");
 }
 
 export function aiConfigured() {

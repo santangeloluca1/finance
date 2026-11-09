@@ -16,7 +16,7 @@ export function ReportView({ report, date, onDiscuss }: { report: Report; date?:
   const [showData, setShowData] = useState(false);
   return (
     <div>
-      {/* Il giudizio di Minerva */}
+      {/* Il giudizio di Basis AI */}
       <div className="page-in px-4 pt-4">
         <div className="flex items-center gap-2.5">
           <Orb size={30} />

@@ -86,7 +86,7 @@ export function PositionList({
                 {showBanks &&
                   r.accounts.map((a) => <BankDot key={a} color={byId.get(a)?.color ?? "#888"} size={7} />)}
                 <span className="num truncate">
-                  {symbol(r.instrument.ticker)} · {fmtNum(r.quantity)}
+                  {symbol(r.instrument.ticker)} · {fmtNum(r.quantity)} {r.quantity === 1 ? "quota" : "quote"}
                 </span>
               </p>
             </div>
@@ -108,11 +108,11 @@ export function PositionList({
               <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
                 <BankDot color={byId.get(account)?.color ?? "#888"} size={7} />
                 <span className="truncate">
-                  {byId.get(account)?.name} · {fmtDate(c.date, { day: "numeric", month: "short" })}
+                  {byId.get(account)?.name} · agg. {fmtDate(c.date, { day: "numeric", month: "short" })}
                 </span>
               </p>
             </div>
-            <p className="num sensitive shrink-0 text-[17px] font-medium tracking-[-0.01em]">{fmtEur(c.amount)}</p>
+            <p className={`num sensitive shrink-0 text-[17px] font-medium tracking-[-0.01em] ${c.amount < 0 ? "text-dn" : ""}`}>{fmtEur(c.amount)}</p>
           </Link>
         </li>
       ))}

@@ -39,7 +39,7 @@ export default function Avvisi() {
         id: `stale-${stale.length}`,
         level: stale[0].level,
         title: `${stale.length} titoli senza quotazione`,
-        detail: stale.map((a) => a.title.replace("Nessuna quotazione per ", "")).join(", "),
+        detail: stale.map((a) => a.title.replace(" senza prezzo aggiornato", "")).join(", "),
         href: "/posizioni",
         kind: "quotazioni",
       } satisfies Alert,
@@ -212,7 +212,7 @@ export default function Avvisi() {
           </SectionHeader>
           {upcoming.length === 0 ? (
             <p className="px-4 text-[15px] leading-snug text-mut">
-              Nessun promemoria. Creane uno, ad esempio per il versamento dello stipendio o per controllare il PAC ogni mese.
+              Nessun promemoria. Creane uno, ad esempio per rinnovare un conto deposito o controllare le spese di un conto. Stipendio, bonifici e PAC li gestisci in Movimenti → Ricorrenti.
             </p>
           ) : (
             <ul className="stagger">

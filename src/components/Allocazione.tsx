@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Minus, Plus, Search, Wallet } from "lucide-react";
 import { Logo, Panel, SectionHeader } from "@/components/ui";
 import type { PositionView } from "@/lib/analytics";
-import { adjust, groupOf, GROUP_COLOR, GROUP_LABEL, GROUPS, PRESETS, samePreset, type Group, type Weights } from "@/lib/allocation";
+import { adjust, groupOf, GROUP_COLOR, GROUP_LABEL, GROUPS, normalize, PRESETS, samePreset, type Group, type Weights } from "@/lib/allocation";
 import { fmtEur0, fmtN } from "@/lib/format";
 import { splitContribution } from "@/lib/rebalance";
 
@@ -109,7 +109,13 @@ export function DoveInvestire({ views, cash, weights, monthly }: { views: Positi
   if (monthly <= 0) return null;
   const current: Record<Group, number> = { azioni: 0, obbligazioni: 0, liquidita: cash, altro: 0 };
   for (const v of views) current[groupOfView(v)] += v.value;
-  const split = splitContribution(current, Object.fromEntries(GROUPS.map((g) => [g, weights[g] / 100])), monthly);
+  // Se la composizione scelta è quella di oggi (a meno degli arrotondamenti al punto),
+  // si usano i pesi esatti: altrimenti mezzo punto di arrotondamento sembrerebbe uno squilibrio.
+  const tot = GROUPS.reduce((a, g) => a + Math.max(0, current[g]), 0);
+  const today = normalize(current);
+  const asToday = tot > 0 && GROUPS.every((g) => today[g] === weights[g]);
+  const targets = Object.fromEntries(GROUPS.map((g) => [g, asToday ? Math.max(0, current[g]) / tot : weights[g] / 100]));
+  const split = splitContribution(current, targets, monthly);
   const pick = (g: Group) => views.filter((v) => groupOfView(v) === g).sort((a, b) => b.value - a.value)[0];
   const rows = GROUPS.filter((g) => (split[g] ?? 0) >= 1).sort((a, b) => split[b] - split[a]);
 

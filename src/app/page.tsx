@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Repeat } from "lucide-react";
+import { CalendarClock, ChevronRight } from "lucide-react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
 import { InteractiveChart, type ChartEvent, type Selection, type SeriesPoint } from "@/components/InteractiveChart";
 import { BigAmount } from "@/components/BigAmount";
@@ -91,7 +91,20 @@ export default function Home() {
 type View = ReturnType<typeof usePortfolioView>;
 
 function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: (t: Tab) => void }) {
-  const { data, state, views, totals, history, priceSeries, fx, fetchedAt, loading, historyReady } = view;
+  const { data, state, views, totals, history, priceSeries, fx, fetchedAt, loading, historyReady, quotes } = view;
+  // Tempo reale solo con Tradegate aperto (prezzo di meno di 5 minuti); le altre borse arrivano con ~15 minuti di ritardo.
+  const quoteList = Object.values(quotes);
+  const liveCount = quoteList.filter((q) => q.source === "Tradegate" && Date.now() - q.time < 5 * 60_000).length;
+  const allClosed = quoteList.length > 0 && quoteList.every((q) => Date.now() - q.time > 30 * 60_000);
+  const delayNote = !quoteList.length
+    ? ""
+    : allClosed
+      ? " · ultimi prezzi disponibili"
+      : liveCount === quoteList.length
+        ? " · in tempo reale"
+        : liveCount
+          ? " · in parte con ritardo fino a 15 min"
+          : " · ritardo fino a 15 min";
   const [range, setRange] = useState<Range>("1A");
   const [sel, setSel] = useState<Selection | null>(null);
   const [period, setPeriod] = useState<Period>("oggi");
@@ -213,14 +226,8 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           lastSession ? "Ultima seduta" : "Oggi"
         ) : (
           <>
-            {RANGE_PHRASE[range].replace(/^./, (c) => c.toUpperCase())}{" "}
-            {ready ? (
-              <span className={`num sensitive font-medium ${tint(gain)}`}>{fmtSignedPct(gainPct)}</span>
-            ) : historyReady ? (
-              <span className="num">—</span>
-            ) : (
-              <span className="skeleton inline-block h-3 w-10 align-middle" aria-hidden />
-            )}
+            {/* La variazione del periodo è già in alto a destra: qui solo a cosa si riferisce. */}
+            {RANGE_PHRASE[range].replace(/^./, (c) => c.toUpperCase())}
             <span className="mx-1.5 text-faint">·</span>
             Oggi <span className={`num sensitive font-medium ${tint(totals.dayChange)}`}>{fmtSignedPct(totals.dayChangePct)}</span>
           </>
@@ -233,7 +240,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           points={points}
           height={240}
           reference={0}
-          events={day ? [] : events}
+          events={day || !historyReady ? [] : events}
           onSelect={setSel}
           loading={day ? !intraday : !historyReady}
           format={(v) => fmtSignedPct(v)}
@@ -243,12 +250,13 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           trend={gainBetween}
         />
       </div>
+      {!day && historyReady && <EventLegend events={events} from={series[0]?.date} />}
 
       <RangePicker value={range} onChange={setRange} options={RANGES} />
 
       {pending.length > 0 && (
         <Link href="/ricorrenti" className="mx-4 mt-6 flex min-h-[56px] items-center gap-3 rounded-[16px] bg-accent/12 px-4 py-2.5 active:opacity-80">
-          <Repeat size={20} className="shrink-0 text-accent" />
+          <CalendarClock size={20} className="shrink-0 text-accent" />
           <span className="min-w-0 flex-1">
             <span className="block text-[16px] font-semibold">{pending.length === 1 ? `${pending[0].plan.label} da confermare` : `${pending.length} rate da confermare`}</span>
             <span className="block truncate text-[14px] text-mut">{pending.map((o) => o.plan.label).join(", ")}</span>
@@ -304,7 +312,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
       )}
 
       <p className="num px-4 pb-2 pt-8 text-center text-[12px] text-faint">
-        {loading ? "Aggiornamento quotazioni…" : fetchedAt ? `Quotazioni delle ${fmtTime(fetchedAt)} · titoli in euro in tempo reale` : "Quotazioni non ancora disponibili"}
+        {loading ? "Aggiornamento quotazioni…" : fetchedAt ? `Quotazioni delle ${fmtTime(fetchedAt)}${delayNote}` : "Quotazioni non ancora disponibili"}
       </p>
     </div>
   );
@@ -384,6 +392,24 @@ function compactPlain(v: number) {
   return `${v < 0 ? "−" : ""}${s} €`;
 }
 
+/** Legenda dei pallini sul grafico: solo i tipi di operazione presenti nel periodo. */
+function EventLegend({ events, from }: { events: ChartEvent[]; from?: string }) {
+  const kinds = (["buy", "sell", "dividend"] as const).filter((k) => events.some((e) => e.kind === k && (!from || e.date >= from)));
+  if (!kinds.length) return null;
+  const color = { buy: "var(--accent)", sell: "var(--warn)", dividend: "var(--up)" } as const;
+  const label = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola" } as const;
+  return (
+    <p className="flex justify-center gap-4 px-4 pt-1 text-[12px] text-mut">
+      {kinds.map((k) => (
+        <span key={k} className="flex items-center gap-1.5">
+          <span className="h-[9px] w-[9px] rounded-full border-2" style={{ borderColor: color[k] }} />
+          {label[k]}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function tint(n: number) {
   return n > 0.005 ? "text-up" : n < -0.005 ? "text-dn" : "text-mut";
 }
@@ -398,18 +424,19 @@ function Banche({ views, cash, accounts }: { views: View["views"]; cash: Record<
     .map((a) => {
       const titoli = views.filter((v) => v.position.account === a.id).reduce((s, v) => s + v.value, 0);
       const liquidita = cash[a.id]?.amount ?? 0;
-      return { a, titoli, liquidita, total: titoli + liquidita };
+      // La quota sul totale non si lascia falsare da un saldo negativo (movimenti mancanti).
+      return { a, titoli, liquidita, total: titoli + liquidita, share: titoli + Math.max(0, liquidita) };
     })
     .filter((r) => Math.abs(r.total) > 0.005)
     .sort((x, y) => y.total - x.total);
-  const all = rows.reduce((s, r) => s + Math.max(0, r.total), 0);
+  const all = rows.reduce((s, r) => s + r.share, 0);
   if (rows.length < 2 || all <= 0) return null;
   return (
     <>
       <SectionHeader>Le tue banche</SectionHeader>
       <div className="mx-4 mb-2 flex h-3 overflow-hidden rounded-full bg-chip" aria-hidden>
         {rows.map((r) => (
-          <span key={r.a.id} className="h-full [&+&]:ml-0.5" style={{ width: `${(Math.max(0, r.total) / all) * 100}%`, background: r.a.color }} />
+          <span key={r.a.id} className="h-full [&+&]:ml-0.5" style={{ width: `${(r.share / all) * 100}%`, background: r.a.color }} />
         ))}
       </div>
       <ul>
@@ -421,13 +448,15 @@ function Banche({ views, cash, accounts }: { views: View["views"]; cash: Record<
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-3">
                 <p className="truncate text-[17px] font-semibold tracking-[-0.01em]">
-                  {r.a.name} <span className="num ml-1 text-[15px] font-medium text-mut">{Math.round((Math.max(0, r.total) / all) * 100)}%</span>
+                  {r.a.name} <span className="num ml-1 text-[15px] font-medium text-mut">{Math.round((r.share / all) * 100)}%</span>
                 </p>
                 <p className="num sensitive shrink-0 text-[17px] font-medium tracking-[-0.01em]">{fmtEur(r.total)}</p>
               </div>
               <div className="num sensitive mt-0.5 flex justify-between gap-3 text-[14px] text-mut">
                 <span>{r.titoli > 0 ? `Titoli ${fmtEur0(r.titoli)}` : "Solo liquidità"}</span>
-                {r.titoli > 0 && Math.abs(r.liquidita) >= 1 && <span>Liquidi {fmtEur0(r.liquidita)}</span>}
+                {r.titoli > 0 && Math.abs(r.liquidita) >= 1 && (
+                  <span className={r.liquidita < 0 ? "font-semibold text-dn" : ""}>{r.liquidita < 0 ? `Saldo ${fmtEur0(r.liquidita)}` : `Liquidi ${fmtEur0(r.liquidita)}`}</span>
+                )}
               </div>
             </div>
           </li>

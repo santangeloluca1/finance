@@ -76,6 +76,19 @@ export function computeAlerts(
     }
   }
 
+  // Saldo negativo: gli acquisti superano la liquidità registrata, mancano dei versamenti.
+  for (const n of totals.negativeCash ?? []) {
+    const name = data.accounts.find((a) => a.id === n.account)?.name ?? n.account;
+    out.push({
+      id: `saldo-${n.account}-${Math.round(n.amount)}`,
+      kind: "dati",
+      level: "attenzione",
+      title: `${name}: saldo negativo`,
+      detail: `${eur(n.amount)}: aggiungi i versamenti mancanti.`,
+      href: "/movimenti/nuovo",
+    });
+  }
+
   // L'intero portafoglio si muove molto in una giornata.
   const move = totals.dayChangePct;
   if (views.some((v) => !v.stale) && Math.abs(move) >= settings.moveThreshold) {

@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-/** Chat con Minerva: la risposta arriva a pezzi, mentre viene scritta. */
+/** Chat con Basis AI: la risposta arriva a pezzi, mentre viene scritta. */
 export async function POST(req: Request) {
   if (!(await sessionUserId(req))) return Response.json({ message: "Accesso richiesto" }, { status: 401 });
   if (!aiConfigured()) return Response.json({ status: "nokey" }, { status: 412 });

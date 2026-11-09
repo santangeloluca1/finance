@@ -166,3 +166,21 @@ describe("rate automatiche senza liquidità", () => {
     expect(ids({ ...base, recurring: [{ ...plan, mode: "confirm" }] })).not.toContain("liquidita-bon:2026-11");
   });
 });
+
+describe("saldo negativo", () => {
+  it("avvisa quando gli acquisti superano la liquidità registrata", () => {
+    const d: PortfolioData = {
+      accounts: [{ id: "f", name: "Fineco", color: "#000" }],
+      instruments: [ins],
+      transactions: [
+        { id: "c", date: "2026-01-02", account: "f", type: "cash", isin: "", amount: 100 },
+        { id: "b", date: "2026-01-05", account: "f", type: "buy", isin: ins.isin, quantity: 2, price: 100 },
+      ],
+      isDemo: false,
+    };
+    const st = buildPortfolio(d.transactions, d.instruments);
+    const t = { ...totals, cash: -100, cashAvailable: 0, negativeCash: [{ account: "f", amount: -100 }] };
+    const a = computeAlerts(d, st, [], t, {}, "2026-11-06").find((x) => x.kind === "dati");
+    expect(a?.title).toBe("Fineco: saldo negativo");
+  });
+});

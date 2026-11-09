@@ -4,7 +4,7 @@ import type { PositionView, Totals } from "./analytics";
 import type { PortfolioState } from "./engine/types";
 
 const totals = (over: Partial<Totals> = {}): Totals => ({
-  value: 10000, invested: 10000, cash: 0, cost: 9000, unrealized: 1000, unrealizedPct: 0.11, dayChange: 0, dayChangePct: 0,
+  value: 10000, invested: 10000, cash: 0, cashAvailable: Math.max(0, over.cash ?? 0), negativeCash: [], cost: 9000, unrealized: 1000, unrealizedPct: 0.11, dayChange: 0, dayChangePct: 0,
   realizedNet: 0, realizedTax: 0, income: 0, taxIfSold: 260, netLiquidation: 9740, ...over,
 });
 const view = (isin: string, value: number, assetClass: "azione" | "etf_azionario", ter = 0.2): PositionView =>

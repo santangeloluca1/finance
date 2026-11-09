@@ -1,5 +1,5 @@
 /**
- * Minerva: sfera di vetro scuro con colori liquidi che si muovono dentro,
+ * Basis AI: sfera di vetro scuro con colori liquidi che si muovono dentro,
  * luce speculare, bordo luminoso e alone. Più veloce mentre ragiona.
  */
 export function Orb({ size = 120, active = false, className = "" }: { size?: number; active?: boolean; className?: string }) {
@@ -21,4 +21,4 @@ export function Orb({ size = 120, active = false, className = "" }: { size?: num
 }
 
 /** Nome dell'assistente. */
-export const ASSISTANT = "Minerva";
+export const ASSISTANT = "Basis AI";

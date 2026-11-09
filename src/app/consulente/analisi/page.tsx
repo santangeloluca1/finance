@@ -23,7 +23,7 @@ export default function AnalisiPage() {
   );
 }
 
-const STEPS = ["Raccolgo posizioni, zainetto e simulazioni fiscali", "Leggo profilo, obiettivi e piani di accumulo", "Minerva sta ragionando sui numeri", "Scrivo le raccomandazioni"];
+const STEPS = ["Raccolgo posizioni, zainetto e simulazioni fiscali", "Leggo profilo, obiettivi e piani di accumulo", "Basis AI sta ragionando sui numeri", "Scrivo le raccomandazioni"];
 
 function Analisi() {
   const params = useSearchParams();
@@ -66,7 +66,7 @@ function Analisi() {
         saveReport(rep);
         setResult(rep);
         history.replaceState(null, "", `/consulente/analisi?r=${rep.id}`);
-      } else setError(res.status === "nokey" ? "Minerva non è ancora attiva: manca la chiave GEMINI_API_KEY su Vercel." : res.message);
+      } else setError(res.status === "nokey" ? "Basis AI non è ancora attivo: manca la chiave GEMINI_API_KEY su Vercel." : res.message);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -89,7 +89,7 @@ function Analisi() {
 
   return (
     <div>
-      <BackLink href="/consulente" label="Minerva" />
+      <BackLink href="/consulente" label="Basis AI" />
       <div className="px-4 pb-2 pt-1">
         <h1 className="text-[26px] font-bold leading-tight tracking-[-0.03em]">{meta.title}</h1>
         <p className="mt-0.5 flex items-center gap-1.5 text-[14px] text-mut">
