@@ -47,8 +47,8 @@ export function computeAlerts(
       id: `minus-${acc.id}-${first}`,
       kind: "minus",
       level: "attenzione",
-      title: `${eur(amount)} di minus in scadenza su ${acc.name}`,
-      detail: `La prima scade il ${new Date(`${first}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}. Vedi come recuperarle.`,
+      title: `${eur(amount)} di minus stanno per scadere`,
+      detail: `Su ${acc.name} la prima scade il ${new Date(`${first}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}. Usale contro una plusvalenza prima di perderle: tocca per vedere come.`,
       href: "/fisco",
     });
   }
@@ -59,8 +59,8 @@ export function computeAlerts(
         id: `calo-${v.position.account}-${v.instrument.isin}-${today}`,
         kind: "calo",
         level: "attenzione",
-        title: `${v.instrument.shortName ?? v.instrument.name} ${fmtN((v.dayChangePct * 100), { maximumFractionDigits: 1 })}% oggi`,
-        detail: `Calo giornaliero sopra il ${fmtN((settings.dropThreshold * 100), { maximumFractionDigits: 1 })}%: ${eur(Math.abs(v.dayChange))} sul tuo portafoglio.`,
+        title: `${v.instrument.shortName ?? v.instrument.name} cade del ${fmtN(Math.abs(v.dayChangePct * 100), { maximumFractionDigits: 1 })}% oggi`,
+        detail: `Sono ${eur(Math.abs(v.dayChange))} in meno sulla tua posizione, che ora vale ${eur(v.value)}.`,
         href: `/posizioni/${v.instrument.isin}`,
       });
     }
@@ -69,8 +69,8 @@ export function computeAlerts(
         id: `stale-${v.instrument.isin}`,
         kind: "quotazioni",
         level: "info",
-        title: `Nessuna quotazione per ${v.instrument.shortName ?? v.instrument.name}`,
-        detail: `Il valore è stimato al prezzo di carico. Controlla il ticker ${v.instrument.ticker}.`,
+        title: `${v.instrument.shortName ?? v.instrument.name} senza prezzo aggiornato`,
+        detail: `Il valore è stimato al prezzo di carico finché non arriva una quotazione. Controlla il simbolo ${v.instrument.ticker}.`,
         href: `/posizioni/${v.instrument.isin}`,
       });
     }
@@ -84,8 +84,10 @@ export function computeAlerts(
       id: `portafoglio-${up ? "su" : "giu"}-${today}`,
       kind: "portafoglio",
       level: up ? "positivo" : "attenzione",
-      title: `Portafoglio ${up ? "+" : "−"}${fmtN(Math.abs(move * 100), { maximumFractionDigits: 1 })}% oggi`,
-      detail: `${up ? "Guadagno" : "Perdita"} di ${eur(Math.abs(totals.dayChange))} rispetto alla chiusura di ieri.`,
+      title: up
+        ? `Portafoglio in forte rialzo: +${fmtN(move * 100, { maximumFractionDigits: 1 })}%`
+        : `Portafoglio in forte calo: −${fmtN(Math.abs(move * 100), { maximumFractionDigits: 1 })}%`,
+      detail: `${up ? "+" : "−"}${eur(Math.abs(totals.dayChange))} dalla chiusura di ieri: ora vale ${eur(totals.value)}.`,
       href: "/",
     });
   }
@@ -100,8 +102,8 @@ export function computeAlerts(
         id: `cedola-${d.isin}-${d.date}`,
         kind: "cedole",
         level: "positivo",
-        title: `Cedola in arrivo da ${ins?.shortName ?? ins?.name ?? d.isin}`,
-        detail: `Circa ${eur(d.amount)} intorno al ${new Date(`${d.date}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}, stimata sull'anno scorso.`,
+        title: `In arrivo circa ${eur(d.amount)} da ${ins?.shortName ?? ins?.name ?? d.isin}`,
+        detail: `Il dividendo dovrebbe arrivare intorno al ${new Date(`${d.date}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}. Stima basata su quello dell'anno scorso.`,
         href: "/#dividendi",
       });
     }
@@ -120,10 +122,20 @@ export function computeAlerts(
       id: `ricorrenti-${pending[pending.length - 1].id}-${pending.length}`,
       kind: "ricorrenti",
       level: "attenzione",
-      title: one ? `${one.plan.label}: conferma o aggiorna` : `${pending.length} rate ricorrenti da confermare`,
+      title: one
+        ? one.plan.kind === "deposit"
+          ? `${one.plan.label}: quanto è arrivato?`
+          : one.plan.kind === "pac"
+            ? `${one.plan.label}: rata da registrare`
+            : `${one.plan.label}: confermi?`
+        : `${pending.length} rate da confermare`,
       detail: one
-        ? `${estimate(one) ? `Previsto ${estimate(one)}. ` : ""}${one.plan.kind === "pac" ? "Controlla quote e prezzo con quelli della banca." : "Conferma l'importo o correggilo se è cambiato."}`
-        : pending.map((o) => `${o.plan.label}${estimate(o) ? ` ${estimate(o)}` : ""}`).join(" · "),
+        ? one.plan.kind === "deposit"
+          ? `${estimate(one) ? `Previsto ${estimate(one)}. ` : ""}Tocca per confermarlo o scrivere la cifra giusta.`
+          : one.plan.kind === "pac"
+            ? `${estimate(one) ? `Budget ${estimate(one)}. ` : ""}Inserisci quote e prezzo che ti ha addebitato la banca.`
+            : `${estimate(one) ? `${estimate(one).replace(/^./, (c) => c.toUpperCase())} in uscita. ` : ""}Tocca per confermare o correggere.`
+        : `${pending.map((o) => `${o.plan.label}${estimate(o) ? ` (${estimate(o)})` : ""}`).join(", ")}. Tocca per confermarle.`,
       href: "/ricorrenti",
     });
   }
@@ -157,8 +169,8 @@ export function computeAlerts(
           id: `liquidita-${o.id}`,
           kind: "ricorrenti",
           level: "attenzione",
-          title: `Liquidità insufficiente per ${p.label}`,
-          detail: `Su ${name} ci sono ${eur(Math.max(0, avail(p.account)))}, ne servono ${p.kind === "pac" ? "circa " : ""}${eur(need)}. Fai un versamento, poi conferma la rata.`,
+          title: `${p.label} bloccato: manca liquidità`,
+          detail: `Su ${name} hai ${eur(Math.max(0, avail(p.account)))}, ne servono ${p.kind === "pac" ? "circa " : ""}${eur(need)}. Aggiungi ${eur(need - Math.max(0, avail(p.account)))} e conferma la rata.`,
           href: "/ricorrenti",
         });
         continue;
@@ -175,7 +187,7 @@ export function computeAlerts(
       kind: "promemoria",
       level: "attenzione",
       title: r.title,
-      detail: `Promemoria del ${new Date(`${r.date}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}`,
+      detail: r.date === today ? "Promemoria per oggi. Tocca per segnarlo come fatto." : `Promemoria del ${new Date(`${r.date}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}, ancora da fare.`,
       href: "/avvisi",
       reminderId: r.id,
     });
@@ -184,7 +196,7 @@ export function computeAlerts(
   for (const g of data.goals ?? []) {
     const current = g.scope === "tutto" ? totalValue : null;
     if (current !== null && current >= g.target) {
-      out.push({ id: `goal-${g.id}`, kind: "obiettivi", level: "positivo", title: `Obiettivo "${g.name}" raggiunto`, detail: `Hai superato ${eur(g.target)}.`, href: "/#obiettivi" });
+      out.push({ id: `goal-${g.id}`, kind: "obiettivi", level: "positivo", title: `Obiettivo raggiunto: ${g.name}`, detail: `Hai superato ${eur(g.target)}: il patrimonio ora vale ${eur(current)}. Complimenti!`, href: "/#obiettivi" });
     }
   }
 
@@ -199,6 +211,29 @@ export function computeAlerts(
 
   const dismissed = new Set(data.alertsDismissed ?? []);
   return out.filter((a) => !dismissed.has(a.id));
+}
+
+/** Emoji davanti al titolo della notifica push, per riconoscerla a colpo d'occhio (nell'app ci sono le icone). */
+export function pushIcon(a: Pick<Alert, "id" | "kind" | "level">): string {
+  if (a.id.startsWith("liquidita-")) return "⚠️";
+  switch (a.kind) {
+    case "calo":
+      return "📉";
+    case "portafoglio":
+      return a.level === "positivo" ? "🚀" : "📉";
+    case "minus":
+      return "⏳";
+    case "cedole":
+      return "💰";
+    case "ricorrenti":
+      return "🗓️";
+    case "obiettivi":
+      return "🎯";
+    case "quotazioni":
+      return "❔";
+    default:
+      return "🔔";
+  }
 }
 
 /** Avvisi da inviare come notifica push secondo le impostazioni. */

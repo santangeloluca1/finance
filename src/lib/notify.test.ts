@@ -96,8 +96,9 @@ describe("avvisi e notifiche push", () => {
 
   it("riepilogo: migliore e peggiore della giornata", () => {
     const s = dailySummary(views, totals, "2026-11-06")!;
-    expect(s.detail).toContain("Meglio Apple");
-    expect(s.detail).toContain("peggio VWCE");
+    expect(s.title).toMatch(/^Giornata in calo: −\d/);
+    expect(s.mood).toBe("down");
+    expect(s.detail).toBe("Portafoglio −1,56%, ora vale 2.509 €. Spinge Apple (+2,04%), frena VWCE (−4,35%).");
   });
 });
 

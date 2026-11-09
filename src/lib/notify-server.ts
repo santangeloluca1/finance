@@ -1,5 +1,5 @@
 import { pool } from "./db";
-import { computeAlerts, pushableAlerts } from "./alerts";
+import { computeAlerts, pushableAlerts, pushIcon } from "./alerts";
 import { totals as computeTotals, valuePositions, type Quotes } from "./analytics";
 import { buildPortfolio } from "./engine/portfolio";
 import { getFxLatest } from "./market/fx";
@@ -67,10 +67,10 @@ async function runForUser(userId: string, clock: ReturnType<typeof romeClock>, f
   const totals = computeTotals(views, state);
 
   const alerts = pushableAlerts(computeAlerts(data, state, views, totals, quotes, clock.date), data);
-  const candidates: (PushMessage & { id: string })[] = alerts.map((a) => ({ id: a.id, title: a.title, body: a.detail, url: a.href, tag: a.id }));
+  const candidates: (PushMessage & { id: string })[] = alerts.map((a) => ({ id: a.id, title: `${pushIcon(a)} ${a.title}`, body: a.detail, url: a.href, tag: a.id }));
   if (settings.summary && isSummaryTime(clock)) {
     const s = dailySummary(views, totals, clock.date);
-    if (s) candidates.push({ id: s.id, title: s.title, body: s.detail, url: s.href, tag: "riepilogo" });
+    if (s) candidates.push({ id: s.id, title: `${{ up: "📈", down: "📉", flat: "➖" }[s.mood]} ${s.title}`, body: s.detail, url: s.href, tag: "riepilogo" });
   }
   if (!candidates.length) return { userId, candidates: 0, sent: 0 };
 
@@ -84,7 +84,7 @@ async function runForUser(userId: string, clock: ReturnType<typeof romeClock>, f
       ? [
           ...fresh.slice(0, MAX_SINGLE - 1),
           {
-            title: `Altri ${fresh.length - MAX_SINGLE + 1} avvisi`,
+            title: `🔔 Altri ${fresh.length - MAX_SINGLE + 1} avvisi`,
             body: fresh
               .slice(MAX_SINGLE - 1)
               .map((c) => c.title)
