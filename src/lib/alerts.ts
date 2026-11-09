@@ -4,7 +4,7 @@ import { dividendsForYear } from "./dividends";
 import { usableLosses } from "./engine/portfolio";
 import type { PortfolioState } from "./engine/types";
 import type { PortfolioData } from "./store";
-import { pendingOccurrences } from "./recurring";
+import { isAuto, lastAmount, pendingOccurrences, type Occurrence } from "./recurring";
 import { readRule, ruleAlert, settingsOf, type AutoKind } from "./notify";
 
 export interface Alert {
@@ -107,14 +107,23 @@ export function computeAlerts(
     }
   }
 
-  const pending = pendingOccurrences(data.recurring ?? [], data.transactions, data.recurringSkipped ?? [], today);
+  // I piani automatici si registrano da soli all'apertura dell'app: niente richiesta di conferma.
+  const pending = pendingOccurrences(data.recurring ?? [], data.transactions, data.recurringSkipped ?? [], today).filter((o) => !isAuto(o.plan));
   if (pending.length) {
+    const estimate = (o: Occurrence) => {
+      const p = o.plan;
+      const v = p.kind === "pac" ? p.budget : p.kind === "deposit" ? lastAmount(p, data.transactions) : p.amount;
+      return v ? `${p.kind === "pac" ? "fino a " : p.kind === "deposit" ? "circa " : ""}${eur(v)}` : "";
+    };
+    const one = pending.length === 1 ? pending[0] : null;
     out.push({
       id: `ricorrenti-${pending[pending.length - 1].id}-${pending.length}`,
       kind: "ricorrenti",
       level: "attenzione",
-      title: pending.length === 1 ? `${pending[0].plan.label} da confermare` : `${pending.length} rate ricorrenti da confermare`,
-      detail: pending.map((o) => o.plan.label).join(", "),
+      title: one ? `${one.plan.label}: conferma o aggiorna` : `${pending.length} rate ricorrenti da confermare`,
+      detail: one
+        ? `${estimate(one) ? `Previsto ${estimate(one)}. ` : ""}${one.plan.kind === "pac" ? "Controlla quote e prezzo con quelli della banca." : "Conferma l'importo o correggilo se è cambiato."}`
+        : pending.map((o) => `${o.plan.label}${estimate(o) ? ` ${estimate(o)}` : ""}`).join(" · "),
       href: "/ricorrenti",
     });
   }
