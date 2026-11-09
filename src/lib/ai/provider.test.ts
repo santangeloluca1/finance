@@ -19,7 +19,7 @@ describe("chiamata al modello con ripiego", () => {
     }));
     expect(await generate({ system: "s", turns: [{ role: "user", text: "q" }] })).toBe("ciao");
     // Niente attesa e secondo tentativo sullo stesso modello: si passa subito al successivo.
-    expect(calls).toEqual(["gemini-2.5-flash", "gemini-flash-latest"]);
+    expect(calls).toEqual(["gemini-flash-latest", "gemini-flash-lite-latest"]);
   });
 
   it("se un modello non inizia a rispondere in tempo, passa al successivo", async () => {
@@ -35,20 +35,23 @@ describe("chiamata al modello con ripiego", () => {
     const p = generate({ system: "s", turns: [{ role: "user", text: "q" }] });
     await vi.advanceTimersByTimeAsync(61_000);
     expect(await p).toBe("eccomi");
-    expect(calls).toEqual(["gemini-2.5-flash", "gemini-flash-latest"]);
+    expect(calls).toEqual(["gemini-flash-latest", "gemini-flash-lite-latest"]);
     vi.useRealTimers();
   });
 
-  it("la chat chiede la risposta senza ragionamento, per avere subito la prima parola", async () => {
+  it("la chat usa prima il modello veloce, senza impostazioni di ragionamento", async () => {
     vi.stubEnv("GEMINI_API_KEY", "x");
-    let body: { generationConfig: { thinkingConfig?: { thinkingBudget: number } } } | null = null;
-    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+    let body: { generationConfig: { thinkingConfig?: unknown } } | null = null;
+    let model = "";
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      model = url.split("/models/")[1].split(":")[0];
       body = JSON.parse(String(init.body));
       return new Response('data: {"candidates":[{"content":{"parts":[{"text":"ciao"}]}}]}\n\n', { status: 200 });
     }));
     const stream = await generateStream({ system: "s", turns: [{ role: "user", text: "q" }] });
     expect(await new Response(stream).text()).toBe("ciao");
-    expect(body!.generationConfig.thinkingConfig?.thinkingBudget).toBe(0);
+    expect(model).toBe("gemini-flash-lite-latest");
+    expect(body!.generationConfig.thinkingConfig).toBeUndefined();
   });
 
   it("se il modello non accetta il limite di riflessione, riprova senza", async () => {

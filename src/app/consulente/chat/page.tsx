@@ -6,6 +6,7 @@ import { ArrowUp, Check, ChevronLeft, Copy, CornerUpLeft, RotateCw, SquarePen, X
 import { Markdown } from "@/components/advisor/Markdown";
 import { ASSISTANT, Orb } from "@/components/advisor/Orb";
 import { useAdvisor } from "@/lib/ai/client";
+import { goBack } from "@/components/ui";
 import { msgId, readThreads, splitFollowUps, toModelText, writeThread, type ChatMessage, type Thread } from "@/lib/ai/threads";
 
 export default function ChatPage() {
@@ -32,16 +33,30 @@ function Chat() {
   const end = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const asked = useRef(false);
+  const jump = useRef(false);
   const busy = live !== null;
 
   // Conversazione esistente (?id=) o nuova.
   useEffect(() => {
     const id = params.get("id");
     const found = id ? readThreads().find((t) => t.id === id) : null;
-    if (found) setThread(found);
+    if (found) {
+      jump.current = true;
+      setThread(found);
+    }
   }, [params]);
 
+  // All'apertura: in cima per una conversazione nuova, subito in fondo per una esistente.
+  // Poi, a ogni nuovo messaggio, scorrimento morbido fino all'ultimo.
+  const opened = useRef(false);
   useEffect(() => {
+    if (!opened.current || jump.current) {
+      opened.current = true;
+      jump.current = false;
+      if (thread.messages.length) end.current?.scrollIntoView({ block: "end" });
+      else window.scrollTo({ top: 0 });
+      return;
+    }
     end.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [thread.messages.length, live, error]);
 
@@ -113,13 +128,13 @@ function Chat() {
     <div className="flex min-h-[100dvh] flex-col">
       {/* Intestazione fissa: Basis AI e il suo stato */}
       <header className="sticky top-0 z-30 -mt-[calc(env(safe-area-inset-top)+28px)] flex items-center gap-2 border-b border-sep bg-bg/85 px-2 pb-2.5 pt-[calc(env(safe-area-inset-top)+10px)] backdrop-blur-xl">
-        <button onClick={() => router.push("/consulente")} aria-label="Torna al consulente" className="flex h-10 w-10 items-center justify-center text-accent active:opacity-50">
+        <button onClick={() => goBack(router, "/consulente")} aria-label="Indietro" className="flex h-10 w-10 items-center justify-center text-accent active:opacity-50">
           <ChevronLeft size={26} strokeWidth={2.2} />
         </button>
         <Orb size={36} active={busy} />
         <div className="min-w-0 flex-1 pl-1">
           <p className="text-[17px] font-semibold leading-tight">{ASSISTANT}</p>
-          <p className={`text-[12px] leading-tight ${busy ? "text-accent" : "text-mut"}`}>{busy ? "sta scrivendo…" : configured === false ? "non ancora attivo" : "consulenza finanziaria personale"}</p>
+          <p className={`text-[12px] leading-tight ${busy ? "text-accent" : "text-mut"}`}>{busy ? (live ? "sta scrivendo…" : "sta pensando…") : configured === false ? "non ancora attivo" : "consulenza finanziaria personale"}</p>
         </div>
         <button
           onClick={() => {
@@ -201,15 +216,7 @@ function Chat() {
             <div className="flex gap-2.5" role="status" aria-label={`${ASSISTANT} sta scrivendo`}>
               <Orb size={28} active className="mt-0.5" />
               <div className="min-w-0 flex-1 rounded-[20px] rounded-tl-[6px] bg-panel px-4 py-3">
-                {live ? (
-                  <Markdown text={live} className="text-[16px] leading-relaxed text-ink-2" />
-                ) : (
-                  <span className="flex items-center gap-1 py-1.5">
-                    {[0, 1, 2].map((d) => (
-                      <span key={d} className="anim-breathe h-2 w-2 rounded-full bg-mut" style={{ animationDelay: `${d * 200}ms` }} />
-                    ))}
-                  </span>
-                )}
+                {live ? <Markdown text={live} className="text-[16px] leading-relaxed text-ink-2" /> : <Thinking />}
               </div>
             </div>
           )}
@@ -271,6 +278,39 @@ function Chat() {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+const STEPS = ["Leggo il tuo portafoglio", "Controllo zainetto e tasse", "Tengo conto del tuo profilo", "Preparo la risposta"];
+
+/**
+ * Attesa della prima parola: cosa sta facendo (a passaggi), lo scheletro del
+ * testo in arrivo e, se tarda, quanti secondi sono passati.
+ */
+function Thinking() {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const step = Math.min(STEPS.length - 1, Math.floor(secs / 2));
+  return (
+    <div className="py-0.5" aria-live="polite">
+      <p key={step} className="page-in flex items-center gap-2 text-[15px] font-medium text-ink-2">
+        <span className="anim-breathe h-2 w-2 shrink-0 rounded-full bg-accent" />
+        {STEPS[step]}…
+      </p>
+      <div className="mt-3 space-y-2" aria-hidden>
+        <span className="skeleton block h-3 w-[92%]" />
+        <span className="skeleton block h-3 w-[78%]" style={{ animationDelay: "150ms" }} />
+        <span className="skeleton block h-3 w-[55%]" style={{ animationDelay: "300ms" }} />
+      </div>
+      {secs >= 10 && (
+        <p className="page-in mt-3 text-[13px] leading-snug text-mut">
+          Ci sto mettendo più del solito ({secs} s): i server di Google sono lenti. La risposta arriva, non serve riprovare.
+        </p>
+      )}
     </div>
   );
 }

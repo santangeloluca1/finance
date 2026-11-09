@@ -11,8 +11,15 @@ export interface ChatTurn {
 
 export class NoKeyError extends Error {}
 
-/** Modelli da provare in ordine: se uno è sovraccarico (503) o esaurito (429) si passa al successivo. */
-const MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-flash-lite-latest"];
+/**
+ * Modelli da provare in ordine: se uno è lento, sovraccarico (503) o esaurito (429) si passa al successivo.
+ * I 2.5 sono stati ritirati da Google (404). Misure in produzione, novembre 2026: flash-lite inizia a
+ * rispondere in meno di un secondo, flash a volte non risponde entro 20 s.
+ * - chat: prima la velocità;
+ * - analisi: prima la qualità (l'attesa è accompagnata dai passaggi a schermo).
+ */
+const CHAT_MODELS = ["gemini-flash-lite-latest", "gemini-flash-latest"];
+const ANALYSIS_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"];
 
 /** Tempo massimo complessivo per i tentativi (la funzione ne ha 300). */
 const BUDGET_MS = 200_000;
@@ -33,19 +40,19 @@ async function callGemini(
   method: "generateContent" | "streamGenerateContent?alt=sse",
   payload: Record<string, unknown>,
   key: string,
-  opts: { thinkingBudget: number; firstByteMs: number },
+  opts: { models: string[]; thinking: Record<string, unknown> | null; firstByteMs: number },
 ): Promise<Response> {
   const preferred = process.env.GEMINI_MODEL;
-  const models = preferred ? [preferred, ...MODELS.filter((m) => m !== preferred)] : MODELS;
+  const models = preferred ? [preferred, ...opts.models.filter((m) => m !== preferred)] : opts.models;
   const started = Date.now();
   let last: Response | null = null;
   let timedOut = false;
   for (const model of models) {
-    let thinking = true;
+    let thinking = !!opts.thinking;
     for (let attempt = 0; attempt < 2; attempt++) {
       const left = BUDGET_MS - (Date.now() - started);
       if (left < 5_000) break;
-      const body = { ...payload, generationConfig: { ...(payload.generationConfig as object), ...(thinking ? { thinkingConfig: { thinkingBudget: opts.thinkingBudget } } : {}) } };
+      const body = { ...payload, generationConfig: { ...(payload.generationConfig as object), ...(thinking ? { thinkingConfig: opts.thinking } : {}) } };
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), Math.min(left, opts.firstByteMs));
       const t0 = Date.now();
@@ -112,8 +119,8 @@ export async function generate(opts: { system: string; turns: ChatTurn[]; schema
       ...(opts.schema ? { responseMimeType: "application/json", responseSchema: opts.schema } : {}),
     },
   };
-  // Analisi: un po' di ragionamento aiuta, la risposta arriva tutta insieme.
-  const res = await callGemini("generateContent", payload, key, { thinkingBudget: 512, firstByteMs: 60_000 });
+  // Analisi: ragionamento leggero (se il modello non lo accetta si riprova senza), risposta tutta insieme.
+  const res = await callGemini("generateContent", payload, key, { models: ANALYSIS_MODELS, thinking: { thinkingLevel: "low" }, firstByteMs: 60_000 });
   const json = (await res.json()) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[] };
   const parts = json.candidates?.[0]?.content?.parts ?? [];
   const text = parts.filter((p) => !p.thought && p.text).map((p) => p.text).join("");
@@ -133,8 +140,8 @@ export async function generateStream(opts: { system: string; turns: ChatTurn[]; 
     contents: alternate(opts.turns).map((t) => ({ role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.text }] })),
     generationConfig: { temperature: opts.temperature ?? 0.5 },
   };
-  // Chat: niente ragionamento, così la prima parola arriva subito; se tarda, modello successivo.
-  const res = await callGemini("streamGenerateContent?alt=sse", payload, key, { thinkingBudget: 0, firstByteMs: 20_000 });
+  // Chat: modello veloce e nessuna impostazione di ragionamento, così la prima parola arriva subito.
+  const res = await callGemini("streamGenerateContent?alt=sse", payload, key, { models: CHAT_MODELS, thinking: null, firstByteMs: 15_000 });
   if (!res.body) throw new BusyError("Risposta vuota dal modello: riprova.");
   const reader = res.body.getReader();
   const dec = new TextDecoder();

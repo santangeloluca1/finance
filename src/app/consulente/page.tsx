@@ -23,6 +23,7 @@ export default function Consulente() {
   const profile = view.data.profile;
   const reports = view.data.aiReports ?? [];
   const threads = useThreads();
+  const [allThreads, setAllThreads] = useState(false);
   const groups = (Object.keys(GROUP_LABEL) as AnalysisMeta["group"][]).map((g) => ({ g, items: ANALYSES.filter((a) => a.group === g) }));
 
   const ask = (text: string) => {
@@ -95,7 +96,7 @@ export default function Consulente() {
 
       <SettingsSection title="Conversazioni">
         <SettingsRow icon={SquarePen} title="Nuova conversazione" subtitle={`Fai domande su portafoglio, tasse e obiettivi`} href="/consulente/chat" />
-        {threads.slice(0, 5).map((t) => (
+        {threads.slice(0, allThreads ? threads.length : 5).map((t) => (
           <SettingsRow
             key={t.id}
             icon={MessageCircle}
@@ -104,6 +105,11 @@ export default function Consulente() {
             href={`/consulente/chat?id=${t.id}`}
           />
         ))}
+        {threads.length > 5 && (
+          <button onClick={() => setAllThreads(!allThreads)} className="flex min-h-[48px] w-full items-center px-4 text-left text-[16px] font-medium text-accent active:bg-panel-2">
+            {allThreads ? "Mostra meno" : `Mostra tutte (${threads.length})`}
+          </button>
+        )}
       </SettingsSection>
 
       {groups.map(({ g, items }) => (
