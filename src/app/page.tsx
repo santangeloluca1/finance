@@ -226,14 +226,17 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         )}
       </div>
       {hasCash && (
-        // Secondo saldo, un gradino sotto il totale: stessa forma, più piccolo.
-        <div className="mt-1.5 flex items-baseline gap-2 px-4">
-          <span className="flex shrink-0 items-center gap-1.5 self-center text-[14px] text-mut">
-            <span className="h-2 w-2 rounded-full bg-accent" aria-hidden />
-            Investimenti
-          </span>
-          <BigAmount value={shownInv} className="hero-sub" />
-          {invPct !== null && <span className={`num sensitive text-[15px] font-semibold ${tint(invPct)}`}>{fmtSignedPct(invPct)}</span>}
+        // Secondo saldo sotto il totale: importo allineato a sinistra con quello grande,
+        // rendimento a destra nella stessa colonna della variazione del totale.
+        <div className="mt-1 flex items-baseline justify-between gap-3 px-4">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <BigAmount value={shownInv} className="hero-sub" />
+            <span className="flex shrink-0 items-center gap-1.5 text-[14px] text-mut">
+              <span className="h-2 w-2 rounded-full bg-accent" aria-hidden />
+              Investimenti
+            </span>
+          </div>
+          {invPct !== null && <span className={`num sensitive shrink-0 text-[15px] font-semibold ${tint(invPct)}`}>{fmtSignedPct(invPct)}</span>}
         </div>
       )}
       <p className="mt-2 h-5 px-4 text-[14px] text-mut">
