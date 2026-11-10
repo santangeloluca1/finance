@@ -45,6 +45,8 @@ interface Props {
   trend?: (a: number, b: number) => number;
   /** Seconda serie da confrontare (es. un indice), stessa lunghezza dei punti. */
   compare?: (number | null)[];
+  /** Fascia dei risultati possibili attorno alla linea (es. 10°–90° percentile). */
+  band?: { lo: number[]; hi: number[] };
   /** Traguardi da segnare come punti (importo a una data): pieni se raggiunti, vuoti se no. */
   goals?: { date: string; value: number; met: boolean }[];
 }
@@ -61,7 +63,7 @@ export const EVENT_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola
  * - due dita (o trascinando col mouse) selezionano un intervallo e mostrano la variazione tra le due date;
  * - frecce ← → da tastiera quando il grafico ha il focus.
  */
-export function InteractiveChart({ points, height = 220, format, formatAxis, reference, showInvested, noReference, events = [], marker, onSelect, loading, describePoint, describeRange, trend, compare, goals = [] }: Props) {
+export function InteractiveChart({ points, height = 220, format, formatAxis, reference, showInvested, noReference, events = [], marker, onSelect, loading, describePoint, describeRange, trend, compare, band, goals = [] }: Props) {
   const gid = useId().replace(/:/g, "");
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
@@ -90,6 +92,8 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
     vals.push(base);
     if (marker) vals.push(marker.value);
     compare?.forEach((v) => v !== null && Number.isFinite(v) && vals.push(v));
+    band?.lo.forEach((v) => Number.isFinite(v) && vals.push(v));
+    band?.hi.forEach((v) => Number.isFinite(v) && vals.push(v));
     goals.forEach((g) => g.date >= points[0].date && g.date <= points[points.length - 1].date && vals.push(g.value));
     let min = Math.min(...vals);
     let max = Math.max(...vals);
@@ -118,17 +122,26 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
     const step = niceStep((max - min) / 3);
     const grid: number[] = [];
     for (let v = Math.ceil(min / step) * step; v <= max; v += step) grid.push(v);
+    const bandPath =
+      band && band.lo.length === points.length && band.hi.length === points.length
+        ? `${band.hi.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("")}${band.lo
+            .map((v, i) => [i, v] as const)
+            .reverse()
+            .map(([i, v]) => `L${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+            .join("")}Z`
+        : null;
     return {
       x,
       y,
       base,
       line,
+      bandPath,
       area: `${line}L${plotW},${H}L0,${H}Z`,
       invested: showInvested ? path((p) => p.invested) : null,
       compareLine,
       grid,
     };
-  }, [points, plotW, H, reference, showInvested, marker, compare, goals]);
+  }, [points, plotW, H, reference, showInvested, marker, compare, band, goals]);
 
   const eventIdx = useMemo(() => {
     const map = new Map<number, ChartEvent[]>();
@@ -264,6 +277,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
         {!noReference && <line x1="0" x2={plotW} y1={geo.y(geo.base)} y2={geo.y(geo.base)} stroke="var(--mut)" strokeOpacity="0.6" strokeWidth="1.25" strokeDasharray="1 5" strokeLinecap="round" />}
         {marker && <line x1="0" x2={plotW} y1={geo.y(marker.value)} y2={geo.y(marker.value)} stroke="var(--accent)" strokeOpacity="0.6" strokeDasharray="4 4" />}
 
+        {geo.bandPath && <path key={`b-${drawKey}`} className="fade-in" d={geo.bandPath} fill={stroke} fillOpacity="0.13" />}
         {/* Area solo sull'intervallo selezionato */}
         {ranged && <path d={geo.area} fill={`url(#f-${gid})`} clipPath={`url(#c-${gid})`} />}
         {geo.compareLine && (

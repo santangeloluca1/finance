@@ -19,6 +19,7 @@ import { fmtDate, fmtEur, fmtEur0, fmtPct, fmtSignedEur, fmtSignedPct, fmtTime, 
 import { twrSeries } from "@/lib/performance";
 import { usePortfolioIntraday } from "@/lib/intraday-client";
 import { pendingOccurrences } from "@/lib/recurring";
+import { useRisk } from "@/lib/risk-client";
 
 type Tab = "panoramica" | "obiettivi" | "dividendi";
 const TABS: { id: Tab; label: string }[] = [
@@ -176,6 +177,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
     () => buildRows(views, period, priceSeries, fx, filter.account === "all", "valore", data.transactions),
     [views, period, priceSeries, fx, filter.account, data.transactions],
   );
+  const { risk } = useRisk(views);
   const pending = useMemo(
     () => pendingOccurrences(data.recurring ?? [], data.transactions, data.recurringSkipped ?? [], new Date().toISOString().slice(0, 10)),
     [data.recurring, data.transactions, data.recurringSkipped],
@@ -358,6 +360,15 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           value={fmtEur(state.incomeByYear[String(new Date().getFullYear())] ?? 0)}
           note="Nette, già incassate"
         />
+        {risk?.report.worst && risk.report.worst.ret < 0 && (
+          <SummaryRow
+            href="/analisi#rischio"
+            label="In un anno brutto"
+            value={fmtEur0(risk.report.worst.ret * risk.invested)}
+            valueClass="text-dn"
+            note={`Peggiore in ${Math.round(risk.report.years)} anni: ${fmtSignedPct(risk.report.worst.ret)}`}
+          />
+        )}
         {backpack > 0 && <SummaryRow href="/fisco" label="Zainetto fiscale" value={fmtEur(backpack)} valueClass="text-warn" note="Minusvalenze da recuperare" />}
       </ul>
 
