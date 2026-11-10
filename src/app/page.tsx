@@ -226,11 +226,15 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         )}
       </div>
       {hasCash && (
-        <p className="num sensitive mt-1.5 flex items-center gap-1.5 px-4 text-[14px] text-mut">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden />
-          Investimenti <span className="font-medium text-ink-2">{fmtEur(shownInv)}</span>
-          {invPct !== null && <span className={`font-medium ${tint(invPct)}`}>{fmtSignedPct(invPct)}</span>}
-        </p>
+        // Secondo saldo, un gradino sotto il totale: stessa forma, più piccolo.
+        <div className="mt-1.5 flex items-baseline gap-2 px-4">
+          <span className="flex shrink-0 items-center gap-1.5 self-center text-[14px] text-mut">
+            <span className="h-2 w-2 rounded-full bg-accent" aria-hidden />
+            Investimenti
+          </span>
+          <BigAmount value={shownInv} className="hero-sub" />
+          {invPct !== null && <span className={`num sensitive text-[15px] font-semibold ${tint(invPct)}`}>{fmtSignedPct(invPct)}</span>}
+        </div>
       )}
       <p className="mt-2 h-5 px-4 text-[14px] text-mut">
         {sel ? (sel.b != null ? "Nell'intervallo" : day ? "Dalla chiusura di ieri" : "Da inizio periodo") : day ? (

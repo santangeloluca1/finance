@@ -146,6 +146,11 @@ input[type="range"] {
   font-size: 0.6em;
   letter-spacing: -0.02em;
 }
+/* Saldo secondario sotto il totale (es. solo investimenti). */
+.hero-number.hero-sub {
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
 
 /* Modalità privacy: importi sfocati, come in getquin e Revolut */
 :root[data-privacy="on"] .sensitive {
