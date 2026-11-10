@@ -43,6 +43,8 @@ interface Props {
   trend?: (a: number, b: number) => number;
   /** Seconda serie da confrontare (es. un indice), stessa lunghezza dei punti. */
   compare?: (number | null)[];
+  /** Seconda serie a linea piena invece che tratteggiata, con il pallino sul punto toccato. */
+  compareSolid?: boolean;
   /** Traguardi da segnare come punti (importo a una data): pieni se raggiunti, vuoti se no. */
   goals?: { date: string; value: number; met: boolean }[];
 }
@@ -59,7 +61,7 @@ export const EVENT_LABEL = { buy: "Acquisto", sell: "Vendita", dividend: "Cedola
  * - due dita (o trascinando col mouse) selezionano un intervallo e mostrano la variazione tra le due date;
  * - frecce ← → da tastiera quando il grafico ha il focus.
  */
-export function InteractiveChart({ points, height = 220, format, formatAxis, reference, showInvested, events = [], marker, onSelect, loading, describePoint, describeRange, trend, compare, goals = [] }: Props) {
+export function InteractiveChart({ points, height = 220, format, formatAxis, reference, showInvested, events = [], marker, onSelect, loading, describePoint, describeRange, trend, compare, compareSolid, goals = [] }: Props) {
   const gid = useId().replace(/:/g, "");
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [box, setBox] = useState<HTMLDivElement | null>(null);
@@ -265,7 +267,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
         {/* Area solo sull'intervallo selezionato */}
         {ranged && <path d={geo.area} fill={`url(#f-${gid})`} clipPath={`url(#c-${gid})`} />}
         {geo.compareLine && (
-          <path key={`c-${drawKey}`} className="fade-in" d={geo.compareLine} fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeDasharray="6 4" strokeLinejoin="round" opacity="0.9" />
+          <path key={`c-${drawKey}`} className="fade-in" d={geo.compareLine} fill="none" stroke="var(--accent)" strokeWidth={compareSolid ? 1.6 : 1.8} strokeDasharray={compareSolid ? undefined : "6 4"} strokeLinejoin="round" strokeLinecap="round" opacity={ranged ? 0.5 : 0.9} />
         )}
         {geo.invested && <path d={geo.invested} fill="none" stroke="var(--mut)" strokeWidth="1.5" strokeDasharray="5 4" strokeLinejoin="round" />}
         {/* La linea si disegna da sinistra quando cambiano i dati (non mentre si scorre col dito). */}
@@ -291,6 +293,9 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
             <line x1={geo.x(end)} x2={geo.x(end)} y1="0" y2={H} stroke="var(--ink)" strokeOpacity="0.5" strokeWidth="1" />
             {showInvested && points[end].invested !== undefined && (
               <circle cx={geo.x(end)} cy={geo.y(points[end].invested!)} r="3.5" fill="var(--mut)" />
+            )}
+            {compareSolid && compare?.[end] != null && Number.isFinite(compare[end]) && (
+              <circle cx={geo.x(end)} cy={geo.y(compare[end]!)} r="4" fill="var(--accent)" stroke="var(--bg)" strokeWidth="2" />
             )}
             {ranged && <circle cx={geo.x(start)} cy={geo.y(points[start].value)} r="5" fill={stroke} stroke="var(--bg)" strokeWidth="2.5" />}
             <circle cx={geo.x(end)} cy={geo.y(points[end].value)} r="6" fill={stroke} stroke="var(--bg)" strokeWidth="3" />

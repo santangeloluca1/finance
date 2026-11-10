@@ -129,7 +129,17 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
 
   // Rendimento ponderato nel tempo dall'inizio del periodo: i versamenti non lo gonfiano.
   // In giornata: variazione sulla chiusura di ieri, come "Oggi".
+  // "twr" è il saldo generale (liquidità compresa), "twrInv" solo gli investimenti.
   const twr = useMemo(
+    () =>
+      range === "1G"
+        ? intraday?.base
+          ? series.map((h) => h.value / (intraday.base + (h.cash ?? 0)) - 1)
+          : series.map(() => 0)
+        : twrSeries(series).map((p) => p.value),
+    [series, range, intraday],
+  );
+  const twrInv = useMemo(
     () =>
       range === "1G"
         ? intraday?.base
@@ -138,6 +148,8 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         : twrSeries(series.map((h) => ({ ...h, value: h.value - (h.cash ?? 0) }))).map((p) => p.value),
     [series, range, intraday],
   );
+  // Senza liquidità le due linee coincidono: la seconda non serve.
+  const hasCash = !!totals && (Math.abs(totals.cash) >= 1 || series.some((h) => Math.abs(h.cash ?? 0) >= 1));
   const points = useMemo<SeriesPoint[]>(() => series.map((h, i) => ({ date: h.date, value: twr[i] })), [series, twr]);
 
 
@@ -156,6 +168,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   const gainBetween = (i: number, j: number) => series[j].gain - series[i].gain;
   // Rendimento tra due date, ponderato nel tempo.
   const pctBetween = (i: number, j: number) => (1 + twr[j]) / (1 + twr[i]) - 1;
+  const pctBetweenInv = (i: number, j: number) => (1 + twrInv[j]) / (1 + twrInv[i]) - 1;
 
   const last = series.length - 1;
   const from = sel?.b != null ? sel.a : 0;
@@ -164,8 +177,12 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   // In giornata, senza intervallo, la variazione parte dalla chiusura di ieri.
   const fromClose = day && sel?.b == null;
   const gain = fromClose ? (ready ? series[to].gain : totals.dayChange) : ready ? gainBetween(from, to) : 0;
-  const gainPct = fromClose ? (ready ? twr[to] : totals.dayChangePct) : ready ? pctBetween(from, to) : 0;
+  const dayPctTotal = totals.value - totals.dayChange ? totals.dayChange / (totals.value - totals.dayChange) : 0;
+  const gainPct = fromClose ? (ready ? twr[to] : dayPctTotal) : ready ? pctBetween(from, to) : 0;
   const shownValue = ready && (sel || day) ? series[to].value : totals.value;
+  // Saldo dei soli investimenti allo stesso punto, con il suo rendimento.
+  const shownInv = ready && (sel || day) ? series[to].value - (series[to].cash ?? 0) : totals.value - totals.cash;
+  const invPct = fromClose ? (ready ? twrInv[to] : totals.dayChangePct) : ready ? pctBetweenInv(from, to) : null;
   const caption = !sel
     ? "Valore del portafoglio"
     : sel.b != null
@@ -208,6 +225,13 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           </div>
         )}
       </div>
+      {hasCash && (
+        <p className="num sensitive mt-1.5 flex items-center gap-1.5 px-4 text-[14px] text-mut">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden />
+          Investimenti <span className="font-medium text-ink-2">{fmtEur(shownInv)}</span>
+          {invPct !== null && <span className={`font-medium ${tint(invPct)}`}>{fmtSignedPct(invPct)}</span>}
+        </p>
+      )}
       <p className="mt-2 h-5 px-4 text-[14px] text-mut">
         {sel ? (sel.b != null ? "Nell'intervallo" : day ? "Dalla chiusura di ieri" : "Da inizio periodo") : day ? (
           lastSession ? "Ultima seduta" : "Oggi"
@@ -234,6 +258,8 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           describePoint={(i) => `${fmtSignedPct(day ? twr[i] : pctBetween(0, i))} · ${fmtEur(series[i].value)}`}
           describeRange={(i, j) => `${fmtSignedPct(pctBetween(i, j))} · ${fmtSignedEur(gainBetween(i, j))}`}
           trend={gainBetween}
+          compare={hasCash ? twrInv : undefined}
+          compareSolid
         />
       </div>
 
