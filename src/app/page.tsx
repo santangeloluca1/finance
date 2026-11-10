@@ -11,7 +11,7 @@ import { buildRows, PERIOD_OPTIONS, PositionList } from "@/components/PositionLi
 import { Toolbar } from "@/components/home/Toolbar";
 import { Obiettivi } from "@/components/Obiettivi";
 import { Dividendi } from "@/components/home/Dividendi";
-import { PAGE_TITLE, RangePicker, SectionHeader, SelectButton } from "@/components/ui";
+import { PAGE_TITLE, RangePicker, SectionHeader, Segmented, SelectButton } from "@/components/ui";
 import { RANGES, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
 import { cutoffDate, type Period } from "@/lib/analytics";
 import { usableLosses } from "@/lib/engine/portfolio";
@@ -90,6 +90,13 @@ export default function Home() {
 
 type View = ReturnType<typeof usePortfolioView>;
 
+type ChartMode = "pct" | "eur";
+const MODES: { value: ChartMode; label: string }[] = [
+  { value: "pct", label: "%" },
+  { value: "eur", label: "€" },
+];
+const MODE_KEY = "portafoglio:home-chart";
+
 function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: (t: Tab) => void }) {
   const { data, state, views, totals, history, priceSeries, fx, fetchedAt, loading, historyReady, quotes } = view;
   // Tempo reale solo con Tradegate aperto (prezzo di meno di 5 minuti); le altre borse arrivano con ~15 minuti di ritardo.
@@ -106,6 +113,21 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           ? " · in parte con ritardo fino a 15 min"
           : " · ritardo fino a 15 min";
   const [range, setRange] = useState<Range>("1A");
+  const [mode, setMode] = useState<ChartMode>("pct");
+  // La scelta % / € si ricorda su questo dispositivo.
+  useEffect(() => {
+    try {
+      const m = localStorage.getItem(MODE_KEY);
+      if (m === "pct" || m === "eur") setMode(m);
+    } catch {}
+  }, []);
+  const changeMode = (m: ChartMode) => {
+    setMode(m);
+    setSel(null);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {}
+  };
   const [sel, setSel] = useState<Selection | null>(null);
   const [period, setPeriod] = useState<Period>("oggi");
 
@@ -128,18 +150,9 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   }, [history, totals, range, state, intraday]);
 
   // Rendimento ponderato nel tempo dall'inizio del periodo: i versamenti non lo gonfiano.
+  // Solo gli investimenti: la liquidità ferma non rende e annacquerebbe il risultato.
   // In giornata: variazione sulla chiusura di ieri, come "Oggi".
-  // "twr" è il saldo generale (liquidità compresa), "twrInv" solo gli investimenti.
   const twr = useMemo(
-    () =>
-      range === "1G"
-        ? intraday?.base
-          ? series.map((h) => h.value / (intraday.base + (h.cash ?? 0)) - 1)
-          : series.map(() => 0)
-        : twrSeries(series).map((p) => p.value),
-    [series, range, intraday],
-  );
-  const twrInv = useMemo(
     () =>
       range === "1G"
         ? intraday?.base
@@ -148,10 +161,16 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         : twrSeries(series.map((h) => ({ ...h, value: h.value - (h.cash ?? 0) }))).map((p) => p.value),
     [series, range, intraday],
   );
-  // Senza liquidità le due linee coincidono: la seconda non serve.
-  const hasCash = !!totals && (Math.abs(totals.cash) >= 1 || series.some((h) => Math.abs(h.cash ?? 0) >= 1));
-  const points = useMemo<SeriesPoint[]>(() => series.map((h, i) => ({ date: h.date, value: twr[i] })), [series, twr]);
-
+  // In euro: valore del portafoglio e capitale versato (valore meno guadagno cumulato).
+  // In giornata il versato non cambia: niente seconda linea.
+  const points = useMemo<SeriesPoint[]>(
+    () =>
+      mode === "pct"
+        ? series.map((h, i) => ({ date: h.date, value: twr[i] }))
+        : series.map((h) => ({ date: h.date, value: h.value, invested: day ? undefined : h.value - h.gain })),
+    [series, twr, mode, day],
+  );
+  const hasCash = Math.abs(totals?.cash ?? 0) >= 1 || series.some((h) => Math.abs(h.cash ?? 0) >= 1);
 
   const rows = useMemo(
     () => buildRows(views, period, priceSeries, fx, filter.account === "all", "valore", data.transactions),
@@ -168,7 +187,6 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   const gainBetween = (i: number, j: number) => series[j].gain - series[i].gain;
   // Rendimento tra due date, ponderato nel tempo.
   const pctBetween = (i: number, j: number) => (1 + twr[j]) / (1 + twr[i]) - 1;
-  const pctBetweenInv = (i: number, j: number) => (1 + twrInv[j]) / (1 + twrInv[i]) - 1;
 
   const last = series.length - 1;
   const from = sel?.b != null ? sel.a : 0;
@@ -177,12 +195,11 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
   // In giornata, senza intervallo, la variazione parte dalla chiusura di ieri.
   const fromClose = day && sel?.b == null;
   const gain = fromClose ? (ready ? series[to].gain : totals.dayChange) : ready ? gainBetween(from, to) : 0;
-  const dayPctTotal = totals.value - totals.dayChange ? totals.dayChange / (totals.value - totals.dayChange) : 0;
-  const gainPct = fromClose ? (ready ? twr[to] : dayPctTotal) : ready ? pctBetween(from, to) : 0;
+  const gainPct = fromClose ? (ready ? twr[to] : totals.dayChangePct) : ready ? pctBetween(from, to) : 0;
   const shownValue = ready && (sel || day) ? series[to].value : totals.value;
-  // Saldo dei soli investimenti allo stesso punto, con il suo rendimento.
-  const shownInv = ready && (sel || day) ? series[to].value - (series[to].cash ?? 0) : totals.value - totals.cash;
-  const invPct = fromClose ? (ready ? twrInv[to] : totals.dayChangePct) : ready ? pctBetweenInv(from, to) : null;
+  // Scomposizione del totale allo stesso punto: investito e liquido.
+  const shownCash = ready && (sel || day) ? (series[to].cash ?? 0) : totals.cash;
+  const shownInv = shownValue - shownCash;
   const caption = !sel
     ? "Valore del portafoglio"
     : sel.b != null
@@ -226,20 +243,20 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         )}
       </div>
       {hasCash && (
-        // Secondo saldo sotto il totale: importo allineato a sinistra con quello grande,
-        // rendimento a destra nella stessa colonna della variazione del totale.
+        // Scomposizione del totale: investito a sinistra sotto il numero grande,
+        // liquido a destra nella colonna della variazione.
         <div className="mt-1 flex items-baseline justify-between gap-3 px-4">
-          <div className="flex min-w-0 items-baseline gap-2">
+          <div className="flex min-w-0 items-baseline gap-1.5">
             <BigAmount value={shownInv} className="hero-sub" />
-            <span className="flex shrink-0 items-center gap-1.5 text-[14px] text-mut">
-              <span className="h-2 w-2 rounded-full bg-accent" aria-hidden />
-              Investimenti
-            </span>
+            <span className="shrink-0 text-[14px] text-mut">investiti</span>
           </div>
-          {invPct !== null && <span className={`num sensitive shrink-0 text-[15px] font-semibold ${tint(invPct)}`}>{fmtSignedPct(invPct)}</span>}
+          <p className="num sensitive shrink-0 text-[14px] text-mut">
+            <span className={`font-semibold ${shownCash < 0 ? "text-dn" : "text-ink-2"}`}>{fmtEur0(shownCash)}</span> liquidi
+          </p>
         </div>
       )}
-      <p className="mt-2 h-5 px-4 text-[14px] text-mut">
+      <div className="mt-2 flex items-center justify-between gap-3 px-4">
+      <p className="h-5 min-w-0 truncate text-[14px] text-mut">
         {sel ? (sel.b != null ? "Nell'intervallo" : day ? "Dalla chiusura di ieri" : "Da inizio periodo") : day ? (
           lastSession ? "Ultima seduta" : "Oggi"
         ) : (
@@ -251,24 +268,49 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           </>
         )}
       </p>
+        <Segmented size="sm" options={MODES} value={mode} onChange={changeMode} />
+      </div>
 
-      {/* Grafico del rendimento: tutta la larghezza */}
+      {/* Grafico: rendimento in % oppure valore e versato in euro, tutta la larghezza */}
       <div className="mt-6 pl-4 pr-3">
         <InteractiveChart
           points={points}
           height={240}
-          reference={0}
           onSelect={setSel}
           loading={day ? !intraday : !historyReady}
-          format={(v) => fmtSignedPct(v)}
-          formatAxis={axisPct}
-          describePoint={(i) => `${fmtSignedPct(day ? twr[i] : pctBetween(0, i))} · ${fmtEur(series[i].value)}`}
-          describeRange={(i, j) => `${fmtSignedPct(pctBetween(i, j))} · ${fmtSignedEur(gainBetween(i, j))}`}
+          reference={mode === "pct" ? 0 : undefined}
+          showInvested={mode === "eur" && !day}
+          noReference={mode === "eur" && !day}
+          format={mode === "pct" ? (v) => fmtSignedPct(v) : (v) => fmtEur(v)}
+          formatAxis={mode === "pct" ? axisPct : (v) => compact(v, false)}
+          describePoint={(i) =>
+            mode === "pct"
+              ? `${fmtSignedPct(day ? twr[i] : pctBetween(0, i))} · ${fmtEur(series[i].value)}`
+              : day
+                ? fmtEur(series[i].value)
+                : `${fmtEur0(series[i].value)} · versati ${fmtEur0(series[i].value - series[i].gain)}`
+          }
+          describeRange={(i, j) =>
+            mode === "pct"
+              ? `${fmtSignedPct(pctBetween(i, j))} · ${fmtSignedEur(gainBetween(i, j))}`
+              : `${fmtSignedEur(series[j].value - series[i].value)} · dal mercato ${fmtSignedEur(gainBetween(i, j))}`
+          }
           trend={gainBetween}
-          compare={hasCash ? twrInv : undefined}
-          compareSolid
         />
       </div>
+      {mode === "eur" && !day && (
+        // Lo spazio tra le due linee è il guadagno.
+        <p className="mt-1 flex gap-4 px-4 text-[12px] text-mut">
+          <span className="flex items-center gap-1.5">
+            <span className={`h-0.5 w-4 rounded-full ${gain < -0.005 ? "bg-dn" : "bg-up"}`} aria-hidden />
+            Valore
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 border-t-[1.5px] border-dashed border-mut" aria-hidden />
+            Capitale versato
+          </span>
+        </p>
+      )}
 
       <RangePicker value={range} onChange={setRange} options={RANGES} />
 
