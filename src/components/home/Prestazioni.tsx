@@ -222,8 +222,6 @@ export function Prestazioni({
         <InfoRow label="Rendimento annuo dei tuoi soldi" hint="Dal primo versamento, tiene conto di quando hai investito" value={irr !== null ? fmtSignedPct(irr) : "—"} valueClass={tone(irr ?? 0)} />
       </Panel>
 
-      <Rischio risk={risk} loading={riskLoading} benchLabel={bench === "none" ? null : (BENCHMARKS.find((b) => b.value === bench)?.label ?? null)} nowFromPeak={nowFromPeak} />
-
       {/* Contributo di ogni titolo */}
       {/* Stesso periodo del grafico: cambiando uno cambia anche l'altro. */}
       <SectionHeader right={<SelectButton label="Periodo" value={range} onChange={setRange} options={RANGES.map((r) => ({ value: r, label: RANGE_LABEL[r] }))} />}>
@@ -272,6 +270,8 @@ export function Prestazioni({
           </li>
         ))}
       </ul>
+
+      <Rischio risk={risk} loading={riskLoading} benchLabel={bench === "none" ? null : (BENCHMARKS.find((b) => b.value === bench)?.label ?? null)} nowFromPeak={nowFromPeak} />
 
       {/* Rendimenti mensili */}
       <MonthBars months={months} years={years} />
