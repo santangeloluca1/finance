@@ -12,10 +12,19 @@ import { useCompositions } from "@/lib/xray-client";
 type Tab = "panoramica" | "dividendi" | "notizie" | "analisti";
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
 
+interface NewsItem {
+  title: string;
+  publisher: string;
+  link: string;
+  time: number;
+}
+
 interface Insights {
   currency: string;
   dividends: [string, number][];
-  news: { title: string; publisher: string; link: string; time: number }[];
+  news: NewsItem[];
+  /** Le prime notizie in italiano (Google News), per pertinenza. */
+  newsIt?: NewsItem[];
   us: string | null;
 }
 
@@ -50,7 +59,7 @@ export function TitleInsights({ instrument, price, quantity, taxRate }: { instru
   const fund = isFundLike(instrument);
   const [tab, setTab] = useState<Tab>("panoramica");
   const hasIsin = ISIN_RE.test(instrument.isin);
-  const q = new URLSearchParams({ t: instrument.ticker, n: instrument.shortName ?? instrument.name, ...(hasIsin ? { isin: instrument.isin } : {}) });
+  const q = new URLSearchParams({ t: instrument.ticker, n: instrument.shortName ?? instrument.name, fn: instrument.name, ...(fund ? { f: "1" } : {}), ...(hasIsin ? { isin: instrument.isin } : {}) });
   const insights = useJson<Insights>(`/api/insights?${q}`);
   const from = useMemo(() => new Date(Date.now() - 10 * 366 * 86400_000).toISOString().slice(0, 10), []);
   const histKey = instrument.currency === "EUR" && hasIsin ? `${instrument.ticker}~${instrument.isin}` : instrument.ticker;
@@ -355,12 +364,33 @@ function monthYear(iso: string) {
 
 function News({ insights }: { insights: Insights | null }) {
   if (!insights) return <Skeleton rows={4} />;
-  if (!insights.news.length) return <p className="px-4 pt-6 text-[15px] text-mut">Nessuna notizia recente.</p>;
+  const it = insights.newsIt ?? [];
+  // Le notizie in inglese restano sotto, senza ripetere quelle già mostrate.
+  const seen = new Set(it.map((n) => n.title.toLowerCase()));
+  const en = insights.news.filter((n) => !seen.has(n.title.toLowerCase()));
+  if (!it.length && !en.length) return <p className="px-4 pt-6 text-[15px] text-mut">Nessuna notizia recente.</p>;
   return (
     <>
-    <H>Ultime notizie</H>
+      {it.length > 0 && (
+        <>
+          <H>In primo piano</H>
+          <NewsList items={it} />
+        </>
+      )}
+      {en.length > 0 && (
+        <>
+          <H>{it.length ? "Dalla stampa estera" : "Ultime notizie"}</H>
+          <NewsList items={en} />
+        </>
+      )}
+    </>
+  );
+}
+
+function NewsList({ items }: { items: NewsItem[] }) {
+  return (
     <ul className="stagger">
-      {insights.news.map((n) => (
+      {items.map((n) => (
         <li key={n.link}>
           <a href={n.link} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3.5 px-4 py-3 active:bg-panel-2">
             <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chip text-mut">
@@ -377,7 +407,6 @@ function News({ insights }: { insights: Insights | null }) {
         </li>
       ))}
     </ul>
-    </>
   );
 }
 
