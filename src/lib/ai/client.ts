@@ -46,15 +46,18 @@ async function getJson<T>(url: string): Promise<T | null> {
   }
 }
 
+type NewsLite = { title: string; publisher: string; time: number };
+
 /** Scheda di un titolo per l'analisi: andamento, dividendi, analisti, notizie. */
-async function titleFocus(ins: Pick<Instrument, "isin" | "ticker" | "currency" | "name" | "shortName">, price: number | null) {
+async function titleFocus(ins: Pick<Instrument, "isin" | "ticker" | "currency" | "name" | "shortName"> & { assetClass?: Instrument["assetClass"] }, price: number | null) {
   const hasIsin = ISIN_RE.test(ins.isin);
   const key = ins.currency === "EUR" && hasIsin ? `${ins.ticker}~${ins.isin}` : ins.ticker;
-  const q = new URLSearchParams({ t: ins.ticker, n: ins.shortName ?? ins.name, ...(hasIsin ? { isin: ins.isin } : {}) });
+  const fund = ins.assetClass ? isFundLike(ins as Instrument) : false;
+  const q = new URLSearchParams({ t: ins.ticker, n: ins.shortName ?? ins.name, fn: ins.name, ...(fund ? { f: "1" } : {}), ...(hasIsin ? { isin: ins.isin } : {}) });
   const from = new Date(Date.now() - 10 * 366 * 86400_000).toISOString().slice(0, 10);
   const [hist, insights, analysts] = await Promise.all([
     getJson<{ series: Record<string, [string, number][]> }>(`/api/history?from=${from}&t=${encodeURIComponent(key)}`),
-    getJson<{ currency: string; dividends: [string, number][]; news: { title: string; publisher: string; time: number }[] }>(`/api/insights?${q}`),
+    getJson<{ currency: string; dividends: [string, number][]; news: NewsLite[]; newsIt?: NewsLite[] }>(`/api/insights?${q}`),
     getJson<{ status: string; data?: unknown }>(`/api/analysts?${q}`),
   ]);
   const series = hist?.series?.[ins.ticker] ?? [];
@@ -67,7 +70,8 @@ async function titleFocus(ins: Pick<Instrument, "isin" | "ticker" | "currency" |
     priceStats: stats,
     dividends: div ? { ...div, currency: insights?.currency } : null,
     analysts: analysts?.status === "ok" ? analysts.data : null,
-    news: (insights?.news ?? []).slice(0, 6).map((n) => ({ title: n.title, publisher: n.publisher, date: new Date(n.time).toISOString().slice(0, 10) })),
+    // Prima le notizie in italiano, poi quelle in inglese.
+    news: [...(insights?.newsIt ?? []), ...(insights?.news ?? [])].slice(0, 8).map((n) => ({ title: n.title, publisher: n.publisher, date: new Date(n.time).toISOString().slice(0, 10) })),
   };
 }
 
