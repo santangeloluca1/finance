@@ -6,7 +6,7 @@ import { ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Gauge } from "@/components/Gauge";
 import { BankDot, InfoRow, Panel, SectionHeader, SelectButton } from "@/components/ui";
-import { lookThrough, topCompanies, useCompositions } from "@/lib/xray-client";
+import { currencyExposure, lookThrough, topCompanies, useCompositions } from "@/lib/xray-client";
 import { isFundLike } from "@/lib/engine/tax";
 import { ASSET_CLASS_COLOR, ASSET_CLASS_LABEL, groupBy, type PositionView, type Slice, type Totals } from "@/lib/analytics";
 import type { Account } from "@/lib/engine/types";
@@ -49,7 +49,16 @@ export function Analisi({
         const a = byAcc.get(v.position.account);
         return { key: v.position.account, label: a?.name ?? v.position.account, color: a?.color ?? "#888" };
       });
-    if (by === "valuta") return groupBy(views, (v) => ({ key: v.instrument.currency, label: v.instrument.currency === "EUR" ? "Euro" : v.instrument.currency === "USD" ? "Dollaro USA" : v.instrument.currency, color: "" })).map((s, i) => ({ ...s, color: PALETTE[i % PALETTE.length] }));
+    if (by === "valuta") {
+      let k = 0;
+      return currencyExposure(views, compositions).map((x) => ({
+        key: x.code,
+        label: x.label,
+        value: x.value,
+        // L'euro sempre nello stesso colore; grigio per ciò che non si sa ripartire.
+        color: x.code === "EUR" ? PALETTE[0] : x.code === "OTHER" || x.code === "NA" ? "#64748b" : PALETTE[1 + (k++ % (PALETTE.length - 2))],
+      }));
+    }
     return groupBy(views, (v) => ({ key: v.instrument.isin, label: v.instrument.shortName ?? v.instrument.name, color: "" })).map((s, i) => ({ ...s, color: PALETTE[i % PALETTE.length] }));
   }
 
@@ -110,6 +119,8 @@ export function Analisi({
         })}
       </ul>
 
+      {by === "valuta" && <Cambio slices={slices} invested={invested} loading={xrayLoading} />}
+
       {(by === "paese" || by === "settore") && (
         <p className="px-4 pt-1 text-[13px] leading-snug text-mut">
           {xrayLoading ? "Lettura della composizione degli ETF…" : "Esposizione dentro gli ETF, dati justETF."}
@@ -169,4 +180,45 @@ export function Analisi({
   );
 }
 
+/** "il dollaro USA", "lo yen", "la sterlina": per la frase "Se … perde il 10%". */
+const CURRENCY_SUBJECT: Record<string, string> = {
+  USD: "il dollaro", JPY: "lo yen", GBP: "la sterlina", CAD: "il dollaro canadese", CHF: "il franco svizzero", AUD: "il dollaro australiano",
+  NORDIC: "le corone nordiche", HKD: "il dollaro di Hong Kong", SGD: "il dollaro di Singapore", NZD: "il dollaro neozelandese", ILS: "lo shekel",
+  EM: "le valute emergenti",
+};
 
+/**
+ * Quanto del portafoglio si muove col cambio e cosa succede se le valute
+ * principali perdono il 10% contro l'euro.
+ */
+function Cambio({ slices, invested, loading }: { slices: Slice[]; invested: number; loading: boolean }) {
+  const foreign = slices.filter((s) => s.key !== "EUR" && s.key !== "NA").reduce((a, s) => a + s.value, 0);
+  const share = invested > 0 ? foreign / invested : 0;
+  const shocks = slices.filter((s) => CURRENCY_SUBJECT[s.key] && s.value / (invested || 1) >= 0.02).slice(0, 3);
+  return (
+    <>
+      <Panel className="mt-4">
+        <InfoRow
+          label="Esposto al cambio"
+          hint={share >= 0.005 ? "Questa parte si muove anche con le valute" : "Tutto in euro o coperto dal cambio"}
+          value={fmtPct(share)}
+          valueClass={share >= 0.5 ? "text-warn" : ""}
+        />
+        {shocks.map((s) => (
+          <InfoRow
+            key={s.key}
+            label={`Se ${CURRENCY_SUBJECT[s.key]} perde il 10%`}
+            hint={`Su ${fmtEur0(s.value)} esposti a questa valuta`}
+            value={<span className="sensitive">{fmtSignedEur(-s.value * 0.1)}</span>}
+            valueClass="text-dn"
+          />
+        ))}
+      </Panel>
+      <p className="px-4 pt-2 text-[13px] leading-snug text-mut">
+        {loading
+          ? "Lettura della composizione degli ETF…"
+          : "Valuta dei beni dentro gli ETF, ricavata dai paesi (dati justETF), non quella in cui li compri. Gli ETF coperti dal cambio contano come euro."}
+      </p>
+    </>
+  );
+}

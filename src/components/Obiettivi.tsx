@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Check, GripVertical, Minus, Plus, Trash2, X } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { ComeInvesti, DoveInvestire } from "@/components/Allocazione";
 import { Chip, InfoRow, LargeTitle, Panel, SectionHeader, SelectButton } from "@/components/ui";
-import { fmtDate, fmtEur0, fmtN } from "@/lib/format";
+import { fmtDate, fmtEur0, fmtN, fmtPct } from "@/lib/format";
 import { expectedReturn, fromSaved, groupOf, normalize, toSaved, type Group, type Weights } from "@/lib/allocation";
 import { futureValue, monthsUntil, planGoals, type GoalPlan } from "@/lib/planning";
+import { at, minRate, portfolioShocks, shareAtLeast, simulate, type SimResult } from "@/lib/montecarlo";
+import { useGroupReturns } from "@/lib/risk-client";
 import { deleteGoal, newId, reorderGoals, saveGoal, savePlan, saveTargets, type Goal } from "@/lib/store";
 
 const SUGGESTIONS = [
@@ -78,17 +80,67 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
   }, [weights, data.targets]);
 
   const goals = useMemo(() => data.goals ?? [], [data.goals]);
-  const plans = useMemo(() => {
-    if (!totals) return new Map<string, GoalPlan & { pool: number }>();
-    const pool = (scope: string) => {
+  const pool = useCallback(
+    (scope: string) => {
+      if (!totals) return 0;
       if (scope === "tutto") return totals.value;
       if (scope === "liquidita") return totals.cashAvailable;
       return views.filter((v) => v.position.account === scope).reduce((a, v) => a + v.value, 0) + (state?.cash[scope]?.amount ?? 0);
-    };
+    },
+    [totals, views, state],
+  );
+  const plans = useMemo(() => {
+    if (!totals) return new Map<string, GoalPlan & { pool: number }>();
     return new Map(planGoals(goals, pool, monthly, rate).map((p, i) => [p.id, { ...p, pool: pool(goals[i].scope) }]));
-  }, [goals, totals, views, state, monthly, rate]);
+  }, [goals, totals, pool, monthly, rate]);
 
-  const reached = [...plans.values()].filter((p) => p.status === "done" || p.status === "ok").length;
+  // Simulazioni: migliaia di percorsi di mercato possibili, dai mesi reali degli indici.
+  // Il versamento "rinviato" tiene fluidi i tasti + e − mentre si ricalcola.
+  const market = useGroupReturns();
+  const shocks = useMemo(() => {
+    if (!market) return null;
+    const { azioni, obbligazioni } = market.returns;
+    if (!azioni || !obbligazioni) return null;
+    // Liquidità: nessuna oscillazione. Oro e altro: oscillano come le azioni.
+    return portfolioShocks([
+      { weight: chosen.azioni + chosen.altro, returns: azioni },
+      { weight: chosen.obbligazioni, returns: obbligazioni },
+      { weight: chosen.liquidita, returns: azioni.map(() => 0) },
+    ]);
+  }, [market, chosen]);
+  const lazyMonthly = useDeferredValue(monthly);
+  const horizons = useMemo(() => goals.map((g) => monthsUntil(g.date)).filter((m) => m > 0 && m <= 600), [goals]);
+  const sim = useMemo(() => {
+    if (!shocks || !totals) return null;
+    const months = Math.min(600, Math.max(years * 12, ...horizons));
+    return simulate({ start: totals.value, monthly: lazyMonthly, months, rate, shocks, horizons, paths: 3000 });
+  }, [shocks, totals, lazyMonthly, years, rate, horizons]);
+
+  // Per ogni obiettivo: probabilità di arrivarci e versamento per arrivarci 8 volte su 10.
+  const odds = useMemo(() => {
+    const out = new Map<string, { prob: number; extra80: number }>();
+    if (!sim) return out;
+    goals.forEach((g, i) => {
+      const st = plans.get(g.id)?.status;
+      const rates = sim.rates.get(monthsUntil(g.date));
+      // La sola liquidità non passa dai mercati: per lei vale la proiezione semplice.
+      if (!rates || st === "done" || st === "expired" || g.scope === "liquidita") return;
+      const ok = (r: number) => ["ok", "done"].includes(planGoals(goals, pool, lazyMonthly, r)[i].status);
+      const need = minRate(ok);
+      const prob = need === Infinity ? 0 : shareAtLeast(rates, need);
+      const at80 = planGoals(goals, pool, lazyMonthly, at(rates, 0.2))[i];
+      out.set(g.id, { prob, extra80: at80.status === "late" ? at80.extra : 0 });
+    });
+    return out;
+  }, [sim, goals, plans, pool, lazyMonthly]);
+
+  const likely = (id: string) => {
+    const p = plans.get(id);
+    if (p?.status === "done") return true;
+    const o = odds.get(id);
+    return o ? o.prob >= 0.8 : p?.status === "ok";
+  };
+  const reached = goals.filter((g) => likely(g.id)).length;
   const newGoal = (g?: Partial<Goal>) => setEditing({ id: newId(), name: "", target: 0, date: `${new Date().getFullYear() + 3}-12-31`, scope: "tutto", ...g });
   const scopeLabel = (scope: string) =>
     scope === "tutto" ? "Tutto il patrimonio" : scope === "liquidita" ? "Liquidità" : data.accounts.find((a) => a.id === scope)?.name ?? scope;
@@ -105,7 +157,7 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
 
       {goals.length > 0 && (
         <p className="px-4 text-[16px] leading-snug text-ink-2">
-          Con <b className="num font-semibold text-ink">{fmtEur0(monthly)}</b> al mese{" "}
+          Con <b className="num font-semibold text-ink">{fmtEur0(monthly)}</b> al mese{odds.size > 0 ? ", 8 volte su 10," : ""}{" "}
           {reached === goals.length ? (
             <b className="font-semibold text-up">{goals.length === 1 ? "ci arrivi in tempo" : `li raggiungi tutti e ${goals.length}`}</b>
           ) : (
@@ -129,7 +181,7 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
           </div>
         </div>
       ) : (
-        <GoalList goals={goals} plans={plans} scopeLabel={scopeLabel} onOpen={setEditing} />
+        <GoalList goals={goals} plans={plans} odds={odds} scopeLabel={scopeLabel} onOpen={setEditing} />
       )}
 
       {goals.length > 0 && (
@@ -173,7 +225,19 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
 
       {totals && <ComeInvesti weights={chosen} now={now} rate={rate} onChange={setWeights} />}
 
-      {totals && <Proiezione start={totals.value} monthly={monthly} rate={rate} years={years} setYears={setYears} goals={goals} plans={plans} />}
+      {totals && (
+        <Proiezione
+          start={totals.value}
+          monthly={monthly}
+          rate={rate}
+          years={years}
+          setYears={setYears}
+          goals={goals}
+          met={likely}
+          sim={sim && sim.p50.length > years * 12 && sim.p90[years * 12] - sim.p10[years * 12] > sim.p50[years * 12] * 0.01 ? sim : null}
+          simFrom={market?.from ?? null}
+        />
+      )}
 
       {totals && <DoveInvestire views={views} cash={totals.cashAvailable} weights={chosen} monthly={monthly} />}
 
@@ -193,11 +257,13 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
 function GoalList({
   goals,
   plans,
+  odds,
   scopeLabel,
   onOpen,
 }: {
   goals: Goal[];
   plans: Map<string, GoalPlan & { pool: number }>;
+  odds: Map<string, Odds>;
   scopeLabel: (s: string) => string;
   onOpen: (g: Goal) => void;
 }) {
@@ -256,7 +322,8 @@ function GoalList({
           if (!p) return null;
           const progress = g.target > 0 ? Math.min(1, p.allocated / g.target) : 0;
           const dragging = drag?.id === id;
-          const good = p.status === "done" || p.status === "ok";
+          const o = odds.get(id);
+          const good = p.status === "done" || (o ? o.prob >= 0.8 : p.status === "ok");
           return (
             <li
               key={id}
@@ -279,7 +346,7 @@ function GoalList({
                       <p className="num sensitive shrink-0 text-[15px] font-medium text-ink-2">{fmtEur0(g.target)}</p>
                     </div>
                     <p className="mt-0.5 text-[14px] leading-[1.4] text-mut">
-                      <GoalLine p={p} target={g.target} date={g.date} scope={g.scope === "tutto" ? null : scopeLabel(g.scope)} />
+                      <GoalLine p={p} odds={o} target={g.target} date={g.date} scope={g.scope === "tutto" ? null : scopeLabel(g.scope)} />
                     </p>
                   </div>
                 </button>
@@ -336,8 +403,22 @@ function lateBy(months: number) {
   return `${months % 12 ? "~" : ""}${y} ${y === 1 ? "anno" : "anni"}`;
 }
 
+type Odds = { prob: number; extra80: number };
+
+/** "84% di probabilità", senza promettere certezze agli estremi. */
+function probLabel(prob: number) {
+  if (prob > 0.99) return "Oltre il 99% di probabilità";
+  if (prob < 0.01) return "Meno dell'1% di probabilità";
+  return `${Math.round(prob * 100)}% di probabilità`;
+}
+
+/** Probabilità a parole e colore: 8 su 10 o più è "probabile". */
+function oddsTone(prob: number) {
+  return prob >= 0.8 ? "text-up" : prob >= 0.5 ? "text-warn" : "text-dn";
+}
+
 /** Stato in due righe brevi: com'è messo e cosa serve. */
-function GoalLine({ p, target, date, scope }: { p: GoalPlan; target: number; date: string; scope: string | null }) {
+function GoalLine({ p, odds, target, date, scope }: { p: GoalPlan; odds?: Odds; target: number; date: string; scope: string | null }) {
   const when = fmtDate(date, { month: "short", year: "numeric" });
   const tail = scope ? <span className="text-faint"> · {scope}</span> : null;
   if (p.status === "done")
@@ -357,6 +438,26 @@ function GoalLine({ p, target, date, scope }: { p: GoalPlan; target: number; dat
         <span className="block">
           Mancano <span className="num sensitive">{fmtEur0(target - p.allocated)}</span>
         </span>
+      </>
+    );
+  if (odds && (p.status === "ok" || p.status === "late"))
+    return (
+      <>
+        <span className="block">
+          <span className={`num font-medium ${oddsTone(odds.prob)}`}>{probLabel(odds.prob)}</span> · {when}
+          {tail}
+        </span>
+        {odds.prob >= 0.8 ? (
+          p.funded > 0 && (
+            <span className="block">
+              <span className="num">{fmtEur0(p.funded)}</span> al mese del tuo versamento
+            </span>
+          )
+        ) : odds.extra80 > 0.5 ? (
+          <span className="block">
+            Per 8 su 10 servono <span className="num font-medium text-ink-2">+{fmtEur0(odds.extra80)}</span> al mese
+          </span>
+        ) : null}
       </>
     );
   if (p.status === "ok")
@@ -490,7 +591,9 @@ function Proiezione({
   years,
   setYears,
   goals,
-  plans,
+  met,
+  sim,
+  simFrom,
 }: {
   start: number;
   monthly: number;
@@ -498,26 +601,32 @@ function Proiezione({
   years: number;
   setYears: (y: number) => void;
   goals: Goal[];
-  plans: Map<string, GoalPlan>;
+  met: (id: string) => boolean;
+  /** Simulazioni Monte Carlo; senza (dati in arrivo) si mostra la proiezione a rendimento costante. */
+  sim: SimResult | null;
+  simFrom: string | null;
 }) {
-  const points = useMemo(() => {
+  const months = years * 12;
+  const dates = useMemo(() => {
     const now = new Date();
-    return Array.from({ length: years * 12 + 1 }, (_, m) => {
-      const d = new Date(now.getFullYear(), now.getMonth() + m, 1, 12);
-      return { date: d.toISOString().slice(0, 10), value: futureValue(start, monthly, rate, m) };
-    });
-  }, [start, monthly, rate, years]);
-  const contributed = useMemo(() => points.map((_, m) => start + monthly * m), [points, start, monthly]);
-  const marks = useMemo(
-    () => goals.map((g) => ({ date: g.date, value: g.target, met: ["done", "ok"].includes(plans.get(g.id)?.status ?? "") })),
-    [goals, plans],
+    return Array.from({ length: months + 1 }, (_, m) => new Date(now.getFullYear(), now.getMonth() + m, 1, 12).toISOString().slice(0, 10));
+  }, [months]);
+  // Linea: il risultato più probabile (mediana degli scenari) o, in attesa, quello a rendimento costante.
+  const points = useMemo(
+    () => dates.map((date, m) => ({ date, value: sim ? sim.p50[m] : futureValue(start, monthly, rate, m) })),
+    [dates, sim, start, monthly, rate],
   );
-  const beyond = goals.filter((g) => points.length && g.date > points[points.length - 1].date).length;
+  const band = useMemo(() => (sim ? { lo: sim.p10.slice(0, months + 1), hi: sim.p90.slice(0, months + 1) } : undefined), [sim, months]);
+  const contributed = useMemo(() => dates.map((_, m) => start + monthly * m), [dates, start, monthly]);
+  const marks = useMemo(() => goals.map((g) => ({ date: g.date, value: g.target, met: met(g.id) })), [goals, met]);
+  const beyond = goals.filter((g) => dates.length && g.date > dates[dates.length - 1]).length;
 
-  const end = futureValue(start, monthly, rate, years * 12);
-  const low = futureValue(start, monthly, Math.max(0, rate - 0.02), years * 12);
-  const high = futureValue(start, monthly, rate + 0.02, years * 12);
-  const paid = start + monthly * years * 12;
+  const end = points[months].value;
+  const low = sim ? sim.p10[months] : futureValue(start, monthly, Math.max(0, rate - 0.02), months);
+  const high = sim ? sim.p90[months] : futureValue(start, monthly, rate + 0.02, months);
+  const paid = start + monthly * months;
+  // In euro di oggi, con un'inflazione media del 2% l'anno.
+  const real = end / Math.pow(1.02, years);
 
   return (
     <>
@@ -525,12 +634,19 @@ function Proiezione({
       <div className="px-4 pt-1">
         <p className="text-[14px] text-mut">
           Tra {years} anni, nel {new Date().getFullYear() + years}
+          {sim ? ", il risultato più probabile" : ""}
         </p>
         <p className="hero-number num mt-1">{fmtEur0(end)}</p>
+        {sim && (
+          <p className="mt-2 text-[15px] text-ink-2">
+            8 volte su 10 tra <span className="num font-semibold">{fmtEur0(low)}</span> e <span className="num font-semibold">{fmtEur0(high)}</span>
+          </p>
+        )}
         <p className="mt-2 text-[14px] text-mut">
           <span className="num font-semibold text-ink-2">{fmtEur0(start)}</span> di oggi,{" "}
           <span className="num font-semibold text-ink-2">{fmtEur0(paid - start)}</span> di nuovi versamenti e{" "}
-          <span className="num font-semibold text-up">{fmtEur0(end - paid)}</span> di crescita
+          <span className={`num font-semibold ${end >= paid ? "text-up" : "text-dn"}`}>{fmtEur0(end - paid)}</span> di crescita.
+          {" "}Circa <span className="num font-semibold text-ink-2">{fmtEur0(real)}</span> di oggi.
         </p>
       </div>
 
@@ -538,28 +654,36 @@ function Proiezione({
         <InteractiveChart
           points={points}
           height={220}
+          band={band}
           compare={contributed}
           goals={marks}
           format={fmtEur0}
           formatAxis={(v) => (v >= 1_000_000 ? `${fmtN(v / 1_000_000, { maximumFractionDigits: 1 })}M €` : `${Math.round(v / 1000)}k €`)}
-          describePoint={(i) => `${fmtEur0(points[i].value)} · senza crescita ${fmtEur0(contributed[i])}`}
+          describePoint={(i) =>
+            sim ? `${fmtEur0(points[i].value)} · tra ${fmtEur0(sim.p10[i])} e ${fmtEur0(sim.p90[i])}` : `${fmtEur0(points[i].value)} · senza crescita ${fmtEur0(contributed[i])}`
+          }
           describeRange={(a, b) => `+${fmtEur0(points[b].value - points[a].value)}`}
         />
       </div>
       <p className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 pt-3 text-[13px] text-mut">
         <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-4 rounded bg-up" /> Valore atteso
+          <span className="h-0.5 w-4 rounded bg-up" /> {sim ? "Più probabile" : "Valore atteso"}
         </span>
+        {sim && (
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-4 rounded-[3px] bg-up/15" /> 8 casi su 10
+          </span>
+        )}
         <span className="flex items-center gap-1.5">
           <span className="w-4 border-t-2 border-dashed border-accent" /> Oggi + versamenti
         </span>
         {goals.length > 0 && (
           <>
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rotate-45 bg-up" /> Obiettivo in tempo
+              <span className="h-2 w-2 rotate-45 bg-up" /> {sim ? "Obiettivo probabile" : "Obiettivo in tempo"}
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rotate-45 border-2 border-warn" /> In ritardo
+              <span className="h-2 w-2 rotate-45 border-2 border-warn" /> {sim ? "A rischio" : "In ritardo"}
             </span>
           </>
         )}
@@ -581,10 +705,29 @@ function Proiezione({
       </Panel>
 
       <Panel className="mt-3">
-        <InfoRow label={`Se rende il ${fmtN(Math.max(0, rate - 0.02) * 100, { maximumFractionDigits: 1 })}%`} hint="Scenario prudente" value={fmtEur0(low)} />
-        <InfoRow label={`Se rende il ${fmtN((rate + 0.02) * 100, { maximumFractionDigits: 1 })}%`} hint="Scenario ottimista" value={fmtEur0(high)} />
+        {sim ? (
+          <>
+            <InfoRow label="Caso sfavorevole" hint="Una volta su 10 va peggio" value={fmtEur0(low)} />
+            <InfoRow label="Caso favorevole" hint="Una volta su 10 va meglio" value={fmtEur0(high)} />
+            <InfoRow
+              label="Sotto quanto hai versato"
+              hint={`Scenari che finiscono sotto ${fmtEur0(paid)}`}
+              value={sim.belowPaid < 0.005 ? "Quasi mai" : fmtPct(sim.belowPaid)}
+              valueClass={sim.belowPaid >= 0.1 ? "text-warn" : ""}
+            />
+          </>
+        ) : (
+          <>
+            <InfoRow label={`Se rende il ${fmtN(Math.max(0, rate - 0.02) * 100, { maximumFractionDigits: 1 })}%`} hint="Scenario prudente" value={fmtEur0(low)} />
+            <InfoRow label={`Se rende il ${fmtN((rate + 0.02) * 100, { maximumFractionDigits: 1 })}%`} hint="Scenario ottimista" value={fmtEur0(high)} />
+          </>
+        )}
       </Panel>
-      <p className="px-6 pb-2 pt-4 text-center text-[12px] leading-relaxed text-mut">Proiezione al lordo di tasse e inflazione, a rendimento costante.</p>
+      <p className="px-6 pb-2 pt-4 text-center text-[12px] leading-relaxed text-mut">
+        {sim
+          ? `${fmtN(sim.paths)} scenari costruiti con i mesi reali dei mercati${simFrom ? ` dal ${fmtDate(`${simFrom}-01`, { year: "numeric" })}` : ""} (azioni mondiali e titoli di Stato in euro), presi a blocchi di un anno e riportati al rendimento atteso del ${fmtN(rate * 100, { maximumFractionDigits: 1 })}%. Al lordo delle tasse.`
+          : "Proiezione al lordo di tasse e inflazione, a rendimento costante."}
+      </p>
     </>
   );
 }

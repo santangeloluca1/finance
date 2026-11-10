@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { EventLegend, InteractiveChart, type ChartEvent } from "@/components/InteractiveChart";
 import { MonthRecap } from "@/components/MonthRecap";
+import { Rischio } from "@/components/home/Rischio";
+import { useRisk } from "@/lib/risk-client";
+import { fromPeak } from "@/lib/risk";
 import { contributions, type Contribution } from "@/lib/contributions";
 import { InfoRow, Logo, Panel, RangePicker, SectionHeader, Segmented, SelectButton } from "@/components/ui";
 import { RANGES, RANGE_LABEL, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
@@ -79,6 +82,8 @@ export function Prestazioni({
     ]);
   }, [history, totals, state]);
   const months = useMemo(() => monthlyReturns(twrAll), [twrAll]);
+  const { risk, loading: riskLoading } = useRisk(views, bench === "none" ? null : bench);
+  const nowFromPeak = twrAll.length > 20 ? fromPeak(twrAll.map((p) => ({ value: 1 + p.value }))) : null;
 
   // Vendite e cedole sulla linea del tempo (gli acquisti ricorrenti la affollerebbero).
   const events = useMemo<ChartEvent[]>(() => {
@@ -216,6 +221,8 @@ export function Prestazioni({
         />
         <InfoRow label="Rendimento annuo dei tuoi soldi" hint="Dal primo versamento, tiene conto di quando hai investito" value={irr !== null ? fmtSignedPct(irr) : "—"} valueClass={tone(irr ?? 0)} />
       </Panel>
+
+      <Rischio risk={risk} loading={riskLoading} benchLabel={bench === "none" ? null : (BENCHMARKS.find((b) => b.value === bench)?.label ?? null)} nowFromPeak={nowFromPeak} />
 
       {/* Contributo di ogni titolo */}
       {/* Stesso periodo del grafico: cambiando uno cambia anche l'altro. */}
