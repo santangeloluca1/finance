@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
 /**
- * Controllo rapido sul cookie di sessione: senza sessione le pagine portano
- * all'accesso e le API rispondono 401. La verifica completa avviene lato server.
+ * Solo un controllo preliminare veloce: guarda che il cookie di sessione esista,
+ * non che sia valido (un cookie inventato passa). Senza cookie le pagine portano
+ * all'accesso e le API rispondono 401; ogni API verifica poi davvero la sessione
+ * con sessionUserId/requireUser (src/lib/session.ts).
  */
 export function middleware(req: NextRequest) {
   if (getSessionCookie(req)) return NextResponse.next();

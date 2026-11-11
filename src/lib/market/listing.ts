@@ -1,6 +1,10 @@
 import { adrFor } from "./adr";
 import { searchYahoo } from "./yahoo";
 
+/** Simboli in stile Yahoo (VWCE.DE, BRK-B, ^GSPC, EURUSD=X): niente altro arriva ai servizi esterni. */
+export const TICKER_RE = /^[A-Z0-9^][A-Z0-9.\-=^&]{0,23}$/i;
+export const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
+
 const US = ["NMS", "NYQ", "NGM", "NCM", "ASE", "PCX", "BTS"];
 
 /**
@@ -8,6 +12,7 @@ const US = ["NMS", "NYQ", "NGM", "NCM", "ASE", "PCX", "BTS"];
  * serve per notizie e dati degli analisti, che i servizi gratuiti hanno solo per gli USA.
  */
 export async function usSymbol(ticker: string, isin?: string | null, name?: string | null): Promise<string | null> {
+  if (!TICKER_RE.test(ticker)) return null;
   if (!ticker.includes(".") && !ticker.includes("-")) return ticker;
   // Aziende europee: quotazione USA dalla tabella verificata, mai indovinata dal nome.
   const adr = adrFor(ticker, isin);

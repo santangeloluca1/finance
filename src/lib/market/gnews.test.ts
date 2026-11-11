@@ -27,4 +27,10 @@ describe("Google News", () => {
     expect(items[0].time).toBe(Date.parse("2026-11-09T10:00:00Z"));
     expect(items[1].publisher).toBe("SoldiOnline.it");
   });
+
+  it("scarta i link che non sono https", () => {
+    const item = (link: string) => `<item><title>Notizia ${link}</title><link>${link}</link><source url="x">X</source></item>`;
+    const xml = `<rss>${["javascript:alert(1)", "http://example.com/a", "data:text/html,x", "https://news.google.com/ok"].map(item).join("")}</rss>`;
+    expect(parseRss(xml).map((i) => i.link)).toEqual(["https://news.google.com/ok"]);
+  });
 });

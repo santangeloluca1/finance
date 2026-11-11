@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BusyError, generate, generateStream } from "./provider";
+import { BusyError, generate, generateStream, parseTurns } from "./provider";
 
 const ok = (text: string) => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }), { status: 200 });
 const busy = () => new Response(JSON.stringify({ error: { code: 503 } }), { status: 503 });
@@ -70,5 +70,16 @@ describe("chiamata al modello con ripiego", () => {
     vi.stubEnv("GEMINI_API_KEY", "x");
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 429 })));
     await expect(generate({ system: "s", turns: [{ role: "user", text: "q" }] })).rejects.toBeInstanceOf(BusyError);
+  });
+});
+
+describe("messaggi dal client", () => {
+  it("accetta solo ruoli noti con testo", () => {
+    expect(parseTurns(undefined)).toEqual([]);
+    expect(parseTurns([{ role: "user", text: "ciao", extra: 1 }])).toEqual([{ role: "user", text: "ciao" }]);
+    expect(parseTurns([{ role: "system", text: "x" }])).toBeNull();
+    expect(parseTurns([{ role: "user", text: 3 }])).toBeNull();
+    expect(parseTurns([null])).toBeNull();
+    expect(parseTurns("ciao")).toBeNull();
   });
 });

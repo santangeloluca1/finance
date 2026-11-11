@@ -1,11 +1,31 @@
-import { Pool } from "pg";
+import { Pool, type PoolConfig } from "pg";
 
 /** Connessione a Postgres (Neon su Vercel). Undefined se non configurata. */
 const connectionString = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
 
-export const pool = connectionString
-  ? new Pool({ connectionString, max: 3, ssl: /localhost|127\.0\.0\.1/.test(connectionString) ? undefined : { rejectUnauthorized: false } })
-  : undefined;
+/**
+ * Fuori da localhost sempre TLS con certificato verificato (Neon ha un certificato pubblico).
+ * Lo sslmode dell'URL si toglie: pg lo farebbe prevalere sull'opzione ssl qui sotto
+ * (e per "require" stampa un avviso di deprecazione). sslmode=disable resta rispettato.
+ * DATABASE_SSL_INSECURE=1 accetta qualsiasi certificato: solo per server con certificato
+ * autofirmato su una rete fidata, perché espone a intercettazioni (man in the middle).
+ */
+function poolConfig(url: string): PoolConfig {
+  if (/localhost|127\.0\.0\.1/.test(url)) return { connectionString: url, max: 3 };
+  let cs = url;
+  try {
+    const u = new URL(url);
+    if (u.searchParams.get("sslmode") === "disable") return { connectionString: url, max: 3 };
+    u.searchParams.delete("sslmode");
+    u.searchParams.delete("uselibpqcompat");
+    cs = u.toString();
+  } catch {
+    // URL non standard (es. più host): lo si passa com'è.
+  }
+  return { connectionString: cs, max: 3, ssl: process.env.DATABASE_SSL_INSECURE === "1" ? { rejectUnauthorized: false } : { rejectUnauthorized: true } };
+}
+
+export const pool = connectionString ? new Pool(poolConfig(connectionString)) : undefined;
 
 let ready: Promise<void> | null = null;
 

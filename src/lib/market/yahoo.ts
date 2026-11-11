@@ -175,6 +175,16 @@ export interface NewsItem {
   time: number;
 }
 
+/** Solo link https: le notizie diventano <a href> nella pagina. */
+export function isHttpsUrl(s: unknown): s is string {
+  if (typeof s !== "string") return false;
+  try {
+    return new URL(s).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /** Ultime notizie Yahoo su un titolo (in inglese). */
 export function getNews(q: string, count = 8): Promise<NewsItem[]> {
   return cached(`n:${q}`, 15 * 60_000, async () => {
@@ -184,6 +194,6 @@ export function getNews(q: string, count = 8): Promise<NewsItem[]> {
     });
     if (!res.ok) return [];
     const json = (await res.json()) as { news?: { title: string; publisher: string; link: string; providerPublishTime: number }[] };
-    return (json.news ?? []).map((n) => ({ title: n.title, publisher: n.publisher, link: n.link, time: n.providerPublishTime * 1000 }));
+    return (json.news ?? []).filter((n) => isHttpsUrl(n.link)).map((n) => ({ title: n.title, publisher: n.publisher, link: n.link, time: n.providerPublishTime * 1000 }));
   });
 }

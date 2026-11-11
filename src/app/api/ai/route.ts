@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { describeProfile, type InvestorProfile } from "@/lib/ai/profile";
 import { analysisPrompt, ANALYSES, BASE_RULES, CHAT_RULES, REPORT_SCHEMA, type AnalysisId, type Report } from "@/lib/ai/prompts";
-import { aiConfigured, generate, NoKeyError, type ChatTurn } from "@/lib/ai/provider";
-import { sessionUserId } from "@/lib/session";
+import { aiConfigured, generate, NoKeyError, parseTurns, type ChatTurn } from "@/lib/ai/provider";
+import { requireUser, sessionUserId } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,9 @@ type Body =
   | { kind: "chat"; messages: ChatTurn[]; context: unknown; profile?: InvestorProfile };
 
 /** Stato della configurazione (chiave presente?). */
-export async function GET() {
+export async function GET(req: Request) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   return NextResponse.json({ configured: aiConfigured() });
 }
 
@@ -26,7 +28,14 @@ export async function POST(req: Request) {
   if (!aiConfigured()) return NextResponse.json({ status: "nokey" });
   const raw = await req.text();
   if (raw.length > 600_000) return NextResponse.json({ message: "Dati troppo grandi" }, { status: 413 });
-  const body = JSON.parse(raw) as Body;
+  let body: Body;
+  try {
+    body = JSON.parse(raw) as Body;
+  } catch {
+    return NextResponse.json({ message: "Dati non validi" }, { status: 400 });
+  }
+  const turns = body?.kind === "chat" ? parseTurns(body.messages) : [];
+  if (!body || (body.kind !== "analysis" && body.kind !== "chat") || !turns) return NextResponse.json({ message: "Dati non validi" }, { status: 400 });
   const data = `PROFILO DELL'INVESTITORE\n${describeProfile(body.profile)}\n\nDATI DEL PORTAFOGLIO (JSON, calcolati da Basis)\n${JSON.stringify(body.context)}`;
 
   try {
@@ -41,7 +50,7 @@ export async function POST(req: Request) {
       const report = JSON.parse(text) as Report;
       return NextResponse.json({ status: "ok", report });
     }
-    const messages = (body.messages ?? []).slice(-12);
+    const messages = turns.slice(-12);
     const text = await generate({
       system: `${BASE_RULES}\n\n${CHAT_RULES}`,
       turns: [{ role: "user", text: data }, { role: "assistant", text: "Ho letto profilo e portafoglio. Dimmi pure." }, ...messages],

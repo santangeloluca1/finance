@@ -25,6 +25,8 @@ const allowed = (process.env.ALLOWED_EMAILS ?? "")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
+const CLOSED = "Basis è un'app personale: le registrazioni sono chiuse.";
+
 export const authOptions: BetterAuthOptions = {
   appName: "Basis",
   baseURL,
@@ -38,7 +40,24 @@ export const authOptions: BetterAuthOptions = {
   secret: process.env.BETTER_AUTH_SECRET,
   database: pool,
   emailAndPassword: { enabled: true, minPasswordLength: 8, autoSignIn: true },
-  session: { expiresIn: 60 * 60 * 24 * 60, updateAge: 60 * 60 * 24 },
+  // La sessione viaggia anche in un cookie firmato valido 5 minuti: le API dei prezzi,
+  // chiamate spesso, la verificano senza interrogare il database. Un'uscita o una
+  // sessione revocata hanno quindi effetto sugli altri dispositivi entro 5 minuti.
+  session: { expiresIn: 60 * 60 * 24 * 60, updateAge: 60 * 60 * 24, cookieCache: { enabled: true, maxAge: 5 * 60 } },
+  // Limiti sui tentativi salvati nel database: in memoria non funzionerebbero su Vercel
+  // (ogni istanza ha i suoi contatori). L'IP è quello di x-forwarded-for, che Vercel riscrive.
+  rateLimit: {
+    enabled: process.env.NODE_ENV === "production",
+    storage: "database",
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 300, max: 10 },
+      "/sign-up/email": { window: 3600, max: 5 },
+      // Letta dal client a ogni apertura: con la cache nel cookie non tocca il database, il limite sì.
+      "/get-session": false,
+    },
+  },
   databaseHooks: {
     user: {
       create: {
@@ -49,9 +68,20 @@ export const authOptions: BetterAuthOptions = {
             throw new APIError("FORBIDDEN", { message: "Basis è un'app personale: questa email non è abilitata." });
           }
           const { rows } = await pool!.query<{ n: string }>('select count(*) as n from "user"');
-          if (Number(rows[0].n) > 0) {
-            throw new APIError("FORBIDDEN", { message: "Basis è un'app personale: le registrazioni sono chiuse." });
-          }
+          if (Number(rows[0].n) > 0) throw new APIError("FORBIDDEN", { message: CLOSED });
+        },
+        // Il conteggio qui sopra non è atomico: due registrazioni simultanee lo superano
+        // entrambe. Dopo il commit si tiene solo l'account più vecchio e si eliminano gli
+        // altri appena creati (sessioni e dati seguono per cascata). Chi arriva per ultimo
+        // vede tutti gli account, quindi almeno lui fa pulizia.
+        after: async (user) => {
+          if (allowed.length) return;
+          const { rows } = await pool!.query<{ keep: string }>(
+            `with keep as (select id from "user" order by "createdAt", id limit 1),
+                  gone as (delete from "user" where id <> (select id from keep) and "createdAt" > now() - interval '10 minutes')
+             select id as keep from keep`,
+          );
+          if (rows[0]?.keep !== user.id) throw new APIError("FORBIDDEN", { message: CLOSED });
         },
       },
     },

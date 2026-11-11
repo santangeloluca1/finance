@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { parseTradegate, tradegateOpen, tradegateTime } from "./tradegate";
-import { bestQuote, parseEntries } from "./sources";
+import { bestQuote, MAX_ENTRIES, parseEntries } from "./sources";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -66,5 +66,12 @@ describe("scelta della quotazione", () => {
 
   test("legge le richieste simbolo~ISIN", () => {
     expect(parseEntries("SPPW.DE~IE00BFY0GT14,AAPL,SPPW.DE")).toEqual([{ ticker: "SPPW.DE", isin: "IE00BFY0GT14" }, { ticker: "AAPL", isin: undefined }]);
+  });
+
+  test("scarta simboli strani e limita il numero di titoli", () => {
+    expect(parseEntries("BRK-B,^GSPC,EURUSD=X,a/b,x?y=1,../etc,AAAAAAAAAAAAAAAAAAAAAAAAA").map((e) => e.ticker)).toEqual(["BRK-B", "^GSPC", "EURUSD=X"]);
+    expect(parseEntries("VWCE.DE~notanisin")).toEqual([{ ticker: "VWCE.DE", isin: undefined }]);
+    const many = Array.from({ length: 200 }, (_, i) => `T${i}`).join(",");
+    expect(parseEntries(many)).toHaveLength(MAX_ENTRIES);
   });
 });

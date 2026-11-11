@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { runNotifications } from "@/lib/notify-server";
 import { sessionUserId } from "@/lib/session";
@@ -8,6 +9,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/** Confronto a tempo costante: gli hash hanno sempre la stessa lunghezza, anche se i segreti no. */
+function sameSecret(a: string, b: string) {
+  const h = (s: string) => createHash("sha256").update(s).digest();
+  return timingSafeEqual(h(a), h(b));
+}
+
 /**
  * Controllo pianificato degli avvisi. Accetta Authorization: Bearer con
  * $CRON_SECRET (cron di Vercel, servizi esterni) oppure il token OIDC del
@@ -16,7 +23,7 @@ export const maxDuration = 60;
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  const allowed = (!!secret && bearer === secret) || (bearer.split(".").length === 3 && (await verifyGithubOidc(bearer).catch(() => false)));
+  const allowed = (!!secret && sameSecret(bearer, secret)) || (bearer.split(".").length === 3 && (await verifyGithubOidc(bearer).catch(() => false)));
   if (!allowed) return NextResponse.json({ message: "Non autorizzato" }, { status: 401 });
   const source = new URL(req.url).searchParams.get("slot") ?? "cron";
   let reports;
