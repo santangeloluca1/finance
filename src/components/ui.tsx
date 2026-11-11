@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ChevronDown, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 import { fmtSignedEur, fmtSignedPct } from "@/lib/format";
 
 /** Misura unica dei titoli di pagina (anche le schede della Home). */
@@ -24,7 +25,8 @@ export function LargeTitle({ children, right }: { children: ReactNode; right?: R
  * Stessa misura ovunque, nel titolo di pagina e nelle intestazioni di sezione.
  */
 export function IconButton({ href, onClick, label, children }: { href?: string; onClick?: () => void; label: string; children: ReactNode }) {
-  const cls = "press flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chip text-ink";
+  // Disegno da 36 px, area di tocco da 44 (vedi .hit in globals.css).
+  const cls = "press hit relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-chip text-ink";
   return href ? (
     <Link href={href} aria-label={label} title={label} className={cls}>
       {children}
@@ -156,7 +158,7 @@ export function Chip({ active, onClick, children }: { active?: boolean; onClick?
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[15px] font-semibold transition-colors ${
+      className={`hit relative flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[15px] font-semibold transition-colors ${
         active ? "bg-chip text-ink" : "text-mut active:opacity-60"
       }`}
     >
@@ -166,7 +168,8 @@ export function Chip({ active, onClick, children }: { active?: boolean; onClick?
 }
 
 export function ChipRow({ children }: { children: ReactNode }) {
-  return <div className="no-scrollbar flex gap-2 overflow-x-auto px-4">{children}</div>;
+  // Padding verticale compensato: la fila scorre e ritaglierebbe l'area di tocco delle pillole.
+  return <div className="no-scrollbar -my-1 flex gap-2 overflow-x-auto px-4 py-1">{children}</div>;
 }
 
 /** Controllo segmentato iOS, con la pillola che scivola sull'opzione scelta. */
@@ -189,13 +192,13 @@ export function Segmented<T extends string>({
         className="slide-ind absolute bottom-[3px] left-[3px] top-[3px] rounded-[8px] bg-panel shadow-[0_1px_3px_rgb(0_0_0/0.12)]"
         style={{ width: `calc((100% - 6px) / ${options.length})`, transform: `translateX(${i * 100}%)` }}
       />
-      {options.map((o) => (
+      {options.map((o, k) => (
         <button
           key={o.value}
           role="tab"
           aria-selected={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`relative flex-1 rounded-[8px] font-semibold transition-colors ${size === "sm" ? "px-2.5 py-1" : "px-2 py-1.5"} ${value === o.value ? "text-ink" : "text-mut"}`}
+          className={`hit-y relative flex-1 rounded-[8px] font-semibold transition-colors ${k === 0 ? "hit-start" : ""} ${k === options.length - 1 ? "hit-end" : ""} ${size === "sm" ? "px-2.5 py-1" : "px-2 py-1.5"} ${value === o.value ? "text-ink" : "text-mut"}`}
         >
           {o.label}
         </button>
@@ -234,7 +237,8 @@ export function SelectButton<T extends string>({
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        className="absolute inset-0 cursor-pointer appearance-none opacity-0"
+        // Il menu invisibile copre il testo e lo supera fino a 44×44 px; a 16 px Safari non ingrandisce la pagina.
+        className="absolute inset-[min(0px,calc(50%-22px))] cursor-pointer appearance-none text-[16px] opacity-0"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -313,7 +317,7 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors disabled:opacity-40 ${checked ? "bg-up" : "bg-mut/30"}`}
+      className={`hit relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors disabled:opacity-40 ${checked ? "bg-up" : "bg-mut/30"}`}
     >
       <span className={`absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgb(0_0_0/0.2)] transition-transform ${checked ? "translate-x-[20px]" : ""}`} />
     </button>
@@ -347,12 +351,42 @@ export function RangePicker<T extends string>({ value, onChange, options, label 
           type="button"
           onClick={() => onChange(r)}
           aria-pressed={value === r}
-          className={`press num relative h-8 min-w-[44px] rounded-full px-2 text-[13px] font-semibold tracking-[0.01em] transition-colors ${value === r ? `text-ink ${pos ? "" : "bg-chip"}` : "text-mut active:text-ink"}`}
+          className={`press hit num relative h-8 min-w-[44px] rounded-full px-2 text-[13px] font-semibold tracking-[0.01em] transition-colors ${value === r ? `text-ink ${pos ? "" : "bg-chip"}` : "text-mut active:text-ink"}`}
         >
           {r}
         </button>
       ))}
     </div>
+  );
+}
+
+/** Pannello che sale dal basso, sopra la pagina. */
+export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  // Sul body: un antenato animato (transform) intrappolerebbe il "fixed" sotto la barra delle schede.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={title}>
+      <button aria-label="Chiudi" onClick={onClose} className="fade-in absolute inset-0 bg-black/40" />
+      <div className="page-in relative max-h-[90dvh] w-full max-w-[560px] overflow-y-auto rounded-t-[24px] bg-bg pb-[max(16px,env(safe-area-inset-bottom))] shadow-2xl">
+        <div className="flex items-center justify-between px-4 pb-3 pt-4">
+          <h2 className="text-[19px] font-bold tracking-[-0.02em]">{title}</h2>
+          <button onClick={onClose} aria-label="Chiudi" className="flex h-11 w-11 items-center justify-center rounded-full text-mut active:bg-chip">
+            <X size={20} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }
 

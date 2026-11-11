@@ -134,6 +134,35 @@ input[type="range"] {
   scrollbar-width: none;
 }
 
+/* ---------- Area di tocco: almeno 44×44 px senza cambiare aspetto né impaginazione ----------
+   Uno pseudo-elemento invisibile allarga la zona sensibile attorno all'elemento,
+   che deve essere `relative` (o `absolute`). Nel livello "components": le utility
+   di Tailwind restano più forti. Un contenitore che scorre ritaglia l'area: lì serve
+   un po' di padding compensato da un margine negativo. */
+@layer components {
+  .hit::after,
+  .hit-y::after {
+    content: "";
+    position: absolute;
+    top: min(0px, calc(50% - 22px));
+    bottom: min(0px, calc(50% - 22px));
+    left: min(0px, calc(50% - 22px));
+    right: min(0px, calc(50% - 22px));
+  }
+  /* Solo in altezza: in larghezza toccherebbe gli elementi accanto. */
+  .hit-y::after {
+    left: 0;
+    right: 0;
+  }
+  /* Primo e ultimo di una fila: si allargano verso l'esterno. */
+  .hit-y.hit-start::after {
+    left: min(0px, calc(100% - 44px));
+  }
+  .hit-y.hit-end::after {
+    right: min(0px, calc(100% - 44px));
+  }
+}
+
 /* Un solo carattere (SF dell'iPhone); le cifre sono sempre tabellari. */
 .hero-number {
   font-size: 44px;

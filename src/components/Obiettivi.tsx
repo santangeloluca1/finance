@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { Check, GripVertical, Minus, Plus, Trash2, X } from "lucide-react";
+import { Check, GripVertical, Minus, Plus, Trash2 } from "lucide-react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
 import { InteractiveChart } from "@/components/InteractiveChart";
 import { ComeInvesti, DoveInvestire } from "@/components/Allocazione";
-import { Chip, InfoRow, LargeTitle, Panel, SectionHeader, SelectButton } from "@/components/ui";
+import { Chip, InfoRow, LargeTitle, Panel, SectionHeader, SelectButton, Sheet } from "@/components/ui";
 import { fmtDate, fmtEur0, fmtN, fmtPct } from "@/lib/format";
 import { expectedReturn, fromSaved, groupOf, normalize, toSaved, type Group, type Weights } from "@/lib/allocation";
 import { futureValue, monthsUntil, planGoals, type GoalPlan } from "@/lib/planning";
@@ -172,7 +171,7 @@ export function Obiettivi({ embedded = false }: { embedded?: boolean }) {
       {goals.length === 0 ? (
         <div className="px-4 pt-1">
           <p className="text-[15px] leading-snug text-mut">Aggiungi un traguardo con importo e data: ti diciamo se ci arrivi e quanto mettere da parte. Parti da uno di questi:</p>
-          <div className="-mx-1 mt-2 flex flex-wrap gap-1">
+          <div className="-mx-1 mt-2 flex flex-wrap gap-x-1 gap-y-2">
             {SUGGESTIONS.map((s) => (
               <Chip key={s.name} onClick={() => newGoal({ name: s.name, target: s.target, date: `${new Date().getFullYear() + s.years}-12-31`, scope: s.scope })}>
                 <Plus size={15} strokeWidth={2.4} /> {s.name}
@@ -488,36 +487,6 @@ function GoalLine({ p, odds, target, date, scope }: { p: GoalPlan; odds?: Odds; 
   );
 }
 
-/** Pannello che sale dal basso, sopra la pagina. */
-function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
-  // Sul body: un antenato animato (transform) intrappolerebbe il "fixed" sotto la barra delle schede.
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={title}>
-      <button aria-label="Chiudi" onClick={onClose} className="fade-in absolute inset-0 bg-black/40" />
-      <div className="page-in relative max-h-[90dvh] w-full max-w-[560px] overflow-y-auto rounded-t-[24px] bg-bg pb-[max(16px,env(safe-area-inset-bottom))] shadow-2xl">
-        <div className="flex items-center justify-between px-4 pb-3 pt-4">
-          <h2 className="text-[19px] font-bold tracking-[-0.02em]">{title}</h2>
-          <button onClick={onClose} aria-label="Chiudi" className="flex h-11 w-11 items-center justify-center rounded-full text-mut active:bg-chip">
-            <X size={20} />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
 function GoalForm({ initial, accounts, isNew, onDone }: { initial: Goal; accounts: { id: string; name: string; color: string }[]; isNew: boolean; onDone: () => void }) {
   const [name, setName] = useState(initial.name);
   const [target, setTarget] = useState(initial.target ? String(initial.target) : "");
@@ -700,7 +669,7 @@ function Proiezione({
             <span className="text-[12px] font-medium text-mut">Orizzonte</span>
             <span className="num text-[15px] font-semibold">{years} anni</span>
           </div>
-          <input type="range" min={1} max={40} value={years} onChange={(e) => setYears(Number(e.target.value))} aria-label="Orizzonte in anni" className="mt-2 w-full" />
+          <input type="range" min={1} max={40} value={years} onChange={(e) => setYears(Number(e.target.value))} aria-label="Orizzonte in anni" className="-mb-3.5 -mt-1.5 block h-11 w-full" />
         </div>
       </Panel>
 

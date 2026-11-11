@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { CircleHelp } from "lucide-react";
 import { EventLegend, InteractiveChart, type ChartEvent } from "@/components/InteractiveChart";
 import { MonthRecap } from "@/components/MonthRecap";
 import { Rischio } from "@/components/home/Rischio";
 import { useRisk } from "@/lib/risk-client";
 import { fromPeak } from "@/lib/risk";
 import { contributions, type Contribution } from "@/lib/contributions";
-import { InfoRow, Logo, Panel, RangePicker, SectionHeader, Segmented, SelectButton } from "@/components/ui";
+import { InfoRow, Logo, Panel, RangePicker, SectionHeader, Segmented, SelectButton, Sheet } from "@/components/ui";
 import { RANGES, RANGE_LABEL, RANGE_PHRASE, rangeStart, type Range } from "@/lib/range";
 import { BENCHMARKS as BASE_BENCHMARKS } from "@/lib/benchmarks";
 import { BigAmount } from "@/components/BigAmount";
@@ -51,6 +52,7 @@ export function Prestazioni({
   const [range, setRange] = useState<Range>("1A");
   const [contribUnit, setContribUnit] = useState<"eur" | "pct">("pct");
   const [bench, setBench] = useState<Bench>("SWDA.MI");
+  const [why, setWhy] = useState(false);
   const [benchSeries, setBenchSeries] = useState<[string, number][] | null>(null);
 
   const day = range === "1G";
@@ -166,7 +168,7 @@ export function Prestazioni({
         </div>
       </div>
       <p className="num mt-2 px-4 text-[14px] text-mut">
-        {day ? (intraday && !intraday.today && twr.length ? "Ultima seduta, sulla chiusura precedente" : "Variazione sulla chiusura di ieri") : "Rendimento ponderato nel tempo"}{annual !== null ? ` · ${fmtSignedPct(annual)} all'anno` : ""}
+        {day ? (intraday && !intraday.today && twr.length ? "Ultima seduta, sulla chiusura precedente" : "Variazione sulla chiusura di ieri") : "Rendimento dei titoli"}{annual !== null ? ` · ${fmtSignedPct(annual)} all'anno` : ""}
       </p>
 
       {/* Grafico rendimento vs indice */}
@@ -219,8 +221,12 @@ export function Prestazioni({
           value={benchTotal !== null ? fmtSignedPct(benchTotal) : "—"}
           valueClass={tone(benchTotal ?? 0)}
         />
-        <InfoRow label="Rendimento annuo dei tuoi soldi" hint="Dal primo versamento, tiene conto di quando hai investito" value={irr !== null ? fmtSignedPct(irr) : "—"} valueClass={tone(irr ?? 0)} />
+        <InfoRow label="Rendimento annuo dei tuoi soldi" hint="Dal primo acquisto, tiene conto di quando hai investito" value={irr !== null ? fmtSignedPct(irr) : "—"} valueClass={tone(irr ?? 0)} />
       </Panel>
+      <button onClick={() => setWhy(true)} className="mx-4 flex min-h-[44px] items-center gap-1.5 text-[14px] font-medium text-accent active:opacity-50">
+        <CircleHelp size={16} /> Perché questi numeri sono diversi?
+      </button>
+      {why && <WhyDifferent onClose={() => setWhy(false)} />}
 
       {/* Contributo di ogni titolo */}
       {/* Stesso periodo del grafico: cambiando uno cambia anche l'altro. */}
@@ -276,6 +282,45 @@ export function Prestazioni({
       {/* Rendimenti mensili */}
       <MonthBars months={months} years={years} />
     </div>
+  );
+}
+
+/** I quattro numeri del rendimento, ognuno con la domanda a cui risponde. */
+function WhyDifferent({ onClose }: { onClose: () => void }) {
+  const items = [
+    {
+      title: "Rendimento dei titoli",
+      where: "Sopra il grafico, qui e in Home",
+      text: "Quanto hanno reso i titoli nel periodo scelto, senza contare quando hai versato: è quello da confrontare con l'indice.",
+    },
+    {
+      title: "Rendimento annuo dei tuoi soldi",
+      where: "Qui sopra",
+      text: "Quanto hanno reso i tuoi soldi all'anno, dal primo acquisto, tenendo conto di quando li hai investiti.",
+    },
+    {
+      title: "Guadagno totale",
+      where: "In Home, sotto «In sintesi»",
+      text: "Tutto quello che hai guadagnato, vendite e cedole comprese, rispetto a quanto hai pagato i titoli che hai oggi.",
+    },
+    {
+      title: "Valore del portafoglio",
+      where: "In Home, il numero grande",
+      text: "Comprende anche la liquidità, che nei rendimenti non entra.",
+    },
+  ];
+  return (
+    <Sheet title="Perché questi numeri sono diversi?" onClose={onClose}>
+      <ul className="px-4 pb-2">
+        {items.map((it) => (
+          <li key={it.title} className="border-b border-sep py-3 last:border-0">
+            <p className="text-[16px] font-semibold">{it.title}</p>
+            <p className="text-[12px] text-mut">{it.where}</p>
+            <p className="mt-1 text-[15px] leading-snug text-ink-2">{it.text}</p>
+          </li>
+        ))}
+      </ul>
+    </Sheet>
   );
 }
 
@@ -357,7 +402,8 @@ function MonthBars({ months, years }: { months: Record<string, number>; years: s
                 onClick={() => setOpen(open === i ? null : i)}
                 aria-label={v === undefined ? `${MONTH_NAMES[i]}: nessun dato` : `${MONTH_NAMES[i]}: ${fmtSignedPct(v)}`}
                 aria-pressed={open === i}
-                className="relative h-full"
+                // L'area di tocco copre anche metà dello spazio tra le barre: 27 px, il massimo con 12 mesi in fila.
+                className="relative h-full after:absolute after:inset-y-0 after:-left-[3px] after:-right-[3px]"
               >
                 {v !== undefined && (
                   <span

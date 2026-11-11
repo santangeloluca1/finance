@@ -90,7 +90,7 @@ export function MonthRecap() {
         <button
           aria-label="Chiudi il riepilogo del mese"
           onClick={() => dismissAlert(id)}
-          className="absolute right-1.5 top-1.5 flex h-10 w-10 items-center justify-center text-white/80 active:opacity-50"
+          className="hit absolute right-1.5 top-1.5 flex h-10 w-10 items-center justify-center text-white/80 active:opacity-50"
         >
           <X size={19} />
         </button>

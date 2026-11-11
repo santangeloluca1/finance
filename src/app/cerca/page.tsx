@@ -136,7 +136,7 @@ export default function Cerca() {
           <LoaderCircle size={17} className="shrink-0 animate-spin text-mut" />
         ) : (
           q && (
-            <button onClick={() => setQ("")} aria-label="Cancella la ricerca" className="-mr-1 flex h-8 w-8 items-center justify-center text-mut">
+            <button onClick={() => setQ("")} aria-label="Cancella la ricerca" className="hit relative -mr-1 flex h-8 w-8 items-center justify-center text-mut">
               <X size={17} />
             </button>
           )

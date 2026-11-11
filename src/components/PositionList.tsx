@@ -153,7 +153,7 @@ function ChangeToggle({ abs, pct }: { abs: number; pct: number }) {
       aria-label={`Variazione ${unit === "eur" ? fmtSignedEur(abs) : fmtSignedPct(pct)}: tocca per vederla in ${unit === "eur" ? "percentuale" : "euro"}`}
       onClick={flip}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && flip(e)}
-      className={`change-toggle num -my-2 -mr-2 inline-block rounded-lg py-2 pl-3 pr-2 text-[14px] font-medium active:bg-chip ${cls} ${unit === "eur" ? "sensitive" : ""}`}
+      className={`change-toggle hit num relative -my-2 -mr-2 inline-block rounded-lg py-2 pl-3 pr-2 text-[14px] font-medium active:bg-chip ${cls} ${unit === "eur" ? "sensitive" : ""}`}
     >
       {ref > eps ? "↗ " : ref < -eps ? "↘ " : ""}
       {unit === "eur" ? fmtSignedEur(abs) : fmtSignedPct(pct)}
