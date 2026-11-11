@@ -6,11 +6,17 @@ updates:
       interval: weekly
     open-pull-requests-limit: 10
     groups:
-      # Minori e patch in un'unica PR settimanale; le major restano separate.
+      # Minori e patch in un'unica PR settimanale.
       minor-patch:
         update-types:
           - minor
           - patch
+    # Niente salti di versione maggiore: richiedono modifiche al codice e si fanno a mano.
+    # Gli aggiornamenti di sicurezza arrivano comunque.
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: github-actions
     directory: /
     schedule:
