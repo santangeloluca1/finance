@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeftRight, ChartLine, ChartPie, House, Landmark } from "lucide-react";
+import { ChartLine, ChartPie, House, Landmark, Sparkles } from "lucide-react";
 
 const TABS = [
   { href: "/", label: "Home", icon: House },
-  { href: "/posizioni", label: "Titoli", icon: ChartPie },
+  // Movimenti si apre dall'intestazione di Titoli: la scheda resta accesa anche lì.
+  { href: "/posizioni", label: "Titoli", icon: ChartPie, also: ["/movimenti"] },
   { href: "/analisi", label: "Analisi", icon: ChartLine },
   { href: "/fisco", label: "Fisco", icon: Landmark },
-  { href: "/movimenti", label: "Movimenti", icon: ArrowLeftRight },
+  { href: "/consulente", label: "Basis AI", icon: Sparkles },
 ];
 
 export function TabBar() {
   const path = usePathname();
-  // Niente barra sulla schermata di accesso e mentre si compila un movimento (si esce con "Annulla").
+  // Niente barra sulla schermata di accesso, mentre si compila un movimento (si esce con "Annulla") e nella chat.
   if (path.startsWith("/accedi") || path.startsWith("/movimenti/nuovo") || path.startsWith("/consulente/chat")) return null;
   return (
     <nav
@@ -23,8 +24,9 @@ export function TabBar() {
       style={{ paddingBottom: "max(env(safe-area-inset-bottom), 6px)" }}
     >
       <ul className="mx-auto grid max-w-xl grid-cols-5">
-        {TABS.map(({ href, label, icon: Icon }) => {
-          const active = href === "/" ? path === "/" || path.startsWith("/impostazioni") : path.startsWith(href);
+        {TABS.map(({ href, label, icon: Icon, also }) => {
+          const active =
+            href === "/" ? path === "/" || path.startsWith("/impostazioni") : [href, ...(also ?? [])].some((h) => path.startsWith(h));
           return (
             <li key={href}>
               <Link

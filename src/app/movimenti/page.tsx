@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarClock } from "lucide-react";
 import { usePortfolioCtx } from "@/components/PortfolioProvider";
-import { BankDot, LargeTitle, SelectButton, AddButton, DayCell, IconButton } from "@/components/ui";
+import { BackLink, BankDot, LargeTitle, SelectButton, AddButton, DayCell, IconButton } from "@/components/ui";
 import { fmtDate, fmtEur, fmtNum, fmtPrice } from "@/lib/format";
 import type { Transaction } from "@/lib/engine/types";
 
@@ -40,6 +40,8 @@ export default function Movimenti() {
 
   return (
     <div>
+      {/* Si apre dall'intestazione di Titoli. */}
+      <BackLink href="/posizioni" label="Titoli" />
       <LargeTitle
         right={
           <>
