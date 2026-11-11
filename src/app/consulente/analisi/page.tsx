@@ -7,6 +7,7 @@ import { reportAsMessage, ReportView } from "@/components/advisor/ReportView";
 import { msgId, writeThread } from "@/lib/ai/threads";
 import { useRouter } from "next/navigation";
 import { Orb } from "@/components/advisor/Orb";
+import { HowToActivate, NOT_ACTIVE } from "@/components/advisor/Inactive";
 import { ICON } from "@/components/advisor/icons";
 import { BackLink, Logo, Panel } from "@/components/ui";
 import { useAdvisor, type RunResult } from "@/lib/ai/client";
@@ -66,7 +67,7 @@ function Analisi() {
         saveReport(rep);
         setResult(rep);
         history.replaceState(null, "", `/consulente/analisi?r=${rep.id}`);
-      } else setError(res.status === "nokey" ? "Basis AI non è ancora attivo: manca la chiave GEMINI_API_KEY su Vercel." : res.message);
+      } else setError(res.status === "nokey" ? NOT_ACTIVE : res.message);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -159,9 +160,13 @@ function Analisi() {
       {error && !running && (
         <Panel className="mt-6 px-4 py-4">
           <p className="text-[15px] leading-snug">{error}</p>
-          <button onClick={() => void start()} className="mt-3 flex min-h-[40px] items-center gap-2 text-[15px] font-semibold text-accent">
-            <RefreshCw size={16} /> Riprova
-          </button>
+          {error === NOT_ACTIVE ? (
+            <HowToActivate className="-mb-1.5 mt-1" />
+          ) : (
+            <button onClick={() => void start()} className="hit relative mt-3 flex min-h-[40px] items-center gap-2 text-[15px] font-semibold text-accent">
+              <RefreshCw size={16} /> Riprova
+            </button>
+          )}
         </Panel>
       )}
 

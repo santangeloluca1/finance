@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/session";
 import { bestIntraday, parseEntries } from "@/lib/market/sources";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,8 @@ const EMPTY = { points: [] as [string, number][], previousClose: 0, source: unde
  * ?t=A~ISIN,B,...&batch=1 per più titoli insieme ({ series: { simbolo: … } }).
  */
 export async function GET(req: Request) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const params = new URL(req.url).searchParams;
   const entries = parseEntries(params.get("t"));
   if (!entries.length) return NextResponse.json(EMPTY, { status: 400 });

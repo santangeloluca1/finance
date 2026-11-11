@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/session";
 import { getHistory, resolveTicker } from "@/lib/market/yahoo";
 import { bestQuote } from "@/lib/market/sources";
 
@@ -6,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 /** Simbolo Yahoo funzionante per un ISIN: ?isin=…&currency=EUR&name=…&ref=16.3 */
 export async function GET(req: Request) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const p = new URL(req.url).searchParams;
   const isin = (p.get("isin") ?? "").toUpperCase();
   if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin)) return NextResponse.json({ ticker: null }, { status: 400 });

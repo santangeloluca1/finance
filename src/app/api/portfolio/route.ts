@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth, ensureAuthSchema } from "@/lib/auth";
 import { ensurePortfolioTable, pool } from "@/lib/db";
+import { sessionUserId } from "@/lib/session";
+import { ensureSnapshotTable, snapshotBeforeWrite } from "@/lib/snapshots";
+import { validatePortfolioShape } from "@/lib/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function userId(req: Request) {
-  await ensureAuthSchema();
-  const session = await auth.api.getSession({ headers: req.headers });
-  return session?.user.id ?? null;
-}
+const userId = sessionUserId;
 
 /** Restituisce il portafoglio salvato dell'utente (o null se non c'è ancora). */
 export async function GET(req: Request) {
@@ -26,18 +24,19 @@ export async function GET(req: Request) {
  * Salva il portafoglio. Se il client indica una versione di partenza più vecchia
  * di quella sul server (modifiche da un altro dispositivo) risponde 409 con i dati
  * del server, così il client può unirli prima di riprovare.
+ * Prima di sovrascrivere conserva, se serve, la versione precedente (vedi snapshots.ts);
+ * `snapshot: true` la conserva sempre (es. prima di un ripristino).
  */
 export async function PUT(req: Request) {
   if (!pool) return NextResponse.json({ message: "Database non configurato" }, { status: 503 });
   const uid = await userId(req);
   if (!uid) return NextResponse.json({ message: "Accesso richiesto" }, { status: 401 });
-  await ensurePortfolioTable();
+  await ensureSnapshotTable();
 
-  const body = (await req.json().catch(() => null)) as { data?: { transactions?: unknown[]; instruments?: unknown[]; accounts?: unknown[] }; baseUpdatedAt?: string | null } | null;
-  const data = body?.data;
-  if (!data || !Array.isArray(data.transactions) || !Array.isArray(data.instruments) || !Array.isArray(data.accounts)) {
-    return NextResponse.json({ message: "Dati non validi" }, { status: 400 });
-  }
+  const body = (await req.json().catch(() => null)) as { data?: unknown; baseUpdatedAt?: string | null; snapshot?: boolean } | null;
+  const checked = validatePortfolioShape(body?.data);
+  if (!checked.ok) return NextResponse.json({ message: `Dati non validi: ${checked.error}` }, { status: 400 });
+  const data = checked.data;
   if (JSON.stringify(data).length > 5_000_000) return NextResponse.json({ message: "Dati troppo grandi" }, { status: 413 });
 
   const client = await pool.connect();
@@ -49,6 +48,7 @@ export async function PUT(req: Request) {
       await client.query("rollback");
       return NextResponse.json({ conflict: true, data: cur.rows[0].data, updatedAt: cur.rows[0].updated_at.toISOString() }, { status: 409 });
     }
+    if (cur.rows.length) await snapshotBeforeWrite(client, uid, cur.rows[0].data, data.transactions.length, body?.snapshot === true);
     const { rows } = await client.query<{ updated_at: Date }>(
       `insert into portfolio (user_id, data, updated_at) values ($1, $2, now())
        on conflict (user_id) do update set data = excluded.data, updated_at = now()

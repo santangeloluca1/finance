@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowUp, Check, ChevronLeft, Copy, CornerUpLeft, RotateCw, SquarePen, X } from "lucide-react";
 import { Markdown } from "@/components/advisor/Markdown";
 import { ASSISTANT, Orb } from "@/components/advisor/Orb";
+import { HowToActivate, NOT_ACTIVE } from "@/components/advisor/Inactive";
 import { useAdvisor } from "@/lib/ai/client";
 import { goBack } from "@/components/ui";
 import { msgId, readThreads, splitFollowUps, toModelText, writeThread, type ChatMessage, type Thread } from "@/lib/ai/threads";
@@ -104,7 +105,7 @@ function Chat() {
         const done: Thread = { ...base, updatedAt: new Date().toISOString(), messages: [...base.messages, { id: msgId(), role: "assistant", text: answer, followUps, at: new Date().toISOString() }] };
         setThread(done);
         writeThread(done);
-      } else setError(r.status === "nokey" ? `${ASSISTANT} non è ancora attivo: manca la chiave GEMINI_API_KEY su Vercel.` : r.message);
+      } else setError(r.status === "nokey" ? NOT_ACTIVE : r.message);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -128,7 +129,7 @@ function Chat() {
     <div className="flex min-h-[100dvh] flex-col">
       {/* Intestazione fissa: Basis AI e il suo stato */}
       <header className="sticky top-0 z-30 -mt-[calc(env(safe-area-inset-top)+28px)] flex items-center gap-2 border-b border-sep bg-bg/85 px-2 pb-2.5 pt-[calc(env(safe-area-inset-top)+10px)] backdrop-blur-xl">
-        <button onClick={() => goBack(router, "/consulente")} aria-label="Indietro" className="flex h-10 w-10 items-center justify-center text-accent active:opacity-50">
+        <button onClick={() => goBack(router, "/consulente")} aria-label="Indietro" className="hit relative flex h-10 w-10 items-center justify-center text-accent active:opacity-50">
           <ChevronLeft size={26} strokeWidth={2.2} />
         </button>
         <Orb size={36} active={busy} />
@@ -144,7 +145,7 @@ function Chat() {
             history.replaceState(null, "", "/consulente/chat");
           }}
           aria-label="Nuova conversazione"
-          className="flex h-10 w-10 items-center justify-center text-accent active:opacity-50"
+          className="hit relative flex h-10 w-10 items-center justify-center text-accent active:opacity-50"
         >
           <SquarePen size={21} />
         </button>
@@ -225,8 +226,10 @@ function Chat() {
               <Orb size={28} className="mt-0.5 opacity-60" />
               <div className="min-w-0 flex-1 rounded-[20px] rounded-tl-[6px] bg-panel px-4 py-3">
                 <p className="text-[15px] leading-snug text-ink-2">{error}</p>
-                {thread.messages.at(-1)?.role === "user" && (
-                  <button onClick={() => void answer(thread)} className="press mt-2.5 flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-[14px] font-semibold text-bg">
+                {error === NOT_ACTIVE ? (
+                  <HowToActivate className="-mb-2.5" />
+                ) : thread.messages.at(-1)?.role === "user" && (
+                  <button onClick={() => void answer(thread)} className="press hit relative mt-2.5 flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-[14px] font-semibold text-bg">
                     <RotateCw size={15} /> Riprova
                   </button>
                 )}
@@ -253,7 +256,7 @@ function Chat() {
               <span className="font-semibold text-ink-2">{ASSISTANT}: </span>
               {excerpt(reply.text)}
             </p>
-            <button type="button" onClick={() => setReply(null)} aria-label="Annulla citazione" className="flex h-8 w-8 items-center justify-center text-mut">
+            <button type="button" onClick={() => setReply(null)} aria-label="Annulla citazione" className="hit relative flex h-8 w-8 items-center justify-center text-mut">
               <X size={16} />
             </button>
           </div>
@@ -273,7 +276,7 @@ function Chat() {
             placeholder={reply ? "Rispondi a Basis AI" : `Scrivi a ${ASSISTANT}`}
             className="max-h-[132px] min-h-[44px] min-w-0 flex-1 resize-none rounded-[22px] bg-chip px-4 py-[11px] text-[16px] leading-[22px] outline-none placeholder:text-faint"
           />
-          <button type="submit" aria-label="Invia" disabled={!text.trim() || busy} className="press mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-bg transition-opacity disabled:opacity-25">
+          <button type="submit" aria-label="Invia" disabled={!text.trim() || busy} className="press hit relative mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink text-bg transition-opacity disabled:opacity-25">
             <ArrowUp size={19} strokeWidth={2.6} />
           </button>
         </div>

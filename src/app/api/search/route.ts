@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/session";
 import { exchangeRank as rank, getQuote, searchYahoo as search } from "@/lib/market/yahoo";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
  * così da trovare le quotazioni in euro (Milano, Xetra) oltre a quella principale.
  */
 export async function GET(req: Request) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim();
   if (q.length < 2) return NextResponse.json({ results: [] });
 

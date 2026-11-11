@@ -416,7 +416,7 @@ function WatchStar({ instrument, type }: { instrument: Instrument; type?: string
           addedAt: new Date().toISOString(),
         })
       }
-      className="press flex h-9 w-9 items-center justify-center rounded-full bg-chip"
+      className="press hit relative flex h-9 w-9 items-center justify-center rounded-full bg-chip"
     >
       <Star size={18} strokeWidth={2.2} className={on ? "fill-warn text-warn" : "text-ink"} />
     </button>
@@ -483,14 +483,16 @@ function Simulator({
             step={row.position.quantity >= 10 ? 1 : 0.01}
             value={qty}
             onChange={(e) => setQty(Number(e.target.value))}
-            className="mt-3 w-full"
+            // Alto 44 px per il dito; i margini negativi lasciano la barra dov'era.
+            className="-mb-3.5 -mt-0.5 block h-11 w-full"
           />
-          <div className="mt-3 flex gap-2 text-[13px] font-semibold">
+          {/* 18 px sotto la barra: le aree di tocco della barra e dei pulsanti non si toccano. */}
+          <div className="mt-4.5 flex gap-2 text-[13px] font-semibold">
             {[0.25, 0.5, 1].map((f) => (
               <button
                 key={f}
                 onClick={() => setQty(f === 1 ? row.position.quantity : Math.round(row.position.quantity * f))}
-                className="h-9 rounded-full bg-chip px-3.5 active:opacity-60"
+                className="hit relative h-9 rounded-full bg-chip px-3.5 active:opacity-60"
               >
                 {f === 1 ? "Tutte" : `${f * 100}%`}
               </button>

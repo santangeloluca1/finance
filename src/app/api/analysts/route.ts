@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/session";
 import { cached } from "@/lib/market/cache";
-import { usSymbol } from "@/lib/market/listing";
+import { ISIN_RE, TICKER_RE, usSymbol } from "@/lib/market/listing";
 import { adrFor } from "@/lib/market/adr";
 
 export const dynamic = "force-dynamic";
@@ -41,31 +42,36 @@ export interface AnalystData {
 }
 
 export async function GET(req: Request) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const p = new URL(req.url).searchParams;
   const t = p.get("t");
-  if (!t) return NextResponse.json({ message: "Simbolo mancante" }, { status: 400 });
+  if (!t || !TICKER_RE.test(t)) return NextResponse.json({ message: "Simbolo mancante" }, { status: 400 });
+  const isin = ISIN_RE.test(p.get("isin") ?? "") ? p.get("isin") : null;
   const fh = process.env.FINNHUB_API_KEY;
   const fmp = process.env.FMP_API_KEY;
   if (!fh && !fmp) return NextResponse.json({ status: "nokey" });
 
-  const symbol = await usSymbol(t, p.get("isin"), p.get("n")).catch(() => null);
+  const symbol = await usSymbol(t, isin, p.get("n")).catch(() => null);
   if (!symbol) return NextResponse.json({ status: "unavailable" });
 
   const data = await cached(`an:${symbol}`, 6 * 3600_000, async (): Promise<AnalystData> => {
     const today = new Date().toISOString().slice(0, 10);
     const in120 = new Date(Date.now() + 120 * 86400_000).toISOString().slice(0, 10);
+    // Il simbolo può arrivare dalla ricerca Yahoo: sempre codificato negli URL.
+    const sym = encodeURIComponent(symbol);
     const q = (path: string) => (fh ? getJson<unknown>(`${FINNHUB}${path}${path.includes("?") ? "&" : "?"}token=${fh}`) : Promise.resolve(null));
     const [rec, metric, cal, earn, fhTarget, fmpTarget] = await Promise.all([
-      q(`/stock/recommendation?symbol=${symbol}`) as Promise<AnalystData["recommendation"][] | null>,
-      q(`/stock/metric?symbol=${symbol}&metric=all`) as Promise<{ metric?: Record<string, number> } | null>,
-      q(`/calendar/earnings?symbol=${symbol}&from=${today}&to=${in120}`) as Promise<{
+      q(`/stock/recommendation?symbol=${sym}`) as Promise<AnalystData["recommendation"][] | null>,
+      q(`/stock/metric?symbol=${sym}&metric=all`) as Promise<{ metric?: Record<string, number> } | null>,
+      q(`/calendar/earnings?symbol=${sym}&from=${today}&to=${in120}`) as Promise<{
         earningsCalendar?: { date: string; epsEstimate: number | null; revenueEstimate: number | null; hour?: string }[];
       } | null>,
-      q(`/stock/earnings?symbol=${symbol}`) as Promise<AnalystData["earnings"] | null>,
+      q(`/stock/earnings?symbol=${sym}`) as Promise<AnalystData["earnings"] | null>,
       // Su alcuni piani è a pagamento: se non risponde si usa FMP.
-      q(`/stock/price-target?symbol=${symbol}`) as Promise<{ targetMean?: number; targetLow?: number; targetHigh?: number; targetMedian?: number } | null>,
+      q(`/stock/price-target?symbol=${sym}`) as Promise<{ targetMean?: number; targetLow?: number; targetHigh?: number; targetMedian?: number } | null>,
       fmp
-        ? (getJson(`https://financialmodelingprep.com/stable/price-target-consensus?symbol=${symbol}&apikey=${fmp}`) as Promise<
+        ? (getJson(`https://financialmodelingprep.com/stable/price-target-consensus?symbol=${sym}&apikey=${fmp}`) as Promise<
             { targetConsensus?: number; targetLow?: number; targetHigh?: number; targetMedian?: number }[] | null
           >)
         : Promise.resolve(null),
@@ -103,6 +109,6 @@ export async function GET(req: Request) {
   });
   const empty = !data.recommendation && !data.target && !data.metrics && !data.nextEarnings && !data.earnings.length;
   // ADR: i dati per azione si riferiscono all'ADR (che può valere più azioni europee).
-  const adr = !!adrFor(t, p.get("isin"));
+  const adr = !!adrFor(t, isin);
   return NextResponse.json(empty ? { status: "unavailable" } : { status: "ok", data: { ...data, adr } });
 }

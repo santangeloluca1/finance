@@ -44,6 +44,8 @@ export default function Account() {
           onClick={async () => {
             await authClient.signOut();
             clearLocalData();
+            // Le schermate salvate per l'uso offline (sw.js) non devono restare a chi usa il dispositivo dopo.
+            if ("caches" in window) await caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).catch(() => {});
             window.location.replace("/accedi");
           }}
         />

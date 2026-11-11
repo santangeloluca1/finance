@@ -9,6 +9,14 @@ export interface ChatTurn {
   text: string;
 }
 
+/** Messaggi della chat arrivati dal client: null se la forma non è quella attesa. */
+export function parseTurns(v: unknown): ChatTurn[] | null {
+  if (v === undefined) return [];
+  if (!Array.isArray(v)) return null;
+  const ok = v.every((t) => t && typeof t === "object" && (t.role === "user" || t.role === "assistant") && typeof t.text === "string");
+  return ok ? v.map((t: ChatTurn) => ({ role: t.role, text: t.text })) : null;
+}
+
 export class NoKeyError extends Error {}
 
 /**

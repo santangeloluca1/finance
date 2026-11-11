@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/session";
 import { cached } from "@/lib/market/cache";
 
 export const dynamic = "force-dynamic";
 
 /** Cambio BCE di una data: 1 EUR = rate unità di valuta. */
 export async function GET(req: Request) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const params = new URL(req.url).searchParams;
   const date = params.get("date") ?? "";
   const currency = (params.get("c") ?? "").toUpperCase();

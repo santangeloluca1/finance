@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { PortfolioData } from "./store";
 import { getCurrentData, getSyncMeta, setData, setSyncMeta, subscribeData } from "./store";
+import { merge } from "./merge";
 
 /**
  * Sincronizzazione del portafoglio con il server (Neon).
@@ -38,67 +39,72 @@ export function useSyncStatus() {
 
 type ServerDoc = { data: PortfolioData | null; updatedAt: string | null };
 
-/** Unisce due versioni: movimenti, strumenti e conti per id; a parità di id vince la versione locale. */
-export function merge(local: PortfolioData, remote: PortfolioData): PortfolioData {
-  const byId = <T,>(a: T[], b: T[], key: (x: T) => string) => {
-    const map = new Map(b.map((x) => [key(x), x]));
-    for (const x of a) map.set(key(x), x);
-    return [...map.values()];
-  };
-  return {
-    accounts: byId(local.accounts, remote.accounts, (a) => a.id),
-    instruments: byId(local.instruments, remote.instruments, (i) => i.isin),
-    transactions: byId(local.transactions, remote.transactions, (t) => t.id),
-    goals: byId(local.goals ?? [], remote.goals ?? [], (g) => g.id),
-    reminders: byId(local.reminders ?? [], remote.reminders ?? [], (r) => r.id),
-    recurring: byId(local.recurring ?? [], remote.recurring ?? [], (r) => r.id),
-    alertRules: byId(local.alertRules ?? [], remote.alertRules ?? [], (r) => r.id),
-    notify: local.notify ?? remote.notify,
-    watchlist: local.watchlist ?? remote.watchlist,
-    profile: local.profile ?? remote.profile,
-    aiReports: byId(local.aiReports ?? [], remote.aiReports ?? [], (r) => r.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30),
-    recurringSkipped: [...new Set([...(remote.recurringSkipped ?? []), ...(local.recurringSkipped ?? [])])],
-    alertsSeen: [...new Set([...(remote.alertsSeen ?? []), ...(local.alertsSeen ?? [])])],
-    alertsDismissed: [...new Set([...(remote.alertsDismissed ?? []), ...(local.alertsDismissed ?? [])])],
-    plan: local.plan ?? remote.plan,
-    targets: local.targets ?? remote.targets,
-    isDemo: false,
-  };
+export { merge } from "./merge";
+
+interface PushOpts {
+  /** Chiede al server di salvare una versione precedente prima di sovrascriverla. */
+  snapshot?: boolean;
+  /** In caso di conflitto sostituisce la versione del server invece di unirla (ripristino). */
+  overwrite?: boolean;
 }
 
-let pushing = false;
+let inflight: Promise<boolean> | null = null;
 
-async function push(retry = true): Promise<void> {
+/** Invia i dati locali; un solo invio alla volta (gli altri aspettano quello in corso). */
+function push(opts: PushOpts = {}): Promise<boolean> {
+  if (getCurrentData().isDemo) return Promise.resolve(false);
+  inflight ??= send(opts).finally(() => {
+    inflight = null;
+  });
+  return inflight;
+}
+
+async function send(opts: PushOpts, retry = true): Promise<boolean> {
   const data = getCurrentData();
-  if (data.isDemo || pushing) return;
-  pushing = true;
   setStatus({ ...status, state: "syncing" });
   try {
     const res = await fetch("/api/portfolio", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data, baseUpdatedAt: getSyncMeta().updatedAt }),
+      body: JSON.stringify({ data, baseUpdatedAt: getSyncMeta().updatedAt, ...(opts.snapshot ? { snapshot: true } : {}) }),
     });
     if (res.status === 409 && retry) {
-      // Modifiche arrivate da un altro dispositivo: unisco e riprovo.
       const remote = (await res.json()) as ServerDoc;
-      if (remote.data) setData(merge(getCurrentData(), remote.data));
+      // Modifiche arrivate da un altro dispositivo: unisco e riprovo. Un ripristino invece
+      // deve sostituire la versione del server (che resta tra le versioni precedenti).
+      if (remote.data && !opts.overwrite) setData(merge(getCurrentData(), remote.data));
       setSyncMeta({ updatedAt: remote.updatedAt, dirty: true });
-      pushing = false;
-      return push(false);
+      return send(opts, false);
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // Il server spiega cosa non va (es. "Dati non validi: Movimento 12: manca la data").
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.message ?? `HTTP ${res.status}`);
     const { updatedAt } = (await res.json()) as { updatedAt: string };
     // Se nel frattempo ci sono state altre modifiche resta "dirty".
     const stillSame = getCurrentData() === data;
     setSyncMeta({ updatedAt, dirty: !stillSame });
     setStatus({ state: "ok", at: Date.now() });
-    pushing = false;
     if (!stillSame) schedulePush();
+    return true;
   } catch (e) {
-    pushing = false;
-    setStatus({ state: navigator.onLine ? "error" : "offline", at: status.at, message: String(e) });
+    setStatus({ state: navigator.onLine ? "error" : "offline", at: status.at, message: e instanceof Error ? e.message : String(e) });
+    return false;
   }
+}
+
+/**
+ * Sostituisce i dati con quelli indicati (es. una versione precedente) e li invia
+ * subito, chiedendo al server di conservare la versione che viene sostituita.
+ * Restituisce false se l'invio non è riuscito: i dati restano comunque sul dispositivo
+ * e partono con la prossima sincronizzazione (unendosi però alle novità del server).
+ */
+export async function replaceAndPush(next: PortfolioData): Promise<boolean> {
+  if (timer) clearTimeout(timer);
+  // Aspetta l'invio in corso; da qui a push() niente await, così nessun altro invio si inserisce.
+  while (inflight) await inflight.catch(() => false);
+  setData({ ...next, isDemo: false });
+  // setData ha programmato un invio normale: lo sostituisce quello forzato.
+  if (timer) clearTimeout(timer);
+  return push({ snapshot: true, overwrite: true });
 }
 
 async function pull(): Promise<void> {
@@ -113,7 +119,7 @@ async function pull(): Promise<void> {
 
     if (!remote.data) {
       // Primo avvio: carico sul server quello che c'è già sul telefono.
-      if (!local.isDemo) return push();
+      if (!local.isDemo) return void (await push());
       return setStatus({ state: "ok", at: Date.now() });
     }
     if (meta.dirty && !local.isDemo) {
@@ -121,7 +127,7 @@ async function pull(): Promise<void> {
         setData(merge(local, remote.data));
         setSyncMeta({ updatedAt: remote.updatedAt, dirty: true });
       }
-      return push();
+      return void (await push());
     }
     if (remote.updatedAt !== meta.updatedAt || local.isDemo) {
       setData({ ...remote.data, isDemo: false }, { fromServer: true });

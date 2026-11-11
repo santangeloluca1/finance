@@ -59,14 +59,14 @@ export default function Home() {
   return (
     <div>
       {/* Schede testuali in alto, poi filtri e azioni di servizio sulla stessa riga */}
-      <div role="tablist" className="no-scrollbar flex gap-4 overflow-x-auto px-4">
+      <div role="tablist" className="no-scrollbar -my-1 flex gap-4 overflow-x-auto px-4 py-1">
         {TABS.map((t) => (
           <button
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => go(t.id)}
-            className={`shrink-0 py-1 ${PAGE_TITLE} transition-colors ${tab === t.id ? "text-ink" : "text-faint"}`}
+            className={`hit relative shrink-0 py-1 ${PAGE_TITLE} transition-colors ${tab === t.id ? "text-ink" : "text-faint"}`}
           >
             {t.label}
           </button>
@@ -228,21 +228,26 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
           <p className="h-5 truncate text-[14px] capitalize-first text-mut">{caption}</p>
           <BigAmount value={shownValue} className="mt-1" />
         </div>
-        {!ready && (day ? !intraday : !historyReady) ? (
-          // Variazione del periodo in arrivo: segnaposto invece di un falso 0,00%.
-          <div className="flex shrink-0 flex-col items-end gap-2 pb-1.5" aria-hidden>
-            <span className="skeleton h-4 w-16" />
-            <span className="skeleton h-3.5 w-20" />
-          </div>
-        ) : (
-          <div className={`num sensitive shrink-0 pb-1 text-right ${tint(gain)}`}>
-            <p className="text-[17px] font-semibold">
-              {gain > 0.005 ? "↗ " : gain < -0.005 ? "↘ " : ""}
-              {fmtPct(Math.abs(gainPct))}
-            </p>
-            <p className="text-[15px] font-medium">{fmtSignedEur(gain)}</p>
-          </div>
-        )}
+        <div className="shrink-0 text-right">
+          {/* Cosa misura la variazione: solo i titoli, senza la liquidità che è nel valore a sinistra.
+              Il periodo è nella riga sotto e segue i periodi del grafico. */}
+          <p className="h-5 text-[14px] text-mut">{mode === "pct" ? "Rendimento dei titoli" : "Guadagno dei titoli"}</p>
+          {!ready && (day ? !intraday : !historyReady) ? (
+            // Variazione del periodo in arrivo: segnaposto invece di un falso 0,00%.
+            <div className="flex flex-col items-end gap-2 pb-1 pt-1.5" aria-hidden>
+              <span className="skeleton h-4 w-16" />
+              <span className="skeleton h-3.5 w-20" />
+            </div>
+          ) : (
+            <div className={`num sensitive pb-0.5 ${tint(gain)}`}>
+              <p className="text-[17px] font-semibold">
+                {gain > 0.005 ? "↗ " : gain < -0.005 ? "↘ " : ""}
+                {fmtPct(Math.abs(gainPct))}
+              </p>
+              <p className="text-[15px] font-medium">{fmtSignedEur(gain)}</p>
+            </div>
+          )}
+        </div>
       </div>
       {hasCash && (
         // Scomposizione del totale: investito a sinistra sotto il numero grande,

@@ -2,6 +2,10 @@ import { getFxHistory, getFxLatest } from "./fx";
 import { getTradegate, tradegateOpen, tradegateTime } from "./tradegate";
 import { romeClock } from "../notify";
 import { getHistory, getIntraday, getQuote, searchYahoo, type Quote } from "./yahoo";
+import { ISIN_RE, TICKER_RE } from "./listing";
+
+/** Titoli al massimo per richiesta: ben sopra un portafoglio reale, ma limita l'uso come proxy. */
+export const MAX_ENTRIES = 60;
 
 /** Richiesta dal client: "SIMBOLO" oppure "SIMBOLO~ISIN" (l'ISIN abilita le fonti alternative). */
 export function parseEntries(v: string | null): { ticker: string; isin?: string }[] {
@@ -12,10 +16,10 @@ export function parseEntries(v: string | null): { ticker: string; isin?: string 
     .filter(Boolean)
     .map((s) => {
       const [ticker, isin] = s.split("~");
-      return { ticker, isin: isin && /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin) ? isin : undefined };
+      return { ticker, isin: isin && ISIN_RE.test(isin) ? isin : undefined };
     })
-    .filter((e) => e.ticker && !seen.has(e.ticker) && seen.add(e.ticker))
-    .slice(0, 100);
+    .filter((e) => TICKER_RE.test(e.ticker) && !seen.has(e.ticker) && seen.add(e.ticker))
+    .slice(0, MAX_ENTRIES);
 }
 
 const EXCHANGE: Record<string, string> = { XETRA: "Xetra", Milan: "Borsa Italiana", Swiss: "Zurigo", Frankfurt: "Francoforte", Munich: "Monaco", LSE: "Londra", Amsterdam: "Amsterdam", Paris: "Parigi" };

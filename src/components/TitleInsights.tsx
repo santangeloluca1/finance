@@ -74,16 +74,16 @@ export function TitleInsights({ instrument, price, quantity, taxRate }: { instru
   ];
 
   return (
-    <section className="pt-8">
-      {/* Schede di testo, quella scelta su una pillola (come getquin). */}
-      <div role="tablist" className="no-scrollbar flex gap-1 overflow-x-auto border-b border-sep px-3 pb-3">
+    <section className="pt-7">
+      {/* Schede di testo, quella scelta su una pillola (come getquin). Il padding in alto lascia spazio all'area di tocco. */}
+      <div role="tablist" className="no-scrollbar flex gap-1 overflow-x-auto border-b border-sep px-3 pb-3 pt-1">
         {options.map((o) => (
           <button
             key={o.value}
             role="tab"
             aria-selected={tab === o.value}
             onClick={() => setTab(o.value)}
-            className={`press h-9 shrink-0 rounded-full px-3.5 text-[16px] transition-colors ${tab === o.value ? "bg-chip font-semibold text-ink" : "text-mut"}`}
+            className={`press hit relative h-9 shrink-0 rounded-full px-3.5 text-[16px] transition-colors ${tab === o.value ? "bg-chip font-semibold text-ink" : "text-mut"}`}
           >
             {o.label}
           </button>

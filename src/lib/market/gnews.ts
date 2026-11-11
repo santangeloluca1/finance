@@ -1,5 +1,5 @@
 import { cached } from "./cache";
-import type { NewsItem } from "./yahoo";
+import { isHttpsUrl, type NewsItem } from "./yahoo";
 
 /**
  * Notizie in italiano da Google News (feed RSS di ricerca, edizione Italia).
@@ -57,7 +57,8 @@ export function parseRss(xml: string): NewsItem[] {
     const link = tag("link");
     const time = Date.parse(tag("pubDate"));
     const key = title.toLowerCase();
-    if (!title || !link || seen.has(key) || NOT_NEWS.test(title)) continue;
+    // Il link finisce in un <a href>: solo https, mai javascript: o simili.
+    if (!title || !isHttpsUrl(link) || seen.has(key) || NOT_NEWS.test(title)) continue;
     seen.add(key);
     out.push({ title, publisher, link, time: Number.isFinite(time) ? time : Date.now() });
   }

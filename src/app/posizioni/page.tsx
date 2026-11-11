@@ -1,6 +1,7 @@
 "use client";
 
-import { Search } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeftRight, Search } from "lucide-react";
 
 import { useMemo, useState } from "react";
 import { usePortfolioView } from "@/components/PortfolioProvider";
@@ -41,9 +42,15 @@ export default function Posizioni() {
     <div>
       <LargeTitle
         right={
-          <IconButton href="/cerca" label="Cerca un titolo">
-            <Search size={18} strokeWidth={2.2} />
-          </IconButton>
+          <>
+            {/* Il registro di acquisti, vendite e versamenti: a un tocco da qui. */}
+            <Link href="/movimenti" className="press hit relative flex h-9 items-center gap-1.5 rounded-full bg-chip pl-3 pr-3.5 text-[14px] font-semibold text-ink">
+              <ArrowLeftRight size={16} strokeWidth={2.2} /> Movimenti
+            </Link>
+            <IconButton href="/cerca" label="Cerca un titolo">
+              <Search size={18} strokeWidth={2.2} />
+            </IconButton>
+          </>
         }
       >
         Titoli

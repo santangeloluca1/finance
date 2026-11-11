@@ -156,7 +156,7 @@ function Ricorrenti() {
                             day: Number(pac!.last.slice(8, 10)),
                           })
                         }
-                        className="h-9 shrink-0 rounded-full bg-chip px-3.5 text-[14px] font-semibold active:opacity-70"
+                        className="hit relative h-9 shrink-0 rounded-full bg-chip px-3.5 text-[14px] font-semibold active:opacity-70"
                       >
                         Crea
                       </button>

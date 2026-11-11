@@ -72,6 +72,9 @@ function NuovoMovimento() {
   const [isNew, setIsNew] = useState(prefill?.isNew ?? false);
   const [quantity, setQuantity] = useState(editing?.quantity?.toString().replace(".", ",") ?? "");
   const [price, setPrice] = useState(editing?.price?.toString().replace(".", ",") ?? params.get("p")?.replace(".", ",") ?? "");
+  // Totale di quote × prezzo, come sulla nota della banca. Il prezzo resta il dato salvato:
+  // il totale è scritto a mano solo finché lo si modifica, altrimenti segue quote e prezzo.
+  const [totalInput, setTotalInput] = useState<string | null>(null);
   const [fees, setFees] = useState(editing?.fees?.toString().replace(".", ",") ?? "");
   const [fx, setFx] = useState(editing?.fxRate?.toString().replace(".", ",") ?? "");
   const [amount, setAmount] = useState(editing?.amount?.toString().replace(".", ",") ?? "");
@@ -108,12 +111,54 @@ function NuovoMovimento() {
   const p = num(price);
   const total = kind === "buy" || kind === "sell" ? (q * p) / (currency === "EUR" ? 1 : num(fx) || 1) + (kind === "buy" ? 1 : -1) * num(fees) : num(amount);
 
-  const valid =
-    account &&
-    /^\d{4}-\d{2}-\d{2}$/.test(date) &&
-    (isCashKind(kind)
-      ? amount !== "" && (kind === "cash" || num(amount) > 0) && (kind !== "transfer" || (!!toAccount && toAccount !== account))
-      : instrument && (kind === "dividend" ? num(amount) > 0 : q > 0 && p > 0 && (currency === "EUR" || num(fx) > 0)));
+  // Cosa manca per salvare: la prima voce mancante, in parole semplici. Unica fonte del pulsante disattivato.
+  const missing = !account
+    ? "Scegli un conto"
+    : !/^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? "Inserisci la data"
+      : isCashKind(kind)
+        ? amount === ""
+          ? kind === "cash"
+            ? "Inserisci il saldo del conto"
+            : "Inserisci l'importo"
+          : kind !== "cash" && num(amount) <= 0
+            ? "Inserisci un importo maggiore di zero"
+            : kind === "transfer" && (!toAccount || toAccount === account)
+              ? "Scegli il conto di destinazione"
+              : null
+        : !instrument
+          ? "Scegli un titolo"
+          : kind === "dividend"
+            ? num(amount) > 0
+              ? null
+              : "Inserisci l'importo accreditato"
+            : q <= 0
+              ? "Inserisci le quote"
+              : p <= 0
+                ? "Inserisci il prezzo o il totale"
+                : currency !== "EUR" && !(num(fx) > 0)
+                  ? "Inserisci il cambio"
+                  : null;
+  const valid = missing === null;
+
+  // Prezzo e totale collegati: scrivendo l'uno si calcola l'altro (le commissioni restano a parte).
+  const shownTotal = totalInput ?? (q > 0 && p > 0 ? (q * p).toFixed(2).replace(".", ",") : "");
+  const changePrice = (v: string) => {
+    setPrice(v);
+    setTotalInput(null);
+  };
+  const changeTotal = (v: string) => {
+    setTotalInput(v);
+    const t = num(v);
+    if (!v.trim()) setPrice("");
+    else if (q > 0 && t > 0) setPrice(decimal(t / q, 6));
+  };
+  const changeQuantity = (v: string) => {
+    setQuantity(v);
+    // Se il dato di partenza è il totale, a cambiare è il prezzo.
+    const nq = num(v);
+    if (totalInput !== null && nq > 0 && num(totalInput) > 0) setPrice(decimal(num(totalInput) / nq, 6));
+  };
 
   const save = () => {
     if (!valid) return;
@@ -167,7 +212,8 @@ function NuovoMovimento() {
       <div className="mt-5 px-4">
         <Segmented value={group} onChange={(g) => setKind(g === "liquidita" ? "deposit" : g)} options={GROUP_OPTIONS} />
         {group === "liquidita" && (
-          <div className="mt-2">
+          // 10 px tra i due selettori: le aree di tocco (44 px) non si sovrappongono.
+          <div className="mt-2.5">
             <Segmented size="sm" value={kind} onChange={setKind} options={CASH_OPTIONS} />
           </div>
         )}
@@ -203,7 +249,7 @@ function NuovoMovimento() {
               onPick={(ins, fresh, lastPrice) => {
                 setInstrument(ins);
                 setIsNew(fresh);
-                if (lastPrice && !price && date === new Date().toISOString().slice(0, 10)) setPrice(String(lastPrice).replace(".", ","));
+                if (lastPrice && !price && date === new Date().toISOString().slice(0, 10)) changePrice(String(lastPrice).replace(".", ","));
               }}
             />
           )}
@@ -223,10 +269,13 @@ function NuovoMovimento() {
         {(kind === "buy" || kind === "sell") && (
           <>
             <Field label="Quote">
-              <input inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="0" className={inputCls} />
+              <input inputMode="decimal" value={quantity} onChange={(e) => changeQuantity(e.target.value)} placeholder="0" className={inputCls} />
             </Field>
             <Field label={`Prezzo per quota (${currency})`}>
-              <input inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0,00" className={inputCls} />
+              <input inputMode="decimal" value={price} onChange={(e) => changePrice(e.target.value)} placeholder="0,00" className={inputCls} />
+            </Field>
+            <Field label={`Totale (${currency})`} hint="Quote × prezzo, commissioni escluse">
+              <input inputMode="decimal" value={shownTotal} onChange={(e) => changeTotal(e.target.value)} placeholder="0,00" className={inputCls} />
             </Field>
             <Field label="Commissioni (€)">
               <input inputMode="decimal" value={fees} onChange={(e) => setFees(e.target.value)} placeholder="0,00" className={inputCls} />
@@ -297,6 +346,7 @@ function NuovoMovimento() {
         >
           <Check size={19} strokeWidth={2.6} /> Salva movimento
         </button>
+        {missing && <p className="px-1 pt-2.5 text-center text-[14px] text-mut">{missing}</p>}
         {editing && (
           <button onClick={remove} className="mt-3 flex h-[52px] w-full items-center justify-center gap-2 rounded-[16px] text-[16px] font-semibold text-dn active:bg-panel">
             <Trash2 size={18} /> Elimina movimento
@@ -413,7 +463,7 @@ function InstrumentCard({
             {instrument.ticker} · {instrument.currency}
           </p>
         </div>
-        <button onClick={onClear} aria-label="Cambia titolo" className="flex h-8 w-8 items-center justify-center rounded-full bg-chip text-mut">
+        <button onClick={onClear} aria-label="Cambia titolo" className="hit relative flex h-8 w-8 items-center justify-center rounded-full bg-chip text-mut">
           <X size={16} />
         </button>
       </div>
@@ -475,6 +525,11 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       {hint && <span className="mt-0.5 block text-[11px] text-faint">{hint}</span>}
     </label>
   );
+}
+
+/** 1234.5 → "1234,5": per riscrivere un numero calcolato in un campo, al massimo `digits` decimali. */
+function decimal(n: number, digits: number) {
+  return String(Number(n.toFixed(digits))).replace(".", ",");
 }
 
 /** "1.234,56" o "1234.56" → 1234.56 */

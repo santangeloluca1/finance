@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUp, ChevronRight, KeyRound, MessageCircle, SquarePen, Sparkles, UserRound } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronRight, Info, MessageCircle, SquarePen, Sparkles, UserRound } from "lucide-react";
 import { useThreads } from "@/lib/ai/threads";
 import { ICON } from "@/components/advisor/icons";
 import { ASSISTANT, Orb } from "@/components/advisor/Orb";
 import { SettingsRow, SettingsSection } from "@/components/settings";
-import { BackLink, LargeTitle } from "@/components/ui";
+import { LargeTitle } from "@/components/ui";
 import { useAdvisor } from "@/lib/ai/client";
 import { ANALYSES, GROUP_LABEL, type AnalysisMeta } from "@/lib/ai/prompts";
 import { fmtWhen } from "@/lib/format";
@@ -24,7 +24,10 @@ export default function Consulente() {
   const reports = view.data.aiReports ?? [];
   const threads = useThreads();
   const [allThreads, setAllThreads] = useState(false);
+  // In vista solo le analisi più utili; le altre si aprono qui sotto.
+  const [allAnalyses, setAllAnalyses] = useState(false);
   const groups = (Object.keys(GROUP_LABEL) as AnalysisMeta["group"][]).map((g) => ({ g, items: ANALYSES.filter((a) => a.group === g) }));
+  const [main, ...others] = groups;
 
   const ask = (text: string) => {
     if (!text.trim()) return;
@@ -33,7 +36,7 @@ export default function Consulente() {
 
   return (
     <div>
-      <BackLink href="/analisi" label="Analisi" />
+      {/* Scheda della barra in basso: niente "indietro", come Titoli e Analisi. */}
       <LargeTitle>{ASSISTANT}</LargeTitle>
 
       {/* L'oracolo: la sfera si anima di più mentre scrivi la domanda. */}
@@ -60,23 +63,28 @@ export default function Consulente() {
           enterKeyHint="send"
           className="h-full min-w-0 flex-1 bg-transparent text-[17px] outline-none placeholder:text-faint"
         />
-        <button type="submit" aria-label="Chiedi" disabled={!q.trim()} className="press flex h-9 w-9 items-center justify-center rounded-full bg-ink text-bg transition-opacity disabled:opacity-25">
+        <button type="submit" aria-label="Chiedi" disabled={!q.trim()} className="press hit relative flex h-9 w-9 items-center justify-center rounded-full bg-ink text-bg transition-opacity disabled:opacity-25">
           <ArrowUp size={18} strokeWidth={2.6} />
         </button>
       </form>
-      <div className="no-scrollbar mt-3 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4">
+      <div className="no-scrollbar -mb-1 mt-2 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-1">
         {SUGGESTIONS.map((s) => (
-          <button key={s} onClick={() => ask(s)} className="press shrink-0 snap-start rounded-full border border-sep px-3.5 py-2 text-[14px] text-ink-2">
+          <button key={s} onClick={() => ask(s)} className="press hit relative shrink-0 snap-start rounded-full border border-sep px-3.5 py-2 text-[14px] text-ink-2">
             {s}
           </button>
         ))}
       </div>
 
       {configured === false && (
-        <p className="mx-4 mt-5 flex items-start gap-2 rounded-[14px] bg-panel px-4 py-3 text-[14px] leading-snug text-mut">
-          <KeyRound size={16} className="mt-0.5 shrink-0 text-accent" />
-          Non ancora attivo: si accende aggiungendo GEMINI_API_KEY su Vercel. Intanto puoi compilare il profilo.
-        </p>
+        // Come si attiva è spiegato in Impostazioni → Informazioni.
+        <Link href="/impostazioni/info#basis-ai" className="mx-4 mt-5 flex items-start gap-2 rounded-[14px] bg-panel px-4 py-3 text-[14px] leading-snug text-mut active:bg-panel-2">
+          <Info size={16} className="mt-0.5 shrink-0 text-accent" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-ink-2">{ASSISTANT} non è ancora attivo</span>
+            Intanto puoi compilare il profilo. Come si attiva: Impostazioni → Informazioni.
+          </span>
+          <ChevronRight size={18} className="mt-0.5 shrink-0 text-faint" />
+        </Link>
       )}
 
       {/* Profilo: come la riga del profilo in Impostazioni. */}
@@ -112,13 +120,33 @@ export default function Consulente() {
         )}
       </SettingsSection>
 
-      {groups.map(({ g, items }) => (
-        <SettingsSection key={g} title={GROUP_LABEL[g]}>
-          {items.map((a) => (
-            <SettingsRow key={a.id} icon={ICON[a.id]} title={a.title} subtitle={a.subtitle} href={`/consulente/analisi?a=${a.id}`} />
+      <SettingsSection title={GROUP_LABEL[main.g]}>
+        {main.items.map((a) => (
+          <SettingsRow key={a.id} icon={ICON[a.id]} title={a.title} subtitle={a.subtitle} href={`/consulente/analisi?a=${a.id}`} />
+        ))}
+        <li>
+          <button
+            onClick={() => setAllAnalyses(!allAnalyses)}
+            aria-expanded={allAnalyses}
+            aria-controls="altre-analisi"
+            className="flex min-h-[48px] w-full items-center gap-1 px-4 text-left text-[16px] font-medium text-accent active:bg-panel-2"
+          >
+            Tutte le analisi
+            <ChevronDown size={18} className={`transition-transform ${allAnalyses ? "rotate-180" : ""}`} />
+          </button>
+        </li>
+      </SettingsSection>
+      {allAnalyses && (
+        <div id="altre-analisi" className="page-in">
+          {others.map(({ g, items }) => (
+            <SettingsSection key={g} title={GROUP_LABEL[g]}>
+              {items.map((a) => (
+                <SettingsRow key={a.id} icon={ICON[a.id]} title={a.title} subtitle={a.subtitle} href={`/consulente/analisi?a=${a.id}`} />
+              ))}
+            </SettingsSection>
           ))}
-        </SettingsSection>
-      ))}
+        </div>
+      )}
 
       {reports.length > 0 && (
         <SettingsSection title="Analisi precedenti">

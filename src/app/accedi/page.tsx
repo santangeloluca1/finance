@@ -93,7 +93,7 @@ export default function Accedi() {
                   type="button"
                   onClick={() => setShow(!show)}
                   aria-label={show ? "Nascondi password" : "Mostra password"}
-                  className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-mut active:bg-chip"
+                  className="hit relative -mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-mut active:bg-chip"
                 >
                   {show ? <EyeOff size={19} /> : <Eye size={19} />}
                 </button>
@@ -117,7 +117,7 @@ export default function Accedi() {
 
         <div className="mt-auto pt-10 text-center text-[15px] text-mut">
           {isSignup ? "Hai già un account?" : "Prima volta qui?"}{" "}
-          <button onClick={switchMode} className="font-semibold text-ink underline-offset-4 active:underline">
+          <button onClick={switchMode} className="hit relative font-semibold text-ink underline-offset-4 active:underline">
             {isSignup ? "Accedi" : "Crea un account"}
           </button>
         </div>
