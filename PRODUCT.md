@@ -27,12 +27,12 @@ Fiscalità italiana come motore, non come appendice: PMC per banca, redditi di c
 
 - Funzioni attese, riprese da getquin: loghi dei titoli, dividendi e cedole (calendario e previsione), analisi e insight (esposizione per paese e settore, benchmark), grafico interattivo da scorrere col dito.
 - Tema chiaro e scuro: segue l'impostazione dell'iPhone, con interruttore manuale.
-- Next.js PWA, dati per ora in localStorage; poi Supabase.
+- Next.js PWA. Dati nell'account (Better Auth + Postgres/Neon), con copia sul dispositivo per l'uso offline e versioni precedenti sul server.
 - Fondi comuni esclusi. Obbligazioni e certificati rimandati.
 
 ## Brand Commitments
 
-Nome provvisorio "Portafoglio". Lingua italiana. Nessun marchio da riprodurre. Getquin, Trade Republic e simili sono riferimenti di qualità e di funzionalità, non da copiare.
+Nome: "Basis". Lingua italiana. Nessun marchio da riprodurre. Getquin, Trade Republic e simili sono riferimenti di qualità e di funzionalità, non da copiare.
 
 ## Evidence on Hand
 

@@ -10,11 +10,12 @@ import type { InvestorProfile } from "./ai/profile";
 import type { AnalysisId, Report } from "./ai/prompts";
 import type { Account, Instrument, PortfolioState, Transaction } from "./engine/types";
 import type { FxRates, Quotes } from "./analytics";
+import { withRevived, withTombstones } from "./merge";
 
 /**
- * Persistenza locale (localStorage) per la prima versione.
- * In una fase successiva verrà sostituita da Supabase per la
- * sincronizzazione tra dispositivi.
+ * Dati del portafoglio: un documento per utente, salvato sul server (Postgres)
+ * con una copia in localStorage per aprire subito l'app e lavorare offline.
+ * La sincronizzazione è in sync.ts, l'unione delle versioni in merge.ts.
  */
 
 export interface Goal {
@@ -62,6 +63,13 @@ export interface PortfolioData {
   profile?: InvestorProfile;
   /** Analisi del consulente salvate (le più recenti per prime). */
   aiReports?: SavedReport[];
+  /**
+   * Elementi eliminati: `${lista}:${id}` → data ISO della cancellazione, così
+   * l'unione con un altro dispositivo non li fa tornare (vedi merge.ts).
+   */
+  deleted?: Record<string, string>;
+  /** Elementi eliminati e poi ricreati con la stessa chiave: `${lista}:${id}` → data ISO. */
+  revived?: Record<string, string>;
 }
 
 export interface SavedReport {
@@ -291,7 +299,8 @@ export function saveTransaction(tx: Transaction, instrument?: Instrument) {
     }
     throw new SaveError(humanize((e as Error).message));
   }
-  setData({ ...base, instruments, transactions });
+  // Un movimento o un titolo ricreato dopo una cancellazione non deve sparire alla prossima unione.
+  setData(withRevived(withRevived({ ...base, instruments, transactions }, "transactions", [tx.id]), "instruments", needed ? [needed.isin] : []));
 }
 
 export function deleteTransaction(id: string) {
@@ -302,9 +311,11 @@ export function deleteTransaction(id: string) {
   } catch (e) {
     throw new SaveError(humanize((e as Error).message));
   }
-  // Rimuove gli strumenti non più usati da nessun movimento.
+  // Rimuove gli strumenti non più usati da nessun movimento (e lo ricorda, come per il movimento).
   const used = new Set(transactions.map((t) => t.isin));
-  setData({ ...current, transactions, instruments: current.instruments.filter((i) => used.has(i.isin)) });
+  const gone = current.instruments.filter((i) => !used.has(i.isin)).map((i) => i.isin);
+  const next = withTombstones(withTombstones(current, "transactions", [id]), "instruments", gone);
+  setData({ ...next, transactions, instruments: current.instruments.filter((i) => used.has(i.isin)) });
 }
 
 export function newId() {
@@ -319,13 +330,13 @@ function humanize(msg: string) {
 // ---- operazioni ricorrenti ----
 
 export function saveRecurring(plan: RecurringPlan) {
-  const base = editableBase();
+  const base = withRevived(editableBase(), "recurring", [plan.id]);
   const list = base.recurring ?? [];
   setData({ ...base, recurring: list.some((p) => p.id === plan.id) ? list.map((p) => (p.id === plan.id ? plan : p)) : [...list, plan] });
 }
 
 export function deleteRecurring(id: string) {
-  const base = getData();
+  const base = withTombstones(getData(), "recurring", [id]);
   setData({ ...base, recurring: (base.recurring ?? []).filter((p) => p.id !== id) });
 }
 
@@ -352,17 +363,17 @@ export function dismissAlert(id: string) {
 }
 
 export function saveReminder(r: Reminder) {
-  const base = editableBase();
+  const base = withRevived(editableBase(), "reminders", [r.id]);
   const list = base.reminders ?? [];
   setData({ ...base, reminders: list.some((x) => x.id === r.id) ? list.map((x) => (x.id === r.id ? r : x)) : [...list, r] });
 }
 
 export function deleteReminder(id: string) {
-  const base = getData();
+  const base = withTombstones(getData(), "reminders", [id]);
   setData({ ...base, reminders: (base.reminders ?? []).filter((r) => r.id !== id) });
 }
 
-/** Segna fatto: passa alla prossima ricorrenza o elimina se non si ripete. */
+/** Segna fatto: passa alla prossima ricorrenza o elimina (con segno di cancellazione) se non si ripete. */
 export function completeReminder(id: string) {
   const r = (getData().reminders ?? []).find((x) => x.id === id);
   if (!r) return;
@@ -410,24 +421,27 @@ export function saveProfile(profile: InvestorProfile) {
   patchData({ profile: { ...profile, updatedAt: new Date().toISOString() } });
 }
 
+// Le analisi oltre le 30 più recenti escono senza segno di cancellazione: merge tiene comunque solo le prime 30.
 export function saveReport(r: SavedReport) {
-  patchData({ aiReports: [r, ...(getData().aiReports ?? []).filter((x) => x.id !== r.id)].slice(0, 30) });
+  const base = withRevived(getData(), "aiReports", [r.id]);
+  patchData({ aiReports: [r, ...(base.aiReports ?? []).filter((x) => x.id !== r.id)].slice(0, 30), deleted: base.deleted, revived: base.revived });
 }
 
 export function deleteReport(id: string) {
-  patchData({ aiReports: (getData().aiReports ?? []).filter((x) => x.id !== id) });
+  const base = withTombstones(getData(), "aiReports", [id]);
+  patchData({ aiReports: (base.aiReports ?? []).filter((x) => x.id !== id), deleted: base.deleted, revived: base.revived });
 }
 
 // ---- regole e impostazioni delle notifiche ----
 
 export function saveRule(rule: AlertRule) {
-  const base = editableBase();
+  const base = withRevived(editableBase(), "alertRules", [rule.id]);
   const list = base.alertRules ?? [];
   setData({ ...base, alertRules: list.some((r) => r.id === rule.id) ? list.map((r) => (r.id === rule.id ? rule : r)) : [...list, rule] });
 }
 
 export function deleteRule(id: string) {
-  const base = getData();
+  const base = withTombstones(getData(), "alertRules", [id]);
   setData({ ...base, alertRules: (base.alertRules ?? []).filter((r) => r.id !== id) });
 }
 
@@ -445,13 +459,13 @@ function editableBase(): PortfolioData {
 }
 
 export function saveGoal(goal: Goal) {
-  const base = editableBase();
+  const base = withRevived(editableBase(), "goals", [goal.id]);
   const goals = base.goals ?? [];
   setData({ ...base, goals: goals.some((g) => g.id === goal.id) ? goals.map((g) => (g.id === goal.id ? goal : g)) : [...goals, goal] });
 }
 
 export function deleteGoal(id: string) {
-  const base = getData();
+  const base = withTombstones(getData(), "goals", [id]);
   setData({ ...base, goals: (base.goals ?? []).filter((g) => g.id !== id) });
 }
 
