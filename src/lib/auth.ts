@@ -40,10 +40,12 @@ export const authOptions: BetterAuthOptions = {
   secret: process.env.BETTER_AUTH_SECRET,
   database: pool,
   emailAndPassword: { enabled: true, minPasswordLength: 8, autoSignIn: true },
-  // La sessione viaggia anche in un cookie firmato valido 5 minuti: le API dei prezzi,
-  // chiamate spesso, la verificano senza interrogare il database. Un'uscita o una
-  // sessione revocata hanno quindi effetto sugli altri dispositivi entro 5 minuti.
-  session: { expiresIn: 60 * 60 * 24 * 60, updateAge: 60 * 60 * 24, cookieCache: { enabled: true, maxAge: 5 * 60 } },
+  // La sessione viaggia anche in un cookie firmato valido un'ora: le API dei prezzi,
+  // chiamate a ogni apertura di pagina, la verificano senza interrogare il database
+  // (altrimenti i grafici aspetterebbero il risveglio di Postgres). I dati personali
+  // leggono sempre il database (sessionUserId): un'uscita o una revoca lì valgono subito,
+  // mentre sulle sole API dei prezzi di un altro dispositivo entro un'ora.
+  session: { expiresIn: 60 * 60 * 24 * 60, updateAge: 60 * 60 * 24, cookieCache: { enabled: true, maxAge: 60 * 60 } },
   // Limiti sui tentativi salvati nel database: in memoria non funzionerebbero su Vercel
   // (ogni istanza ha i suoi contatori). L'IP è quello di x-forwarded-for, che Vercel riscrive.
   rateLimit: {

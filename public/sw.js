@@ -39,10 +39,8 @@ async function cacheFirst(req) {
   const hit = await cache.match(req);
   if (hit) return hit;
   const res = await fetch(req);
-  if (cacheable(res)) {
-    await cache.put(req, res.clone());
-    void trim(cache, 300);
-  }
+  // Senza attendere il salvataggio: la risposta va subito alla pagina.
+  if (cacheable(res)) void cache.put(req, res.clone()).then(() => trim(cache, 300), () => {});
   return res;
 }
 
