@@ -34,7 +34,8 @@ interface Props {
   noReference?: boolean;
   events?: ChartEvent[];
   /** Linea orizzontale etichettata (es. prezzo medio di carico). */
-  marker?: { value: number; label: string };
+  /** `pin`: non allarga la scala; se è fuori dal grafico resta agganciata al bordo, con una freccia. */
+  marker?: { value: number; label: string; pin?: boolean };
   onSelect?: (s: Selection | null) => void;
   loading?: boolean;
   /** Riga principale della bolla per un punto (default: valore formattato). */
@@ -90,7 +91,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
     if (showInvested) points.forEach((p) => p.invested !== undefined && vals.push(p.invested));
     const base = reference ?? points[0].value;
     vals.push(base);
-    if (marker) vals.push(marker.value);
+    if (marker && !marker.pin) vals.push(marker.value);
     compare?.forEach((v) => v !== null && Number.isFinite(v) && vals.push(v));
     band?.lo.forEach((v) => Number.isFinite(v) && vals.push(v));
     band?.hi.forEach((v) => Number.isFinite(v) && vals.push(v));
@@ -130,9 +131,14 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
             .map(([i, v]) => `L${x(i).toFixed(1)},${y(v).toFixed(1)}`)
             .join("")}Z`
         : null;
+    // Marcatore fuori scala: agganciato al bordo più vicino.
+    const markerOff = marker ? (marker.value > max ? 1 : marker.value < min ? -1 : 0) : 0;
+    const markerY = marker ? (markerOff > 0 ? 1 : markerOff < 0 ? H - 1 : y(marker.value)) : 0;
     return {
       x,
       y,
+      markerOff,
+      markerY,
       base,
       line,
       bandPath,
@@ -275,7 +281,7 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
         </defs>
 
         {!noReference && <line x1="0" x2={plotW} y1={geo.y(geo.base)} y2={geo.y(geo.base)} stroke="var(--mut)" strokeOpacity="0.6" strokeWidth="1.25" strokeDasharray="1 5" strokeLinecap="round" />}
-        {marker && <line x1="0" x2={plotW} y1={geo.y(marker.value)} y2={geo.y(marker.value)} stroke="var(--accent)" strokeOpacity="0.6" strokeDasharray="4 4" />}
+        {marker && <line x1="0" x2={plotW} y1={geo.markerY} y2={geo.markerY} stroke="var(--accent)" strokeOpacity="0.6" strokeDasharray="4 4" />}
 
         {geo.bandPath && <path key={`b-${drawKey}`} className="fade-in" d={geo.bandPath} fill={stroke} fillOpacity="0.13" />}
         {/* Area solo sull'intervallo selezionato */}
@@ -373,8 +379,9 @@ export function InteractiveChart({ points, height = 220, format, formatAxis, ref
         ))}
 
       {marker && !sel && (
-        <span className="pointer-events-none absolute left-3 rounded-lg bg-chip px-2 py-0.5 text-[11px] font-semibold text-ink-2" style={{ top: Math.min(H - 24, geo.y(marker.value) + 5) }}>
+        <span className="pointer-events-none absolute left-3 rounded-lg bg-chip px-2 py-0.5 text-[11px] font-semibold text-ink-2" style={{ top: Math.min(H - 24, geo.markerY + 5) }}>
           {marker.label}
+          {geo.markerOff > 0 ? " ↑" : geo.markerOff < 0 ? " ↓" : ""}
         </span>
       )}
 

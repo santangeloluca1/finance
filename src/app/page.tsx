@@ -113,7 +113,7 @@ function Panoramica({ view, filter, goto }: { view: View; filter: Filter; goto: 
         : liveCount
           ? " · in parte con ritardo fino a 15 min"
           : " · ritardo fino a 15 min";
-  const [range, setRange] = useState<Range>("1A");
+  const [range, setRange] = useState<Range>("1G");
   const [mode, setMode] = useState<ChartMode>("pct");
   // La scelta % / € si ricorda su questo dispositivo.
   useEffect(() => {

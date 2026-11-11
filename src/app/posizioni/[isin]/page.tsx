@@ -126,7 +126,7 @@ export default function PositionDetail() {
     ...(data.watchlist ?? []).filter((w) => w.ticker !== instrument.ticker).map((w) => ({ value: w.ticker, label: w.name })),
   ];
   const pmcMarker =
-    instrument.currency === "EUR" && qty > 0 && base && range !== "1G" ? { value: cost / qty / base - 1, label: `Il tuo prezzo medio ${fmtEur(cost / qty)}` } : undefined;
+    instrument.currency === "EUR" && qty > 0 && base ? { value: cost / qty / base - 1, label: `Il tuo prezzo medio ${fmtEur(cost / qty)}`, pin: range === "1G" } : undefined;
 
   return (
     <div>
