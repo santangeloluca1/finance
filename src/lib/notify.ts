@@ -16,7 +16,7 @@ export const AUTO_KINDS: { kind: AutoKind; label: string; hint: string }[] = [
   { kind: "portafoglio", label: "Movimenti del portafoglio", hint: "Quando l'intero portafoglio sale o scende più della soglia" },
   { kind: "minus", label: "Minus in scadenza", hint: "Minusvalenze che scadono entro la fine dell'anno prossimo" },
   { kind: "cedole", label: "Cedole in arrivo", hint: "Stacchi previsti nei prossimi 30 giorni" },
-  { kind: "ricorrenti", label: "Operazioni ricorrenti", hint: "Stipendio, bonifici e PAC da confermare, o bloccati per liquidità insufficiente" },
+  { kind: "ricorrenti", label: "Operazioni ricorrenti", hint: "Stipendio, bonifici e PAC da confermare (a borse chiuse, con i prezzi del giorno), o bloccati per liquidità insufficiente" },
   { kind: "promemoria", label: "Promemoria", hint: "I tuoi promemoria, la mattina del giorno" },
   { kind: "obiettivi", label: "Obiettivi raggiunti", hint: "Quando superi il traguardo di un obiettivo" },
   { kind: "quotazioni", label: "Quotazioni mancanti", hint: "Titoli senza prezzo aggiornato" },
@@ -234,7 +234,12 @@ export function isQuietTime(time: string) {
   return time >= "22:00" || time < "08:00";
 }
 
+/** Borse europee chiuse (17:30) e prezzi di chiusura arrivati. */
+export function isAfterClose(time: string) {
+  return time >= "17:45";
+}
+
 /** Il riepilogo parte nei giorni feriali dopo le 17:45, a borse europee chiuse. */
 export function isSummaryTime(clock: { time: string; weekday: string }) {
-  return !["Sat", "Sun"].includes(clock.weekday) && clock.time >= "17:45";
+  return !["Sat", "Sun"].includes(clock.weekday) && isAfterClose(clock.time);
 }

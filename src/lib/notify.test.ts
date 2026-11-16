@@ -165,6 +165,18 @@ describe("rate automatiche senza liquidità", () => {
     expect(ids({ ...base, recurring: [salary, plan] })).not.toContain("liquidita-bon:2026-11");
     expect(ids({ ...base, recurring: [{ ...plan, mode: "confirm" }] })).not.toContain("liquidita-bon:2026-11");
   });
+  it("la rata da confermare di oggi si notifica solo a borse chiuse", () => {
+    const push = (day: number, afterClose: boolean) => {
+      const d = { ...base, recurring: [{ ...plan, day, mode: "confirm" as const }] };
+      const st = buildPortfolio(d.transactions, []);
+      const totals = { value: 100, cost: 0, cash: 100, dayChange: 0, dayChangePct: 0 } as Totals;
+      return pushableAlerts(computeAlerts(d, st, [], totals, {}, "2026-11-06"), d, afterClose).map((a) => a.id);
+    };
+    expect(push(6, false)).toEqual([]);
+    expect(push(6, true)).toEqual(["ricorrenti-bon:2026-11-1"]);
+    // Scaduta nei giorni scorsi: i prezzi ci sono già, parte subito.
+    expect(push(5, false)).toEqual(["ricorrenti-bon:2026-11-1"]);
+  });
 });
 
 describe("saldo negativo", () => {

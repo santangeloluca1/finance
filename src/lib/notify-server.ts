@@ -4,7 +4,7 @@ import { totals as computeTotals, valuePositions, type Quotes } from "./analytic
 import { buildPortfolio } from "./engine/portfolio";
 import { getFxLatest } from "./market/fx";
 import { bestQuote } from "./market/sources";
-import { dailySummary, isQuietTime, isSummaryTime, romeClock, settingsOf } from "./notify";
+import { dailySummary, isAfterClose, isQuietTime, isSummaryTime, romeClock, settingsOf } from "./notify";
 import { ensurePushTables, sendToUser, type PushMessage } from "./push-server";
 import type { PortfolioData } from "./store";
 
@@ -66,7 +66,7 @@ async function runForUser(userId: string, clock: ReturnType<typeof romeClock>, f
   const views = valuePositions(state, data.instruments, quotes, fx);
   const totals = computeTotals(views, state);
 
-  const alerts = pushableAlerts(computeAlerts(data, state, views, totals, quotes, clock.date), data);
+  const alerts = pushableAlerts(computeAlerts(data, state, views, totals, quotes, clock.date), data, isAfterClose(clock.time));
   const candidates: (PushMessage & { id: string })[] = alerts.map((a) => ({ id: a.id, title: a.title, body: a.detail, url: a.href, tag: a.id }));
   if (settings.summary && isSummaryTime(clock)) {
     const s = dailySummary(views, totals, clock.date);
