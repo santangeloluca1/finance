@@ -19,6 +19,8 @@ export interface Alert {
   reminderId?: string;
   /** Presente se l'avviso nasce da una regola dell'utente. */
   ruleId?: string;
+  /** La notifica push aspetta la chiusura delle borse: serve il prezzo del giorno (nell'app si vede subito). */
+  waitClose?: boolean;
 }
 
 const eur = (n: number) => `${fmtN(Math.round(n))} €`;
@@ -150,6 +152,8 @@ export function computeAlerts(
             : `${estimate(one) ? `${estimate(one)} in uscita. ` : ""}Tocca per confermarlo.`
         : `${pending.map((o) => o.plan.label).join(", ")}.`,
       href: "/ricorrenti",
+      // Rata di oggi: la notifica parte a borse chiuse, quando i prezzi del giorno sono definitivi.
+      waitClose: pending[pending.length - 1].date >= today,
     });
   }
 
@@ -226,11 +230,14 @@ export function computeAlerts(
   return out.filter((a) => !dismissed.has(a.id));
 }
 
-/** Avvisi da inviare come notifica push secondo le impostazioni. */
-export function pushableAlerts(alerts: Alert[], data: PortfolioData) {
+/**
+ * Avvisi da inviare come notifica push secondo le impostazioni. Con le borse
+ * ancora aperte (`afterClose` falso) quelli che aspettano la chiusura restano fermi.
+ */
+export function pushableAlerts(alerts: Alert[], data: PortfolioData, afterClose = true) {
   const off = new Set(settingsOf(data.notify).off);
   const seen = new Set(data.alertsSeen ?? []);
-  return alerts.filter((a) => (a.kind === "regola" || !off.has(a.kind)) && !seen.has(a.id));
+  return alerts.filter((a) => (a.kind === "regola" || !off.has(a.kind)) && !seen.has(a.id) && (afterClose || !a.waitClose));
 }
 
 /** Avvisi che accendono la campanella: importanti e non ancora visti. */
