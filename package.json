@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "better-auth": "^1.7.18",
-    "lucide-react": "^1.70.0",
+    "better-auth": "^1.7.25",
+    "lucide-react": "^1.73.0",
     "next": "^15.5.29",
     "pg": "^8.23.1",
     "react": "^19.3.1",
