@@ -191,6 +191,16 @@ function PendingCard({ occ, first }: { occ: Occurrence; first: boolean }) {
   const [qty, setQty] = useState(estPrice && plan.budget ? String(pacQuantity(plan.budget, estPrice)) : "");
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  // Conto di spesa: con lo stipendio si inserisce anche il saldo, da cui si ricavano le spese.
+  const spendingDeposit = plan.kind === "deposit" && !!account?.spending;
+  const [balance, setBalance] = useState("");
+  const lastBalance = useMemo(
+    () =>
+      spendingDeposit
+        ? data.transactions.filter((t) => t.type === "cash" && t.account === plan.account).sort((a, b) => a.date.localeCompare(b.date)).at(-1)
+        : undefined,
+    [spendingDeposit, data.transactions, plan.account],
+  );
 
   // I prezzi storici arrivano dopo: la stima si compila appena c'è, se non hai già scritto.
   useEffect(() => {
@@ -204,7 +214,8 @@ function PendingCard({ occ, first }: { occ: Occurrence; first: boolean }) {
   const fxRate = ins && ins.currency !== "EUR" ? fx[ins.currency] : undefined;
   const total = plan.kind === "pac" ? (q * p) / (fxRate ?? 1) : num(amount);
   const available = state?.cash[plan.account]?.amount;
-  const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && (plan.kind === "pac" ? q > 0 && p > 0 && !!ins : num(amount) > 0);
+  const balanceOk = !balance.trim() || Number.isFinite(numOrNaN(balance));
+  const valid = /^\d{4}-\d{2}-\d{2}$/.test(date) && (plan.kind === "pac" ? q > 0 && p > 0 && !!ins : num(amount) > 0) && balanceOk;
 
   const confirm = () => {
     if (!valid) return;
@@ -216,6 +227,10 @@ function PendingCard({ occ, first }: { occ: Occurrence; first: boolean }) {
           : { id: newId(), date, account: plan.account, type: "deposit", isin: "", amount: num(amount), note: plan.label, plan: occ.id };
     try {
       saveTransaction(tx);
+      // Il saldo va dopo lo stipendio: a parità di data conta l'ordine di inserimento.
+      if (spendingDeposit && balance.trim()) {
+        saveTransaction({ id: newId(), date, account: plan.account, type: "cash", isin: "", amount: numOrNaN(balance), note: "Saldo aggiornato con lo stipendio" });
+      }
     } catch (e) {
       setError(e instanceof SaveError ? e.message : "Registrazione non riuscita.");
     }
@@ -256,6 +271,18 @@ function PendingCard({ occ, first }: { occ: Occurrence; first: boolean }) {
         ) : (
           <Field label={plan.kind === "deposit" ? "Importo ricevuto (€)" : "Importo (€)"}>
             <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" className={inputCls} />
+          </Field>
+        )}
+        {spendingDeposit && (
+          <Field
+            label={`Saldo di ${account?.name} adesso, stipendio incluso (€)`}
+            hint={
+              lastBalance
+                ? `Ultimo saldo: ${fmtEur(lastBalance.amount ?? 0)} il ${fmtDate(lastBalance.date, { day: "numeric", month: "long" })}. Dalla differenza si ricavano le spese del mese.`
+                : "Leggilo nell'app della banca: dal prossimo saldo si calcolano le spese del mese."
+            }
+          >
+            <input inputMode="decimal" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="Facoltativo" className={inputCls} />
           </Field>
         )}
       </div>
@@ -452,6 +479,14 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       {children}
     </div>
   );
+}
+
+/** Come num, ma accetta i negativi e distingue il campo vuoto (NaN). */
+function numOrNaN(v: string) {
+  const s = v.trim().replace(/\s|€/g, "").replace("−", "-");
+  if (!s) return NaN;
+  const n = Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 function num(v: string) {

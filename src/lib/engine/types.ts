@@ -13,6 +13,12 @@ export interface Account {
   name: string;
   /** Colore usato nei grafici e nei badge. */
   color: string;
+  /**
+   * Conto usato anche per le spese quotidiane: il saldo si aggiorna a mano
+   * (di solito con lo stipendio), non blocca gli acquisti e non segnala saldi
+   * negativi; tra due saldi si ricavano le spese (vedi spending.ts).
+   */
+  spending?: boolean;
 }
 
 export type AssetClass =

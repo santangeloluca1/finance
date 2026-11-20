@@ -121,7 +121,9 @@ export function portfolioHealth(views: PositionView[], totals: Totals, state: Po
   let liqScore = 25;
   const cashShare = totals.cashAvailable / total;
   const names = new Map(accounts.map((a) => [a.id, a.name]));
-  for (const n of totals.negativeCash) {
+  // Sui conti di spesa il saldo si aggiorna a mano: tra un aggiornamento e l'altro può andare sotto zero.
+  const spending = new Set(accounts.filter((a) => a.spending).map((a) => a.id));
+  for (const n of totals.negativeCash.filter((x) => !spending.has(x.account))) {
     liq.push({
       title: `Saldo negativo su ${names.get(n.account) ?? n.account}: ${eur(n.amount)}`,
       detail: "Mancano dei versamenti: gli acquisti superano la liquidità registrata. Aggiungi i versamenti o un saldo aggiornato.",

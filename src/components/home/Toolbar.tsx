@@ -6,6 +6,7 @@ import { Bell, Eye, EyeOff, Search, Settings } from "lucide-react";
 import { usePortfolioView, type Filter } from "@/components/PortfolioProvider";
 import { Analisi } from "@/components/home/Analisi";
 import { Prestazioni } from "@/components/home/Prestazioni";
+import { Spese } from "@/components/home/Spese";
 import { Salute } from "@/components/home/Salute";
 import { BankDot, Segmented, SelectButton } from "@/components/ui";
 import { ASSET_CLASS_LABEL } from "@/lib/analytics";
@@ -57,7 +58,7 @@ function AlertsBell({ view }: { view: View }) {
 }
 
 export function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
-  const [sub, setSub] = useState<"prestazioni" | "allocazione" | "salute">("prestazioni");
+  const [sub, setSub] = useState<"prestazioni" | "allocazione" | "salute" | "spese">("prestazioni");
   const txs = useMemo(() => {
     const assetOf = new Map(view.data.instruments.map((i) => [i.isin, i.assetClass]));
     return view.data.transactions.filter(
@@ -77,6 +78,7 @@ export function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
             { value: "prestazioni", label: "Prestazioni" },
             { value: "allocazione", label: "Allocazione" },
             { value: "salute", label: "Salute" },
+            { value: "spese", label: "Spese" },
           ]}
         />
       </div>
@@ -95,8 +97,11 @@ export function AnalisiTab({ view, filter }: { view: View; filter: Filter }) {
         />
       ) : sub === "allocazione" ? (
         <Analisi views={view.views} totals={view.totals} accounts={view.data.accounts} />
-      ) : (
+      ) : sub === "salute" ? (
         <Salute views={view.views} totals={view.totals} state={view.state} accounts={view.data.accounts} />
+      ) : (
+        // Le spese riguardano i conti di spesa, non i filtri del portafoglio: si usano tutti i movimenti.
+        <Spese accounts={view.data.accounts} transactions={view.data.transactions} recurring={view.data.recurring ?? []} isDemo={view.data.isDemo} />
       )}
     </div>
   );

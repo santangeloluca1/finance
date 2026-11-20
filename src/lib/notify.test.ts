@@ -165,6 +165,11 @@ describe("rate automatiche senza liquidità", () => {
     expect(ids({ ...base, recurring: [salary, plan] })).not.toContain("liquidita-bon:2026-11");
     expect(ids({ ...base, recurring: [{ ...plan, mode: "confirm" }] })).not.toContain("liquidita-bon:2026-11");
   });
+
+  it("non blocca il bonifico da un conto di spesa, dove il saldo è indicativo", () => {
+    const accounts = base.accounts.map((a) => (a.id === "f" ? { ...a, spending: true } : a));
+    expect(ids({ ...base, accounts, recurring: [plan] })).not.toContain("liquidita-bon:2026-11");
+  });
   it("la rata da confermare di oggi si notifica solo a borse chiuse", () => {
     const push = (day: number, afterClose: boolean) => {
       const d = { ...base, recurring: [{ ...plan, day, mode: "confirm" as const }] };
@@ -194,5 +199,20 @@ describe("saldo negativo", () => {
     const t = { ...totals, cash: -100, cashAvailable: 0, negativeCash: [{ account: "f", amount: -100 }] };
     const a = computeAlerts(d, st, [], t, {}, "2026-11-06").find((x) => x.kind === "dati");
     expect(a?.title).toBe("Fineco: saldo negativo");
+    // Su un conto di spesa il saldo si aggiorna a mano: nessun avviso.
+    const spending = { ...d, accounts: [{ ...d.accounts[0], spending: true }] };
+    expect(computeAlerts(spending, st, [], t, {}, "2026-11-06").some((x) => x.kind === "dati")).toBe(false);
+  });
+
+  it("con lo stipendio su un conto di spesa chiede anche il saldo", () => {
+    const d: PortfolioData = {
+      accounts: [{ id: "i", name: "Isybank", color: "#000", spending: true }],
+      instruments: [],
+      transactions: [],
+      recurring: [{ id: "sal", kind: "deposit", label: "Stipendio", day: 5, holiday: "same", account: "i", amount: 2000, since: "2026-11-01", active: true, mode: "confirm" }],
+      isDemo: false,
+    };
+    const a = computeAlerts(d, buildPortfolio([], []), [], totals, {}, "2026-11-06").find((x) => x.kind === "ricorrenti");
+    expect(a?.detail).toContain("aggiornare il saldo di Isybank");
   });
 });

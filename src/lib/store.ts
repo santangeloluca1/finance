@@ -289,7 +289,13 @@ export function saveTransaction(tx: Transaction, instrument?: Instrument) {
   const exists = base.transactions.some((t) => t.id === tx.id);
   const transactions = exists ? base.transactions.map((t) => (t.id === tx.id ? tx : t)) : [...base.transactions, tx];
   try {
-    buildPortfolio(transactions, instruments, { checkCashFor: tx.id });
+    try {
+      buildPortfolio(transactions, instruments, { checkCashFor: tx.id });
+    } catch (e) {
+      // Su un conto di spesa il saldo è indicativo: si controlla solo il resto.
+      if (!(e instanceof CashError && base.accounts.some((a) => a.id === e.account && a.spending))) throw e;
+      buildPortfolio(transactions, instruments);
+    }
   } catch (e) {
     if (e instanceof CashError) {
       const name = base.accounts.find((a) => a.id === e.account)?.name ?? e.account;
@@ -325,6 +331,14 @@ export function newId() {
 function humanize(msg: string) {
   if (msg.includes("quantità disponibile")) return "Stai vendendo più quote di quelle possedute su questo conto a quella data.";
   return msg;
+}
+
+// ---- conti ----
+
+/** Segna un conto come usato (o non più usato) anche per le spese quotidiane. */
+export function setSpendingAccount(id: string, spending: boolean) {
+  const base = editableBase();
+  setData({ ...base, accounts: base.accounts.map((a) => (a.id === id ? { ...a, spending: spending || undefined } : a)) });
 }
 
 // ---- operazioni ricorrenti ----
