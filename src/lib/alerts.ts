@@ -6,6 +6,7 @@ import type { PortfolioState } from "./engine/types";
 import type { PortfolioData } from "./store";
 import { isAuto, lastAmount, pacQuantity, pendingOccurrences, type Occurrence } from "./recurring";
 import { readRule, ruleAlert, settingsOf, type AutoKind } from "./notify";
+import { isSpendingAccount } from "./spending";
 
 export interface Alert {
   id: string;
@@ -79,7 +80,8 @@ export function computeAlerts(
   }
 
   // Saldo negativo: gli acquisti superano la liquidità registrata, mancano dei versamenti.
-  for (const n of totals.negativeCash ?? []) {
+  // Sui conti di spesa il saldo è indicativo fino al prossimo aggiornamento: niente avviso.
+  for (const n of (totals.negativeCash ?? []).filter((x) => !isSpendingAccount(data.accounts, x.account))) {
     const name = data.accounts.find((a) => a.id === n.account)?.name ?? n.account;
     out.push({
       id: `saldo-${n.account}-${Math.round(n.amount)}`,
@@ -146,7 +148,11 @@ export function computeAlerts(
         : `${pending.length} rate da confermare`,
       detail: one
         ? one.plan.kind === "deposit"
-          ? `${estimate(one) ? `Previsto ${estimate(one)}. ` : ""}Tocca per confermarlo.`
+          ? `${estimate(one) ? `Previsto ${estimate(one)}. ` : ""}${
+              isSpendingAccount(data.accounts, one.plan.account)
+                ? `Tocca per confermarlo e aggiornare il saldo di ${data.accounts.find((a) => a.id === one.plan.account)?.name ?? "conto"}: così si calcolano le spese del mese.`
+                : "Tocca per confermarlo."
+            }`
           : one.plan.kind === "pac"
             ? `${estimate(one) ? `Budget ${estimate(one)}. ` : ""}Tocca per inserire quote e prezzo.`
             : `${estimate(one) ? `${estimate(one)} in uscita. ` : ""}Tocca per confermarlo.`
@@ -180,7 +186,8 @@ export function computeAlerts(
         need = priceEur ? pacQuantity(p.budget ?? 0, priceEur) * priceEur : (p.budget ?? 0);
       }
       if (need <= 0) continue;
-      if (need > avail(p.account) + 0.005) {
+      // Su un conto di spesa il saldo registrato è indicativo: la rata non si considera bloccata.
+      if (need > avail(p.account) + 0.005 && !isSpendingAccount(data.accounts, p.account)) {
         const name = data.accounts.find((a) => a.id === p.account)?.name ?? p.account;
         out.push({
           id: `liquidita-${o.id}`,

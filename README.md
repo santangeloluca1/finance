@@ -21,6 +21,12 @@ simulatore di vendita.
   (per strumento o per broker), Dettaglio con simulatore, Fisco (riepilogo annuo,
   zainetto, suggerimenti per recuperare le minus, bollo e TER), Movimenti, operazioni
   ricorrenti, Avvisi, Impostazioni → Dati (backup, ripristino, versioni precedenti)
+- **Spese** (Analisi → Spese): sul conto che usi anche per le spese quotidiane non registri i
+  singoli pagamenti. Quando confermi lo stipendio inserisci anche il saldo del conto, e le spese
+  del mese vengono ricavate dalla differenza (`src/lib/spending.ts`): saldo precedente + entrate
+  − investito − saldo attuale. Per ogni mese vedi entrate, spese, soldi investiti (bonifici verso
+  altri conti e acquisti) e quanto è rimasto sul conto. Su questi conti il saldo è indicativo:
+  gli acquisti non vengono bloccati e non ci sono avvisi di saldo negativo
 - **PWA**: installabile sull'iPhone da Safari → Condividi → *Aggiungi alla schermata Home*;
   tema chiaro/scuro automatico; si apre anche offline con le schermate già visitate
 

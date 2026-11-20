@@ -137,6 +137,7 @@ function checkAccount(o: Obj, where: string) {
   f.str("id", "l'identificativo", { nonEmpty: true });
   f.str("name", "il nome");
   f.str("color", "il colore");
+  f.bool("spending", "il conto di spesa", { optional: true });
 }
 
 function checkGoal(o: Obj, where: string) {
