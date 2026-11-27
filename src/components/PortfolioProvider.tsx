@@ -16,6 +16,7 @@ import type { AssetClass, PortfolioState } from "@/lib/engine/types";
 import { getCurrentData, saveTransaction, setData, usePortfolio, useQuotes, type PortfolioData } from "@/lib/store";
 import { autoTransaction, isAuto, pendingOccurrences } from "@/lib/recurring";
 import { usePathname } from "next/navigation";
+import { dividendWatchlist, type DividendFeed } from "@/lib/dividends";
 import { useCloudSync } from "@/lib/sync";
 
 type Series = Record<string, [string, number][]>;
@@ -32,6 +33,8 @@ interface Ctx {
   priceSeries: Series;
   fxSeries: Series;
   historyReady: boolean;
+  /** Stacchi recenti dei titoli, per i dividendi da confermare (null finché non arrivano). */
+  dividends: { feed: DividendFeed; fx: FxRates } | null;
 }
 
 const PortfolioContext = createContext<Ctx | null>(null);
@@ -51,6 +54,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
   const series = useHistorySeries(data, onLogin);
   useTickerRepair(data, state, quotes, fetchedAt, loading);
   useAutoRecurring(data, series, onLogin);
+  const dividends = useDividendFeed(data, state, onLogin);
 
   return (
     <PortfolioContext.Provider
@@ -66,6 +70,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
         priceSeries: series?.prices ?? {},
         fxSeries: series?.fx ?? {},
         historyReady: series !== null,
+        dividends,
       }}
     >
       {children}
@@ -179,6 +184,32 @@ export function usePortfolioView(filter: Filter = ALL) {
   );
 
   return { ...ctx, state, views, totals, history };
+}
+
+/** Stacchi recenti dei titoli in portafoglio (o venduti da poco), una volta per sessione e lista di titoli. */
+function useDividendFeed(data: PortfolioData, state: PortfolioState | null, disabled: boolean) {
+  const [result, setResult] = useState<{ request: string; feed: DividendFeed; fx: FxRates } | null>(null);
+  const request = useMemo(() => {
+    if (disabled || data.isDemo || !state) return null;
+    const list = dividendWatchlist(data.transactions, data.instruments, state).map((i) => `${i.ticker}~${i.isin}`);
+    return list.length ? `/api/dividends?t=${encodeURIComponent([...new Set(list)].sort().join(","))}` : null;
+  }, [data.transactions, data.instruments, data.isDemo, state, disabled]);
+
+  useEffect(() => {
+    if (!request || result?.request === request) return;
+    let cancelled = false;
+    fetch(request)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { feed: DividendFeed; fx: FxRates } | null) => {
+        if (!cancelled && j?.feed) setResult({ request, feed: j.feed, fx: j.fx ?? {} });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [request, result?.request]);
+
+  return result ? { feed: result.feed, fx: result.fx } : null;
 }
 
 function useHistorySeries(data: PortfolioData, disabled = false) {

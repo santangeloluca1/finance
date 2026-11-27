@@ -21,14 +21,14 @@ const ICON = {
 const REPEAT_LABEL = { none: "Una volta", monthly: "Ogni mese", yearly: "Ogni anno" } as const;
 
 export default function Avvisi() {
-  const { data, state, views, totals, quotes } = usePortfolioView();
+  const { data, state, views, totals, quotes, dividends } = usePortfolioView();
   const [editing, setEditing] = useState<Reminder | null>(null);
   const [rule, setRule] = useState<AlertRule | null>(null);
   const push = usePush();
   const seen = useMemo(() => new Set(data.alertsSeen ?? []), [data.alertsSeen]);
 
   const alerts = useMemo(() => {
-    const all = state && totals ? computeAlerts(data, state, views, totals, quotes) : [];
+    const all = state && totals ? computeAlerts(data, state, views, totals, quotes, undefined, dividends ?? undefined) : [];
     // I titoli senza quotazione diventano un'unica riga.
     const stale = all.filter((a) => a.id.startsWith("stale-"));
     const rest = all.filter((a) => !a.id.startsWith("stale-"));
@@ -44,7 +44,7 @@ export default function Avvisi() {
         kind: "quotazioni",
       } satisfies Alert,
     ];
-  }, [data, state, views, totals, quotes]);
+  }, [data, state, views, totals, quotes, dividends]);
 
   // Aprendo la pagina gli avvisi diventano "visti": la campanella si spegne.
   const ids = alerts.map((a) => a.id).join(",");

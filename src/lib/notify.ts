@@ -9,13 +9,14 @@ import type { Instrument } from "./engine/types";
  */
 
 /** Categorie di avvisi automatici. */
-export type AutoKind = "minus" | "calo" | "portafoglio" | "cedole" | "ricorrenti" | "promemoria" | "obiettivi" | "quotazioni" | "dati";
+export type AutoKind = "minus" | "calo" | "portafoglio" | "cedole" | "dividendi" | "ricorrenti" | "promemoria" | "obiettivi" | "quotazioni" | "dati";
 
 export const AUTO_KINDS: { kind: AutoKind; label: string; hint: string }[] = [
   { kind: "calo", label: "Cali forti di un titolo", hint: "Quando un tuo titolo perde più della soglia in un giorno" },
   { kind: "portafoglio", label: "Movimenti del portafoglio", hint: "Quando l'intero portafoglio sale o scende più della soglia" },
   { kind: "minus", label: "Minus in scadenza", hint: "Minusvalenze che scadono entro la fine dell'anno prossimo" },
   { kind: "cedole", label: "Cedole in arrivo", hint: "Stacchi previsti nei prossimi 30 giorni" },
+  { kind: "dividendi", label: "Dividendi da confermare", hint: "Quando un tuo titolo paga il dividendo: conferma l'accredito netto, con le imposte già stimate" },
   { kind: "ricorrenti", label: "Operazioni ricorrenti", hint: "Stipendio, bonifici e PAC da confermare (a borse chiuse, con i prezzi del giorno), o bloccati per liquidità insufficiente" },
   { kind: "promemoria", label: "Promemoria", hint: "I tuoi promemoria, la mattina del giorno" },
   { kind: "obiettivi", label: "Obiettivi raggiunti", hint: "Quando superi il traguardo di un obiettivo" },
