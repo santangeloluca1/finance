@@ -58,11 +58,24 @@ function NuovoMovimento() {
 
   const [kind, setKind] = useState<Kind>((editing?.type as Kind) ?? (params.get("tipo") as Kind) ?? "buy");
   const [account, setAccount] = useState(editing?.account ?? params.get("conto") ?? data.accounts[0]?.id ?? "");
-  const [date, setDate] = useState(editing?.date ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(editing?.date ?? (/^\d{4}-\d{2}-\d{2}$/.test(params.get("data") ?? "") ? params.get("data")! : new Date().toISOString().slice(0, 10)));
+  // Dividendo da confermare (dalla notifica): lordo e ritenuta estera stimati, il netto va nel campo importo.
+  const [estimate] = useState(() => {
+    if (editing || params.get("tipo") !== "dividend") return null;
+    const gross = Number(params.get("lordo"));
+    const foreign = Number(params.get("estera") ?? 0);
+    if (!(gross > 0)) return null;
+    return { gross, foreign: foreign > 0 ? foreign : 0, quantity: Number(params.get("quote")) || 0, exDate: params.get("stacco") ?? "" };
+  });
   // "Registra un acquisto" dalla scheda di un titolo cercato: titolo e prezzo già compilati.
   const [prefill] = useState(() => {
     const t = params.get("t");
-    if (!t || editing) return null;
+    if (editing) return null;
+    if (!t) {
+      // Dal dividendo da confermare arriva solo l'ISIN di un titolo già in portafoglio.
+      const known = params.get("isin") ? data.instruments.find((i) => i.isin === params.get("isin")) : undefined;
+      return known ? { ins: known, isNew: false } : null;
+    }
     const isin = params.get("isin");
     const existing = data.instruments.find((i) => i.ticker === t || (isin && i.isin === isin));
     if (existing) return { ins: existing, isNew: false };
@@ -77,7 +90,7 @@ function NuovoMovimento() {
   const [totalInput, setTotalInput] = useState<string | null>(null);
   const [fees, setFees] = useState(editing?.fees?.toString().replace(".", ",") ?? "");
   const [fx, setFx] = useState(editing?.fxRate?.toString().replace(".", ",") ?? "");
-  const [amount, setAmount] = useState(editing?.amount?.toString().replace(".", ",") ?? "");
+  const [amount, setAmount] = useState(editing?.amount?.toString().replace(".", ",") ?? params.get("importo")?.replace(".", ",") ?? "");
   const [toAccount, setToAccount] = useState(editing?.toAccount ?? data.accounts.find((a) => a.id !== (editing?.account ?? params.get("conto") ?? data.accounts[0]?.id))?.id ?? "");
   const [note, setNote] = useState(editing?.note ?? (params.get("tipo") === "deposit" ? "Stipendio" : ""));
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +184,12 @@ function NuovoMovimento() {
       ...(kind === "buy" || kind === "sell"
         ? { quantity: q, price: p, fees: num(fees) || undefined, fxRate: currency === "EUR" ? undefined : num(fx) }
         : { amount: num(amount) }),
+      // Imposte trattenute: lordo stimato meno netto confermato (informativo).
+      ...(kind === "dividend" && estimate && num(amount) > 0 && num(amount) < estimate.gross
+        ? { taxWithheld: Math.round((estimate.gross - num(amount)) * 100) / 100 }
+        : kind === "dividend" && editing?.taxWithheld
+          ? { taxWithheld: editing.taxWithheld }
+          : {}),
       ...(note.trim() && (kind === "deposit" || kind === "withdrawal" || kind === "transfer") ? { note: note.trim() } : {}),
       ...(kind === "transfer" ? { toAccount } : {}),
       ...(editing?.plan ? { plan: editing.plan } : {}),
@@ -288,7 +307,10 @@ function NuovoMovimento() {
           </>
         )}
         {kind === "dividend" && (
-          <Field label="Importo netto accreditato (€)">
+          <Field
+            label="Importo netto accreditato (€)"
+            hint={estimate ? "Stima già al netto delle imposte: correggila con l'importo dell'estratto conto" : undefined}
+          >
             <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" className={inputCls} />
           </Field>
         )}
@@ -325,6 +347,31 @@ function NuovoMovimento() {
           Liquidità disponibile su {data.accounts.find((a) => a.id === account)?.name}: <span className="num">{fmtEur(available)}</span>
           {available < 0 && <span className="block font-semibold text-dn">Il saldo è negativo: registra prima i versamenti mancanti.</span>}
         </p>
+      )}
+
+      {kind === "dividend" && estimate && (
+        <div className="mx-4 mt-4 rounded-[16px] bg-panel px-4 py-3 text-[14px]">
+          <p className="pb-1.5 text-[12px] font-medium text-mut">
+            Stima{estimate.quantity ? ` su ${fmtNum(estimate.quantity)} azioni` : ""}
+            {estimate.exDate ? `, stacco del ${new Date(`${estimate.exDate}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}` : ""}
+          </p>
+          <div className="flex justify-between py-0.5">
+            <span className="text-ink-2">Lordo</span>
+            <span className="num">{fmtEur(estimate.gross)}</span>
+          </div>
+          {estimate.foreign > 0 && (
+            <div className="flex justify-between py-0.5">
+              <span className="text-ink-2">Ritenuta del Paese d&apos;origine</span>
+              <span className="num">−{fmtEur(estimate.foreign)}</span>
+            </div>
+          )}
+          {num(amount) > 0 && num(amount) < estimate.gross && (
+            <div className="flex justify-between py-0.5">
+              <span className="text-ink-2">{estimate.foreign > 0 ? "Imposta italiana" : "Imposte"}</span>
+              <span className="num">−{fmtEur(Math.max(0, estimate.gross - estimate.foreign - num(amount)))}</span>
+            </div>
+          )}
+        </div>
       )}
 
       {valid && !isCashKind(kind) && (

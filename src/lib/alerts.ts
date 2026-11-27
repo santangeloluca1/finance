@@ -1,6 +1,6 @@
 import { fmtN } from "./format";
 import type { PositionView, Quotes, Totals } from "./analytics";
-import { dividendsForYear } from "./dividends";
+import { dividendsForYear, pendingDividendHref, pendingDividends, type DividendFeed } from "./dividends";
 import { usableLosses } from "./engine/portfolio";
 import type { PortfolioState } from "./engine/types";
 import type { PortfolioData } from "./store";
@@ -34,6 +34,8 @@ export function computeAlerts(
   totals: Totals,
   quotes: Quotes = {},
   today = new Date().toISOString().slice(0, 10),
+  /** Stacchi recenti dei titoli e cambi delle loro valute, per i dividendi da confermare. */
+  dividends?: { feed: DividendFeed; fx: Record<string, number> },
 ): Alert[] {
   if (data.isDemo) return [];
   const out: Alert[] = [];
@@ -122,6 +124,24 @@ export function computeAlerts(
         title: `In arrivo circa ${eur(d.amount)} da ${ins?.shortName ?? ins?.name ?? d.isin}`,
         detail: `Intorno al ${new Date(`${d.date}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long" })}.`,
         href: "/#dividendi",
+      });
+    }
+  }
+
+  // Dividendi staccati e non ancora registrati: la notifica apre il movimento già compilato.
+  if (dividends) {
+    for (const d of pendingDividends(data.transactions, data.instruments, dividends.feed, dividends.fx, today)) {
+      const ins = instruments.get(d.isin);
+      const name = ins?.shortName ?? ins?.name ?? d.isin;
+      const many = data.accounts.length > 1 ? ` su ${data.accounts.find((a) => a.id === d.account)?.name ?? d.account}` : "";
+      const taxes = d.tax.foreign + d.tax.italian;
+      out.push({
+        id: d.id,
+        kind: "dividendi",
+        level: "attenzione",
+        title: `${name}: è arrivato il dividendo?`,
+        detail: `Circa ${fmtN(d.tax.net, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € netti${many} (lordo ${fmtN(d.tax.gross, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €, imposte ${fmtN(taxes, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €). Tocca per confermarlo.`,
+        href: pendingDividendHref(d),
       });
     }
   }
